@@ -1,10 +1,5 @@
-#!/usr/bin/env python
-import argparse
-import nmap
-from snimpy.manager import Manager as M
-from snimpy.manager import load
 import csv
-
+import paramiko
 
 def read_hosts(filename):
     with open(filename) as f:
@@ -44,6 +39,27 @@ def have_snmp(host):
     return snmp
 
 
+def check_ssh(self, ip, user, key_file, initial_wait=0, interval=0, retries=1):
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    sleep(initial_wait)
+
+    for x in range(retries):
+        try:
+            ssh.connect(ip, username=user, key_filename=key_file)
+            return True
+
+except (BadHostKeyException, AuthenticationException,
+        SSHException, socket.error) as e:
+print e
+sleep(interval)
+except Exception, e:
+print e
+sleep(interval)
+return False
+
+
 def write_to_csv(devices, filename):
     filename = filename.split("/")[0].replace(".", "_") + ".csv"
     with open(filename, 'wb') as discover_file:
@@ -55,7 +71,7 @@ def write_to_csv(devices, filename):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Discover info of network' +
-                                     'devices.')
+                                                 'devices.')
     parser.add_argument('inputfile', help='file with hosts to scan')
     parser.add_argument('outputfile', help='csv file to write devices info')
 
