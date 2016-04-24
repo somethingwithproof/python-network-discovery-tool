@@ -1,203 +1,102 @@
-import subprocess
-from snimpy.manager import Manager as M
-from snimpy.manager import load
-import paramiko
-import MySQLdb
-import socket
-from multiprocessing import Pool
-from enum import Enum
+#!/usr/bin/env python
+import argparse
+import database
+import logging
+import math
+from devices import test_ssh, test_ping, ScanTypes
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-USER = 'zenossmon'
-KEY_FILE = '/home/thomas/.ssh/id_rsa.pub'
+logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s',
+                    datefmt='%d/%m/%Y %I:%M:%S %p',
+                    filename='discover.log',
+                    level=logging.DEBUG)
 
+DATABASE = 'devices.db'
+MAX_WORKERS = 10
 
-class ScanTypes(Enum):
-    ping = 1
-    snmp = 2
-    ssh = 3
-    mysql = 4
+def check_params():
+    parser = argparse.ArgumentParser(description='Discover info of network' +
+                                                 'devices.')
+    parser.add_argument('inputfile', help='excel file with hosts to scan')
 
-class DeviceScanResult:
-    def __init__(self, device_id, scan_type, errors):
-        self.device_id = device_id
-        self.scan_type = scan_type
-        self.errors = errors
+    return parser.parse_args()
 
 
-class PingScanResult(DeviceScanResult):
-    def __init__(self, device_id, output, errors):
-        super().__init__(device_id, ScanTypes.ping, errors)
-        self.output = output
+def how_many_workers(items):
+    if len(items) < MAX_WORKERS:
+        workers = len(items)
+    else:
+        workers = MAX_WORKERS
+
+    return workers
 
 
-class SSHScanResult(DeviceScanResult):
-    def __init__(self, device_id, uname, errors):
-        super().__init__(device_id, ScanTypes.ssh, errors)
-        self.uname = uname
+def get_intervals(items, workers):
+    max_devices = int(math.ceil(len(items) / float(workers)))
+
+    return [items[x:x+max_devices] for x in range(0, len(items), max_devices)]
 
 
-def test_ping(device):
-    errors = []
-    try:
-        output = subprocess.check_output(
-            "ping -c 1 -w 20 {}".format(device.host), shell=True)
-    except subprocess.CalledProcessError as e:
-        errors.append("(ping) " + str(e))
-    finally:
-        return PingScanResult(device.id, output, errors)
+def scan(devices):
+    logging.info("Starting worker to process {} devices".format(len(devices)))
+    device_dict = {device.id:device for device in devices}
+    
+    futures = []
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        # Dispatch all of the tests
+        for device in devices:
+            logging.info("Scanning device: {}".format(device))
+            # device.scan()
+            futures.append(executor.submit(test_ping, device))
+            futures.append(executor.submit(test_ssh, device))
+            # logging.info("Scanning result for device: {}".format(device))
+            # lock.acquire()
+            # database.update_device(DATABASE, device)
+            # lock.release()
+        
+        # As results come in, update the device objects
+        for future in as_completed(futures):
+            result = future.result()
+            update_device(result, device_dict[result.device_id])
+            
+def update_device(result, device):
+    if (result.type == ScanTypes.ping):
+        device.alive = not result.errors
+    if (result.type == ScanTypes.ssh):
+        device.ssh = not result.errors
+    device.errors = result.errors
 
+if __name__ == "__main__":
+    args = check_params()
 
-def test_ssh(device):
-    errors = []
-    ssh = paramiko.SSHClient()
-    ssh.load_host_keys(KEY_FILE)
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    try:
-        ssh.connect(device.host, username=USER, timeout=3)
-        _, stdout, _ = ssh.exec_command('uname -a')
-        uname = stdout.read()
-    except paramiko.AuthenticationException as e:
-        errors.append("(ssh) " + str(e))
-    except paramiko.SSHException as e:
-        errors.append("(ssh) " + str(e))
-    except socket.error as e:
-        errors.append("(ssh) " + str(e))
-    finally:
-        return SSHScanResult(device.id, uname, errors)
+    logging.info("Create database")
+    database.create(DATABASE)
+    logging.info("Import excel to database")
+    database.import_excel(DATABASE, args.inputfile)
+    logging.info("Read devices for database")
+    devices = database.get_all_devices(DATABASE)
 
+    workers = how_many_workers(devices)
+    intervals = get_intervals(devices, workers)
 
-class Device:
+    # start workers
+    threads = list()
+    for interval in intervals:
+        t = threading.Thread(target=scan, args=(interval,))
+        threads.append(t)
+        t.start()
 
-    def __init__(self, id, host, ip, snmp_group,
-                 alive=False, snmp=False, ssh=False, errors="", mysql=False,
-                 mysql_user='', mysql_password='', uname="", scanned=False):
-        self.id = id
-        self.host = host
-        self.ip = ip
-        if snmp_group != "":
-            self.snmp_group = snmp_group
-        else:
-            self.snmp_group = "public"
-        self.alive = alive == 1
-        self.snmp = snmp == 1
-        self.ssh = ssh == 1
-        self.errors = errors
-        self.mysql = mysql == 1
-        self.mysql_user = mysql_user
-        self.mysql_password = mysql_password
-        self.uname = uname
-        self.scanned = scanned
+    # wait for all workers
+    logging.info("Waiting for all workers")
+    for t in threads:
+        t.join()
 
-    def scan(self, lock=None):
-        self.is_alive(lock)
-        self.has_snmp(lock)
-        self.has_ssh(lock)
-        if self.mysql_user != "" and self.mysql_user is not None:
-            self.has_mysql(lock)
-        self.scanned = True
+    logging.info("All workers are done")
 
-    def has_error(self, msg):
-        if self.errors == "" or self.errors is None:
-            self.errors = msg
-        else:
-            self.errors = self.errors + ", " + msg
+    # Exporting data
+    devices = database.get_all_devices(DATABASE)
+    logging.info("Exporting to excel")
+    database.export_excel(devices)
 
-    def is_alive(self, lock=None):
-        alive = False
-        try:
-            if lock is not None:
-                lock.acquire()
-            output = subprocess.check_output(
-                "ping -c 1 -w 20 {}".format(self.host), shell=True)
-            if lock is not None:
-                lock.release()
-            alive = True
-        except subprocess.CalledProcessError as e:
-            self.has_error("(ping) " + e.message)
-            alive = False
-
-        self.alive = alive
-
-    def has_ssh(self, lock=None):
-        result = False
-        ssh = paramiko.SSHClient()
-        ssh.load_host_keys(KEY_FILE)
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        try:
-            if lock is not None:
-                lock.acquire()
-            ssh.connect(self.host, username=USER, timeout=3)
-            stdin, stdout, stderr = ssh.exec_command('uname -a')
-            self.uname = stdout.read()
-            if lock is not None:
-                lock.release()
-            self.ssh = True
-            result = True
-        except paramiko.SSHException as e:
-            self.has_error("(ssh) ", e.message)
-        except paramiko.AuthenticationException as e:
-            self.has_error("(ssh) " + e.message)
-        except socket.error as e:
-            self.has_error("(ssh) " + e.message)
-        finally:
-            self.ssh = result
-
-    def has_snmp(self, lock=None):
-        load("SNMPv2-MIB")
-        self.snmp = False
-        try:
-            if lock is not None:
-                lock.acquire()
-            m = M(host=self.host, community=self.snmp_group,
-                  version=2, timeout=2)
-            if m.sysName is not None:
-                self.snmp = True
-            if lock is not None:
-                lock.release()
-        except Exception as e:
-            self.has_error("(snmp) " + e.message)
-            self.snmp = False
-
-    def has_mysql(self, lock=None):
-        try:
-            if lock is not None:
-                lock.acquire()
-            db = MySQLdb.connect(
-                self.host, self.mysql_user, self.mysql_password)
-            cursor = db.cursor()
-            cursor.execute("SELECT VERSION()")
-            results = cursor.fetchone()
-            if lock is not None:
-                lock.release()
-            # Check if anything at all is returned
-            if results:
-                self.mysql = True
-            else:
-                self.mysql = False
-        except MySQLdb.Error as e:
-            self.has_error("(mysql) " + e.message)
-            self.mysql = False
-        finally:
-            db.close()
-
-    def to_dict(self):
-        device_dict = {
-            "id":             self.id,
-            "host":           self.host,
-            "ip":             self.ip,
-            "snmp_group":     self.snmp_group,
-            "alive":          self.alive,
-            "snmp":           self.snmp,
-            "ssh":            self.ssh,
-            "mysql_user":     self.mysql_user,
-            "mysql_password": self.mysql_password,
-            "uname":          self.uname,
-            "scanned":        self.scanned
-        }
-        return device_dict
-
-    def __repr__(self):
-        return "{0} ({1})".format(self.host, self.ip)
-
-    def __str__(self):
-        return str(self.to_dict())
+    logging.info("Updating input")
+    database.update_excel(args.inputfile, devices)
