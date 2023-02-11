@@ -1,5 +1,9 @@
 import csv
 import paramiko
+import argparse
+import socket
+from time import sleep
+import nmap
 
 def read_hosts(filename):
     with open(filename) as f:
@@ -39,7 +43,7 @@ def have_snmp(host):
     return snmp
 
 
-def check_ssh(self, ip, user, key_file, initial_wait=0, interval=0, retries=1):
+def check_ssh(ip, user, key_file, initial_wait=0, interval=0, retries=1):
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
@@ -49,20 +53,19 @@ def check_ssh(self, ip, user, key_file, initial_wait=0, interval=0, retries=1):
         try:
             ssh.connect(ip, username=user, key_filename=key_file)
             return True
-
-except (BadHostKeyException, AuthenticationException,
-        SSHException, socket.error) as e:
-print e
-sleep(interval)
-except Exception, e:
-print e
-sleep(interval)
-return False
+        except (BadHostKeyException, AuthenticationException,
+                SSHException, socket.error) as e:
+            print(e)
+            sleep(interval)
+        except Exception as e:
+            print(e)
+            sleep(interval)
+    return False
 
 
 def write_to_csv(devices, filename):
     filename = filename.split("/")[0].replace(".", "_") + ".csv"
-    with open(filename, 'wb') as discover_file:
+    with open(filename, 'w', newline='') as discover_file:
         fieldnames = ["name", "state", "snmp", "ssh"]
         writer = csv.DictWriter(discover_file, fieldnames=fieldnames)
         writer.writeheader()
@@ -70,8 +73,7 @@ def write_to_csv(devices, filename):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Discover info of network' +
-                                                 'devices.')
+    parser = argparse.ArgumentParser(description='Discover info of network devices.')
     parser.add_argument('inputfile', help='file with hosts to scan')
     parser.add_argument('outputfile', help='csv file to write devices info')
 
