@@ -1,55 +1,54 @@
-.PHONY: clean-pyc clean-build docs
+# Variables
+PROJECT_NAME := auto-discover
+VENV_NAME := $(PROJECT_NAME)-venv
 
-open := $(shell { which xdg-open || which open; } 2>/dev/null)
+# Targets
+.PHONY: clean-pyc clean-build clean-venv docs test lint
 
 help:
-		@echo "Please use \`make <target>' where <target> is one of"
-			@echo "  clean-build   to remove build artifacts"
-				@echo "  clean-pyc     to remove Python file artifacts"
-					@echo "  lint          to check style with flake8"
-						@echo "  test          to run tests quickly with the default Python"
-							@echo "  testall       to run tests on every Python version with tox"
-								@echo "  coverage      to check code coverage quickly with the default Python"
-									@echo "  docs          to generate Sphinx HTML documentation, including API docs"
-										@echo "  release       to package and upload a release"
-											@echo "  sdist         to package"
+	@echo "Please use \`make <target>' where <target> is one of"
+	@echo "  clean-build   to remove build artifacts"
+	@echo "  clean-pyc     to remove Python file artifacts"
+	@echo "  clean-venv    to remove the virtual environment"
+	@echo "  lint          to check style with flake8"
+	@echo "  test          to run tests"
+	@echo "  docs          to generate Sphinx HTML documentation, including API docs"
 
-clean: clean-build clean-pyc
+clean: clean-build clean-pyc clean-venv
 
 clean-build:
-		rm -fr build/
-			rm -fr dist/
-				rm -fr *.egg-info
+	rm -rf build/
+	rm -rf dist/
+	rm -rf *.egg-info
 
 clean-pyc:
-		find . -name '*.pyc' -type f -exec rm -f {} +
-			find . -name '*.pyo' -type f -exec rm -f {} +
-				find . -name '*~' -type f -exec rm -f {} +
-					find . -name '__pycache__' -type d -exec rm -rf {} +
+	find . -name '*.pyc' -delete
+	find . -name '*.pyo' -delete
+	find . -name '*~' -delete
+	find . -name '__pycache__' -delete
+
+clean-venv:
+	rm -rf $(VENV_NAME)
 
 lint:
-		flake8 auto-discover tests
+	flake8 auto-discover tests
 
 test:
-		python -m nose
-
-test-all:
-		tox
-
-coverage:
-		coverage run --source auto-discover setup.py test
-			coverage report -m
-				coverage html
-					$(open) htmlcov/index.html
+	python -m unittest discover
 
 docs:
-		$(MAKE) -C docs clean
-			$(MAKE) -C docs html
-				$(open) docs/_build/html/index.html
+	rm -f docs/$(PROJECT_NAME).rst
+	rm -f docs/modules.rst
+	sphinx-apidoc -o docs/ auto-discover
+	$(MAKE) -C docs clean
+	$(MAKE) -C docs html
+	$(open) docs/_build/html/index.html
 
-release: clean
-		python setup.py sdist upload
+# Development targets
+venv:
+	python3 -m venv $(VENV_NAME)
+	$(VENV_NAME)/bin/pip install -U pip
+	$(VENV_NAME)/bin/pip install -r requirements.txt
 
-sdist: clean
-		python setup.py sdist
-			ls -l dist
+venv-dev: venv
+	$(VENV_NAME)/bin/pip install -r requirements-dev.txt
