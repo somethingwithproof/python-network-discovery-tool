@@ -1,29 +1,25 @@
 import openpyxl
-import datetime
+from datetime import date
+from typing import List
+
 from device import Device
 import mail
 
 
-def today():
-    return str(datetime.date.today())
-
-
-def import_from_excel(spreadsheet):
-    # open xls and get input sheet
+def import_from_excel(spreadsheet: str) -> List[Device]:
+    # Open spreadsheet and get input sheet
     wb = openpyxl.load_workbook(spreadsheet)
-    sheets = wb.get_sheet_names()
-
-    sheet = wb.get_sheet_by_name(sheets[0])
+    sheet = wb.active
 
     devices = []
 
     for row in range(2, sheet.max_row + 1):
         # Each row in the spreadsheet has data for one device.
-        host = sheet['A' + str(row)].value
-        ip = sheet['C' + str(row)].value
-        snmp_group = sheet['D' + str(row)].value
-        mysql_user = sheet['I' + str(row)].value
-        mysql_password = sheet['J' + str(row)].value
+        host = sheet[f'A{row}'].value
+        ip = sheet[f'C{row}'].value
+        snmp_group = sheet[f'D{row}'].value
+        mysql_user = sheet[f'I{row}'].value
+        mysql_password = sheet[f'J{row}'].value
 
         device = Device(row - 1, host, ip, snmp_group,
                         mysql_user=mysql_user, mysql_password=mysql_password)
@@ -34,22 +30,19 @@ def import_from_excel(spreadsheet):
 
 def assign_open_closed(sheet, column, row, value):
     if value:
-        sheet[column + str(row)] = 'open'
+        sheet[f'{column}{row}'] = 'open'
     else:
-        sheet[column + str(row)] = 'closed'
+        sheet[f'{column}{row}'] = 'closed'
 
 
-def export_to_excel(devices, spreadsheet=None):
+def export_to_excel(devices: List[Device], spreadsheet: str = None):
     if spreadsheet is None:
         wb = openpyxl.Workbook()
-        sheets = wb.get_sheet_names()
-
-        sheet = wb.get_sheet_by_name(sheets[0])
+        sheet = wb.active
     else:
         wb = openpyxl.load_workbook(spreadsheet)
-        wb.create_sheet(title=today() + '_check')
-
-        sheet = wb.get_sheet_by_name(today() + '_check')
+        sheet_name = f'{date.today().isoformat()}_check'
+        sheet = wb.create_sheet(title=sheet_name)
 
     sheet['A1'] = 'name'
     sheet['B1'] = 'managementip'
@@ -60,24 +53,24 @@ def export_to_excel(devices, spreadsheet=None):
     sheet['G1'] = 'errors'
 
     for idx, device in enumerate(devices):
-        sheet['A' + str(idx + 2)] = device.host
-        sheet['B' + str(idx + 2)] = device.ip
+        sheet[f'A{idx + 2}'] = device.host
+        sheet[f'B{idx + 2}'] = device.ip
 
         if device.alive:
-            sheet['C' + str(idx + 2)] = 'up'
+            sheet[f'C{idx + 2}'] = 'up'
         else:
-            sheet['C' + str(idx + 2)] = 'down'
+            sheet[f'C{idx + 2}'] = 'down'
 
         assign_open_closed(sheet, 'D', idx + 2, device.snmp)
         assign_open_closed(sheet, 'E', idx + 2, device.ssh)
         assign_open_closed(sheet, 'F', idx + 2, device.mysql)
 
-        sheet['G' + str(idx + 2)] = device.errors
+        sheet[f'G{idx + 2}'] = device.errors
 
-    wb.save(today() + '_check.xlsx')
+    wb.save(f'{date.today().isoformat()}_check.xlsx')
 
     if spreadsheet is not None:
         try:
-            mail.send(today() + '_check.xlsx')
-        except:
-            print "Error sending mail(s)"
+            mail.send(f'{date.today().isoformat()}_check.xlsx')
+        except Exception as e:
+            print(f'Error sending email: {e}')
