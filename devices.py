@@ -1,203 +1,128 @@
-import subprocess
-from snimpy.manager import Manager as M
-from snimpy.manager import load
-import paramiko
-import MySQLdb
-import socket
-from multiprocessing import Pool
+import argparse
+import logging
+import asyncio
+import asyncssh
+import aiomysql
 from enum import Enum
+from pathlib import Path
+from pysnmp.hlapi.asyncio import getCmd, CommunityData, UdpTransportTarget, ObjectType, ObjectIdentity
 
 USER = 'zenossmon'
-KEY_FILE = '/home/thomas/.ssh/id_rsa.pub'
-
+KEY_FILE = Path('/home/thomas/.ssh/id_rsa.pub')
 
 class ScanTypes(Enum):
+    """Enumeration for different types of network scans."""
     ping = 1
     snmp = 2
     ssh = 3
     mysql = 4
 
-class DeviceScanResult:
-    def __init__(self, device_id, scan_type, errors):
-        self.device_id = device_id
-        self.scan_type = scan_type
-        self.errors = errors
-
-
-class PingScanResult(DeviceScanResult):
-    def __init__(self, device_id, output, errors):
-        super().__init__(device_id, ScanTypes.ping, errors)
-        self.output = output
-
-
-class SSHScanResult(DeviceScanResult):
-    def __init__(self, device_id, uname, errors):
-        super().__init__(device_id, ScanTypes.ssh, errors)
-        self.uname = uname
-
-
-def test_ping(device):
-    errors = []
-    try:
-        output = subprocess.check_output(
-            "ping -c 1 -w 20 {}".format(device.host), shell=True)
-    except subprocess.CalledProcessError as e:
-        errors.append("(ping) " + str(e))
-    finally:
-        return PingScanResult(device.id, output, errors)
-
-
-def test_ssh(device):
-    errors = []
-    ssh = paramiko.SSHClient()
-    ssh.load_host_keys(KEY_FILE)
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    try:
-        ssh.connect(device.host, username=USER, timeout=3)
-        _, stdout, _ = ssh.exec_command('uname -a')
-        uname = stdout.read()
-    except paramiko.AuthenticationException as e:
-        errors.append("(ssh) " + str(e))
-    except paramiko.SSHException as e:
-        errors.append("(ssh) " + str(e))
-    except socket.error as e:
-        errors.append("(ssh) " + str(e))
-    finally:
-        return SSHScanResult(device.id, uname, errors)
-
-
 class Device:
-
-    def __init__(self, id, host, ip, snmp_group,
-                 alive=False, snmp=False, ssh=False, errors="", mysql=False,
-                 mysql_user='', mysql_password='', uname="", scanned=False):
+    """Represents a network device and supports asynchronous scanning for various services."""
+    def __init__(self, id, host, ip, snmp_group='public', alive=False, snmp=False,
+                 ssh=False, mysql=False, mysql_user='', mysql_password='', uname="", scanned=False):
+        """Initialize the device with basic information and scan status."""
         self.id = id
         self.host = host
         self.ip = ip
-        if snmp_group != "":
-            self.snmp_group = snmp_group
-        else:
-            self.snmp_group = "public"
-        self.alive = alive == 1
-        self.snmp = snmp == 1
-        self.ssh = ssh == 1
-        self.errors = errors
-        self.mysql = mysql == 1
+        self.snmp_group = snmp_group
+        self.alive = alive
+        self.snmp = snmp
+        self.ssh = ssh
+        self.mysql = mysql
         self.mysql_user = mysql_user
         self.mysql_password = mysql_password
         self.uname = uname
         self.scanned = scanned
+        self.errors = []
 
-    def scan(self, lock=None):
-        self.is_alive(lock)
-        self.has_snmp(lock)
-        self.has_ssh(lock)
-        if self.mysql_user != "" and self.mysql_user is not None:
-            self.has_mysql(lock)
+    def add_error(self, msg):
+        """Append an error message to the device's list of errors."""
+        self.errors.append(msg)
+
+    async def scan(self):
+        """Perform asynchronous scans for ping, SSH, SNMP, and optionally MySQL if credentials are provided."""
+        tasks = [self.ping(), self.check_ssh(), self.check_snmp()]
+        if self.mysql_user:
+            tasks.append(self.check_mysql())
+        await asyncio.gather(*tasks)
         self.scanned = True
 
-    def has_error(self, msg):
-        if self.errors == "" or self.errors is None:
-            self.errors = msg
-        else:
-            self.errors = self.errors + ", " + msg
-
-    def is_alive(self, lock=None):
-        alive = False
+    async def ping(self):
+        """Asynchronously perform a ping test and update the alive status."""
         try:
-            if lock is not None:
-                lock.acquire()
-            output = subprocess.check_output(
-                "ping -c 1 -w 20 {}".format(self.host), shell=True)
-            if lock is not None:
-                lock.release()
-            alive = True
-        except subprocess.CalledProcessError as e:
-            self.has_error("(ping) " + e.message)
-            alive = False
-
-        self.alive = alive
-
-    def has_ssh(self, lock=None):
-        result = False
-        ssh = paramiko.SSHClient()
-        ssh.load_host_keys(KEY_FILE)
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        try:
-            if lock is not None:
-                lock.acquire()
-            ssh.connect(self.host, username=USER, timeout=3)
-            stdin, stdout, stderr = ssh.exec_command('uname -a')
-            self.uname = stdout.read()
-            if lock is not None:
-                lock.release()
-            self.ssh = True
-            result = True
-        except paramiko.SSHException as e:
-            self.has_error("(ssh) ", e.message)
-        except paramiko.AuthenticationException as e:
-            self.has_error("(ssh) " + e.message)
-        except socket.error as e:
-            self.has_error("(ssh) " + e.message)
-        finally:
-            self.ssh = result
-
-    def has_snmp(self, lock=None):
-        load("SNMPv2-MIB")
-        self.snmp = False
-        try:
-            if lock is not None:
-                lock.acquire()
-            m = M(host=self.host, community=self.snmp_group,
-                  version=2, timeout=2)
-            if m.sysName is not None:
-                self.snmp = True
-            if lock is not None:
-                lock.release()
-        except Exception as e:
-            self.has_error("(snmp) " + e.message)
-            self.snmp = False
-
-    def has_mysql(self, lock=None):
-        try:
-            if lock is not None:
-                lock.acquire()
-            db = MySQLdb.connect(
-                self.host, self.mysql_user, self.mysql_password)
-            cursor = db.cursor()
-            cursor.execute("SELECT VERSION()")
-            results = cursor.fetchone()
-            if lock is not None:
-                lock.release()
-            # Check if anything at all is returned
-            if results:
-                self.mysql = True
+            result = await asyncio.create_subprocess_shell(
+                f"ping -c 1 -w 20 {self.host}",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE)
+            stdout, stderr = await result.communicate()
+            if result.returncode == 0:
+                self.alive = True
             else:
-                self.mysql = False
-        except MySQLdb.Error as e:
-            self.has_error("(mysql) " + e.message)
-            self.mysql = False
-        finally:
-            db.close()
+                self.add_error(f'Ping failed: {stderr.decode().strip()}')
+        except Exception as e:
+            self.add_error(f'Ping exception: {str(e)}')
 
-    def to_dict(self):
-        device_dict = {
-            "id":             self.id,
-            "host":           self.host,
-            "ip":             self.ip,
-            "snmp_group":     self.snmp_group,
-            "alive":          self.alive,
-            "snmp":           self.snmp,
-            "ssh":            self.ssh,
-            "mysql_user":     self.mysql_user,
-            "mysql_password": self.mysql_password,
-            "uname":          self.uname,
-            "scanned":        self.scanned
-        }
-        return device_dict
+    async def check_ssh(self):
+        """Asynchronously check SSH availability and retrieve system information via uname."""
+        try:
+            async with asyncssh.connect(self.host, username=USER, client_keys=[KEY_FILE], known_hosts=None) as conn:
+                result = await conn.run('uname -a', check=True)
+                self.uname = result.stdout.strip()
+                self.ssh = True
+        except (asyncssh.Error, asyncio.TimeoutError) as e:
+            self.add_error(f'SSH error: {str(e)}')
 
-    def __repr__(self):
-        return "{0} ({1})".format(self.host, self.ip)
+    async def check_snmp(self):
+        """Asynchronously check SNMP status by querying the system name."""
+        error_indication, error_status, error_index, var_binds = await getCmd(
+            CommunityData(self.snmp_group, mpModel=1),
+            UdpTransportTarget((self.host, 161)),
+            ObjectType(ObjectIdentity('SNMPv2-MIB', 'sysName', 0))
+        )
+        if error_indication:
+            self.add_error(f'SNMP error: {error_indication}')
+        elif error_status:
+            self.add_error(f'SNMP error: {error_status}')
+        else:
+            self.snmp = True
+
+    async def check_mysql(self):
+        """Asynchronously check MySQL availability by attempting to connect and query the server version."""
+        try:
+            conn = await aiomysql.connect(host=self.host, user=self.mysql_user, password=self.mysql_password, db='mysql')
+            async with conn.cursor() as cur:
+                await cur.execute("SELECT VERSION()")
+                version = await cur.fetchone()
+                if version:
+                    self.mysql = True
+            conn.close()
+        except aiomysql.Error as e:
+            self.add_error(f'MySQL error: {str(e)}')
 
     def __str__(self):
-        return str(self.to_dict())
+        return f"{self.host} ({self.ip}) - Scanned: {self.scanned}"
+
+def setup_logging():
+    """Configure basic logging for the application."""
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def parse_arguments():
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description='Network Device Discovery Tool')
+    parser.add_argument('inputfile', type=Path, help='Path to the input file containing device details')
+    return parser.parse_args()
+
+async def main():
+    """Main function to orchestrate device discovery based on input specifications."""
+    setup_logging()
+    args = parse_arguments()
+
+    # Example device for demonstration purposes
+    device = Device(id=1, host='192.168.1.1', ip='192.168.1.1')
+    await device.scan()
+    print(device)
+    print("Errors:", device.errors)
+
+if __name__ == '__main__':
+    asyncio.run(main())
