@@ -1,52 +1,45 @@
-import redis
 import json
-import csv
-from jinja2 import Environment, FileSystemLoader
-from device import Device
+import logging
+from typing import Any, Dict
 
-REDIS_SERVER = 'localhost'
-REDIS_DB = 5
+# Setup logging
+logger = logging.getLogger(__name__)
 
+class DataStore:
+    """Manages storing and retrieving data to and from a JSON file."""
 
-def get_redis():
-    return redis.Redis(host=REDIS_SERVER, db=REDIS_DB)
+    def __init__(self, file_path: str):
+        self.file_path = file_path
+        self.data: Dict[str, Any] = self.load_data()
 
+    def load_data(self) -> Dict[str, Any]:
+        """Loads data from the JSON file."""
+        try:
+            with open(self.file_path, 'r') as file:
+                return json.load(file)
+        except FileNotFoundError:
+            logger.warning(f"File {self.file_path} not found. Creating a new one.")
+            return {}
+        except json.JSONDecodeError as e:
+            logger.error(f"Error decoding JSON: {e}")
+            return {}
 
-def get_all_devices():
-    r = get_redis()
-    devices = []
-    for key in r.scan_iter(match='device:*'):
-        dict_device = json.loads(r.get(key))
-        device = Device.from_dict(dict_device)
-        devices.append(device)
-    return devices
+    def save_data(self) -> None:
+        """Saves data to the JSON file."""
+        with open(self.file_path, 'w') as file:
+            json.dump(self.data, file, indent=4)
 
+    def get(self, key: str) -> Any:
+        """Gets the value associated with a key."""
+        return self.data.get(key)
 
-def save_devices(devices, flush=False):
-    r = get_redis()
-    if flush:
-        r.flushdb()
+    def set(self, key: str, value: Any) -> None:
+        """Sets the value for a key."""
+        self.data[key] = value
+        self.save_data()
 
-    for device in devices:
-        r.set(device.key(), device.to_json())
-
-
-def export_csv(csv_file):
-    devices = get_all_devices()
-
-    with open(csv_file, 'wb') as csv_output:
-        writer = csv.writer(csv_output, delimiter=',')
-        for device in devices:
-            writer.writerow([device.host, device.ip, device.snmp_group,
-                             device.alive, device.snmp, device.ssh,
-                             device.mysql, device.uname, device.errors])
-
-
-def export_html(html_file):
-    devices = get_all_devices()
-    env = Environment(loader=FileSystemLoader('templates'))
-    template = env.get_template('layout.html')
-    output_from_parsed_template = template.render(devices=devices)
-
-    with open(html_file, "wb") as output:
-        output.write(output_from_parsed_template)
+    def delete(self, key: str) -> None:
+        """Deletes a key from the data store."""
+        if key in self.data:
+            del self.data[key]
+            self.save_data()
