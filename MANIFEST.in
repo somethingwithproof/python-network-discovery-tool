@@ -1,14 +1,17 @@
-# Documentation
+# Include specific documentation files
 include man/auto-discover.1
 include CONTRIBUTING.md
 include README.md
 include version.txt
-recursive-include docs *.rst *.py
-recursive-include docs/_themes *
-recursive-include docs/_static *
 
-# Remove CFFI files
+# Include Sphinx-generated documentation
+recursive-include docs/source *.rst *.py
+recursive-include docs/source/_themes *
+recursive-include docs/source/_static *
+
+# Exclude temporary Python files
 global-exclude __pycache__/*
 
-# Remove git directories
+# Exclude version control directories
 global-exclude .git
+global-exclude .svn
