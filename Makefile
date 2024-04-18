@@ -1,12 +1,13 @@
 # Variables
 PROJECT_NAME := auto-discover
 VENV_NAME := $(PROJECT_NAME)-venv
+FLAKE8_EXECUTABLE := flake8
 
 # Targets
-.PHONY: clean-pyc clean-build clean-venv docs test lint
+.PHONY: clean-pyc clean-build clean-venv lint test docs help
 
 help:
-	@echo "Please use \`make <target>' where <target> is one of"
+	@echo "Please use \`make <target>' where <target> is one of:"
 	@echo "  clean-build   to remove build artifacts"
 	@echo "  clean-pyc     to remove Python file artifacts"
 	@echo "  clean-venv    to remove the virtual environment"
@@ -22,16 +23,13 @@ clean-build:
 	rm -rf *.egg-info
 
 clean-pyc:
-	find . -name '*.pyc' -delete
-	find . -name '*.pyo' -delete
-	find . -name '*~' -delete
-	find . -name '__pycache__' -delete
+	find . -name '*.pyc' -delete -o -name '*.pyo' -delete -o -name '*~' -delete -o -name '__pycache__' -delete -print0 | xargs -0 -P4 rm -f
 
 clean-venv:
 	rm -rf $(VENV_NAME)
 
 lint:
-	flake8 auto-discover tests
+	$(FLAKE8_EXECUTABLE) auto-discover tests
 
 test:
 	python -m unittest discover
@@ -42,7 +40,7 @@ docs:
 	sphinx-apidoc -o docs/ auto-discover
 	$(MAKE) -C docs clean
 	$(MAKE) -C docs html
-	$(open) docs/_build/html/index.html
+	@echo "Documentation build complete. Open 'docs/_build/html/index.html' to view."
 
 # Development targets
 venv:
