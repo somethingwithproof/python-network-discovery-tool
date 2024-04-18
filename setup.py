@@ -1,26 +1,41 @@
 from setuptools import setup, find_packages
-import sys, os
 
-version = '.1'
+# Use a constant for the version for easier updates
+VERSION = "0.1"
 
-setup(name='auto-discover',
-      version=version,
-      description="A network discovery tool that uses nmap to identify if ssh,ping, and snmp are running on",
-      long_description=('\\n'
-                        'various connected devices in a network.'),
-      classifiers=['Programming Language :: Python :: 2 :: Only, Topic :: System :: Systems Administration, Topic :: System :: Monitoring, '],  # Get strings from http://pypi.python.org/pypi?%3Aaction=list_classifiers
-      keywords='nmap,portscanner,network,sysadmin',
-      author='Thomas Vincent',
-      author_email='thomasvincent@gmail.com',
-      url='https://github.com/thomasvincent/python-auto-discover',
-      license='Apache',
-      packages=find_packages(exclude=['bnap', 'examples', 'tests']),
-      include_package_data=True,
-      zip_safe=True,
-      install_requires=[
-          # -*- Extra requirements: -*-
-      ],
-      entry_points="""
-      # -*- Entry points: -*-
-      """,
-      )
+with open("README.md", "r", encoding="utf-8") as f:
+    long_description = f.read()
+
+setup(
+    name="network-discovery",
+    version=VERSION,
+    description="A network discovery tool using Nmap to identify SSH, Ping, and SNMP on connected devices.",
+    long_description=long_description,
+    long_description_content_type="text/markdown",  # Explicitly state it's Markdown
+    classifiers=[
+        "Programming Language :: Python :: 3",  # Specify Python 3 compatibility
+        "Development Status :: 4 - Beta",  # Indicate development status
+        "Environment :: Console",  # Specify intended environment
+        "Intended Audience :: System Administrators",
+        "License :: OSI Approved :: MIT License",  # Use MIT License
+        "Operating System :: OS Independent",  # Cross-platform
+        "Topic :: System :: Networking :: Monitoring",
+        "Topic :: System :: Systems Administration",
+    ],
+    keywords="nmap portscanner network discovery sysadmin",
+    author="Thomas Vincent",
+    author_email="thomasvincent@gmail.com",
+    url="https://github.com/thomasvincent/python-auto-discover",
+    license="MIT",  # Use MIT License
+    packages=find_packages(exclude=["bnap", "examples", "tests"]),
+    include_package_data=True,  # Include non-Python data files
+    zip_safe=False,  # May not work within a zip archive if using package data
+    install_requires=[
+        "python-nmap",  # Assuming you're using this library; add real dependencies
+    ],
+    entry_points={
+        "console_scripts": [
+            "auto-discover = auto-discover.main:main"  # CLI command example
+        ]
+    },
+)
