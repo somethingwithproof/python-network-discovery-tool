@@ -25,7 +25,7 @@ setup(
     keywords="nmap portscanner network discovery sysadmin",
     author="Thomas Vincent",
     author_email="thomasvincent@gmail.com",
-    url="https://github.com/thomasvincent/python-auto-discover",
+    url="https://github.com/thomasvincent/python-network-discovery-tool/",
     license="MIT",  # Use MIT License
     packages=find_packages(exclude=["bnap", "examples", "tests"]),
     include_package_data=True,  # Include non-Python data files
