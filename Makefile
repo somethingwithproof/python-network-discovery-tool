@@ -1,3 +1,24 @@
+#
+# Makefile for the 'auto-discover' network discovery and analysis project 
+#
+
+# This Makefile provides targets for streamlining development tasks related to 
+# the 'auto-discover' project, including code linting, testing, documentation 
+# generation, and virtual environment management.
+
+# Author and Contact
+AUTHOR := Thomas Vincent <thomas.vincent@gmail.com>
+
+# Version (optional)
+VERSION := 0.1
+
+# Copyright notice
+COPYRIGHT := 2012-2024 Thomas Vincent
+
+# License 
+LICENSE := MIT 
+
+
 # Variables
 PROJECT_NAME := auto-discover
 VENV_NAME := $(PROJECT_NAME)-venv
