@@ -1,70 +1,62 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>Devices</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <link rel="stylesheet" href="./styles.min.css" media="screen">
-    <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
-    <!--[if lt IE 9]>
-      <script src="../bower_components/html5shiv/dist/html5shiv.js"></script>
-      <script src="../bower_components/respond/dest/respond.min.js"></script>
-    <![endif]-->
-  </head>
-  <body>
-    <div class="navbar navbar-default navbar-fixed-top">
-      <div class="container">
-        <div class="navbar-header">
-          <a href="#" class="navbar-brand">Discover</a>
-        </div>
-      </div>
-    </div>
-
-
+<head>
+  <meta charset="utf-8">
+  <title>Devices</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <link rel="stylesheet" href="./styles.min.css" media="screen">
+  <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+  <!--[if lt IE 9]>
+    <script src="../bower_components/html5shiv/dist/html5shiv.js"></script>
+    <script src="../bower_components/respond/dest/respond.min.js"></script>
+  <![endif]-->
+</head>
+<body>
+  <header class="navbar navbar-default navbar-fixed-top">
     <div class="container">
-      <div class="bs-docs-section">
-
-        <div class="row">
-          <div class="col-lg-12">
-            <div class="page-header">
-              <h1 id="tables">Devices</h1>
-              <p class="lead">scan result</p>
-            </div>
-
-            <div class="bs-component">
-              <table class="table table-striped table-hover ">
-                <thead>
-                  <tr>
-                    <th>Host</th>
-                    <th>Ip</th>
-                    <th>Online</th>
-                    <th>SNMP</th>
-                    <th>SSH</th>
-                    <th>Mysql</th>
-                    <th>Uname</th>
-                    <th>Info</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for device in devices %}
-                    <tr>
-                      <td>{{ device.host }}</td>
-                      <td>{{ device.ip }}</td>
-                      <td>{{ device.alive }}</td>
-                      <td>{{ device.snmp }}</td>
-                      <td>{{ device.ssh }}</td>
-                      <td>{{ device.mysql }}</td>
-                      <td>{{ device.uname }}</td>
-                      <td>{{ device.errors }}</td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+      <div class="navbar-header">
+        <a href="#" class="navbar-brand">Discover</a>
       </div>
-
     </div>
+  </header>
+
+  <main class="container">
+    <div class="page-header">
+      <h1 id="tables">Devices</h1>
+      <p class="lead">Scan Result</p>
+    </div>
+
+    <div class="devices-table">
+      <table class="table table-striped table-hover">
+        <thead>
+          <tr>
+            <th scope="col">Host</th>
+            <th scope="col">IP</th>
+            <th scope="col">Online</th>
+            <th scope="col">SNMP</th>
+            <th scope="col">SSH</th>
+            <th scope="col">MySQL</th>
+            <th scope="col">Uname</th>
+            <th scope="col">Info</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for device in devices %}
+            <tr>
+              <td>{{ device.host }}</td>
+              <td>{{ device.ip }}</td>
+              <td>{{ device.alive }}</td>
+              <td>{{ device.snmp }}</td>
+              <td>{{ device.ssh }}</td>
+              <td>{{ device.mysql }}</td>
+              <td>{{ device.uname }}</td>
+              <td>{{ device.errors }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
 </html>
