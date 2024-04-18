@@ -1,3 +1,23 @@
+#!/usr/bin/env python
+
+"""
+Script for network device discovery and analysis
+
+This script provides classes and functions for efficient network device discovery, 
+employing nmap for initial port scanning, asynchronous SSH connectivity checks with 
+asyncssh, and SNMP port status queries. Scan results are structured and exported 
+to a CSV file for convenient analysis.
+
+Author: Thomas Vincent <thomas.vincent@gmail.com> 
+Version: 1.1  (Updated for asynchronous operations and enhanced logging)
+Copyright 2024 Thomas Vincent
+License: MIT
+
+Dependencies:
+* nmap (https://nmap.org/)
+* asyncssh (https://asyncssh.readthedocs.io/en/latest/)
+"""
+
 import argparse
 import csv
 import logging
