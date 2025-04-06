@@ -1,30 +1,154 @@
-auto-discover
-=============
+# Network Discovery Tool
 
-A network discovery tool that uses nmap to identify if ssh,ping, and snmp are running on
-various connected devices in a network.
+A network discovery tool that uses Nmap to identify if SSH, Ping, SNMP, and MySQL are running on various connected devices in a network.
 
-Installation
-============
+## Features
 
-```pip install https://github.com/thomasvincent/python-auto-discover/tarball/master```
+- Scan networks or individual devices
+- Check for SSH, SNMP, and MySQL services
+- Generate reports in HTML, CSV, Excel, or JSON formats
+- Store device information in JSON files or Redis
+- Send notifications via email or console
+- Asynchronous scanning for improved performance
+- Comprehensive error handling and logging
 
+## Installation
 
-Usage
-=====
+### From PyPI
 
-Usage: auto-discover <ip-address>
-Examples:
-auto-discover 10.73.19.0
+```bash
+pip install network-discovery
+```
+
+### From Source
+
+```bash
+git clone https://github.com/thomasvincent/python-network-discovery-tool.git
+cd python-network-discovery-tool
+pip install -e .
+```
+
+## Requirements
+
+- Python 3.7 or higher
+- Nmap (must be installed on the system)
+- Other dependencies are installed automatically
+
+## Usage
+
+### Command Line Interface
+
+```bash
+# Scan a network
+network-discovery 192.168.1.0/24
+
+# Scan a single device
+network-discovery 192.168.1.1
+
+# Generate a CSV report
+network-discovery 192.168.1.0/24 -f csv
+
+# Enable verbose output
+network-discovery 192.168.1.0/24 -v
+
+# Specify output directory
+network-discovery 192.168.1.0/24 -o /path/to/output
+
+# Specify template directory for HTML reports
+network-discovery 192.168.1.0/24 -t /path/to/templates
+
+# Disable report generation
+network-discovery 192.168.1.0/24 --no-report
+
+# Disable notifications
+network-discovery 192.168.1.0/24 --no-notification
+
+# Disable device storage
+network-discovery 192.168.1.0/24 --no-repository
+
+# Specify repository file
+network-discovery 192.168.1.0/24 --repository-file /path/to/devices.json
+```
+
+### Python API
+
+```python
+import asyncio
+from network_discovery.core.discovery import DeviceDiscoveryService
+from network_discovery.infrastructure.scanner import NmapDeviceScanner
+from network_discovery.infrastructure.repository import JsonFileRepository
+from network_discovery.infrastructure.notification import ConsoleNotificationService
+from network_discovery.infrastructure.report import ReportGenerator
+
+async def main():
+    # Configure services
+    scanner = NmapDeviceScanner()
+    repository = JsonFileRepository("devices.json")
+    notification_service = ConsoleNotificationService()
+    report_service = ReportGenerator("./output", "./templates")
+
+    # Create discovery service
+    discovery_service = DeviceDiscoveryService(
+        scanner, repository, notification_service, report_service
+    )
+
+    # Scan a network
+    devices = await discovery_service.discover_network("192.168.1.0/24")
     
-   
+    # Generate a report
+    report_path = discovery_service.generate_report("html")
+    print(f"Report generated at {report_path}")
 
-Output
-======
-The tool outputs a CSV file named `devices.csv` with the following columns:
+if __name__ == "__main__":
+    asyncio.run(main())
+```
 
-| Host | IP | SNMP Group | Alive | SNMP | SSH | MySQL | Username |
-|------|----|------------|-------|------|-----|-------|----------|
-| ...  | ...| ...        | ...   | ...  | ... | ...   | ...      |
+## Output
 
+The tool can generate reports in the following formats:
 
+- HTML: A web page with a table of devices and their status
+- CSV: A comma-separated values file with device information
+- Excel: An Excel spreadsheet with device information
+- JSON: A JSON file with device information
+
+## Development
+
+### Setup Development Environment
+
+```bash
+pip install -e ".[dev]"
+```
+
+### Run Tests
+
+```bash
+pytest
+```
+
+### Run Linters
+
+```bash
+flake8 src tests
+black src tests
+isort src tests
+mypy src tests
+```
+
+### Run Tox
+
+```bash
+tox
+```
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) file for details.
+
+## Security
+
+Please see the [SECURITY.md](SECURITY.md) file for details on reporting security issues.

@@ -1,17 +1,25 @@
-# Include specific documentation files
-include man/auto-discover.1
-include CONTRIBUTING.md
+# Include license and readme
+include LICENSE
 include README.md
-include version.txt
+include CONTRIBUTING.md
+include SECURITY.md
 
-# Include Sphinx-generated documentation
-recursive-include docs/source *.rst *.py
-recursive-include docs/source/_themes *
-recursive-include docs/source/_static *
+# Include configuration files
+include pyproject.toml
+include tox.ini
+include .github/workflows/*.yml
 
-# Exclude temporary Python files
-global-exclude __pycache__/*
+# Include templates
+recursive-include src/network_discovery/templates *.html *.css *.js
 
-# Exclude version control directories
-global-exclude .git
-global-exclude .svn
+# Include documentation
+recursive-include docs *.rst *.py *.txt *.html *.css *.js
+recursive-include man *.1
+
+# Include tests
+recursive-include tests *.py
+
+# Exclude temporary files
+global-exclude *.py[cod] __pycache__ *.so *.dylib .DS_Store
+global-exclude .git .gitignore .github .pytest_cache .coverage htmlcov
+global-exclude *.egg-info *.egg .eggs build dist
