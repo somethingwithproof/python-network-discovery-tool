@@ -18,8 +18,8 @@ from network_discovery.application.interfaces import DeviceScannerService
 logger = logging.getLogger(__name__)
 
 # Environment variables
-SSH_USER = os.getenv("SSH_USER", "zenossmon")
-SSH_KEY_FILE = os.getenv("SSH_KEY_FILE", os.path.expanduser("~/.ssh/id_rsa.pub"))
+SSH_USER = os.getenv("SSH_USER", "")
+SSH_KNOWN_HOSTS_FILE = os.getenv("SSH_KNOWN_HOSTS_FILE", os.path.expanduser("~/.ssh/known_hosts"))
 MYSQL_USER = os.getenv("MYSQL_USER", "")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
 
@@ -153,7 +153,7 @@ class NmapDeviceScanner(DeviceScannerService):
 
         try:
             ssh = SSHClient()
-            ssh.load_host_keys(SSH_KEY_FILE)
+            ssh.load_host_keys(SSH_KNOWN_HOSTS_FILE)
             # Use RejectPolicy instead of AutoAddPolicy for security
             ssh.set_missing_host_key_policy(RejectPolicy())
 
