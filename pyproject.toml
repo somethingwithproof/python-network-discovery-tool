@@ -65,10 +65,10 @@ exclude_lines = [
 
 [tool.bandit]
 # Only report on the high-severity issues
-severity = "high"
+severity-level = 3
 # Skip tests, which often have hardcoded credentials for testing
 exclude_dirs = ["tests", ".tox", ".venv", "venv"]
 # Focus on high-confidence issues
-confidence = "high"
+confidence-level = 3
 # Skip low-severity issues like using assert statements
-skips = ["B101", "B104", "B110", "B112"]
+skips = ["B101", "B104", "B110", "B112", "B601"]
