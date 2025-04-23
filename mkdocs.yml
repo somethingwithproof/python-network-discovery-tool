@@ -29,9 +29,6 @@ markdown_extensions:
       alternate_style: true
   - tables
   - footnotes
-  - pymdownx.emoji:
-      emoji_index: !!python/name:materialx.emoji.twemoji
-      emoji_generator: !!python/name:materialx.emoji.to_svg
 
 repo_url: https://github.com/thomasvincent/python-network-discovery-tool
 repo_name: python-network-discovery-tool
@@ -40,3 +37,5 @@ edit_uri: edit/main/docs/
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - Development:
+    - Release Process: release-process.md

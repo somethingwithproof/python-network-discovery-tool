@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 0.3.0 (2025-04-22)
+
+### Features
+- feat: implemented enterprise-class release process with tagging, GitHub releases, and release notes
+- feat: added release automation scripts for version management
+- feat: added GitHub Actions workflows for CI/CD and release automation
+- feat: added comprehensive release documentation
+
 ## Version 0.2.0 (2025-04-22)
 
 ### Features
