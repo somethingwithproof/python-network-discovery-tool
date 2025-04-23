@@ -1,16 +1,33 @@
-# Changes Made to Address Code Review
+# Changelog
 
-This document summarizes the changes made to address the issues identified in the code review.
+## Version 0.2.0 (2025-04-22)
 
-## 1. Consolidated Codebase
+### Features
+- Added MkDocs documentation with Material theme
+- Improved project structure with proper testing
+- Added comprehensive test suite
+
+### Security
+- Fixed code scanning alert: Incomplete URL substring sanitization
+- Fixed code scanning alert: Accepting unknown SSH host keys when using Paramiko
+- Bumped Twisted from 23.10.0 to 24.7.0rc1 to address security vulnerabilities
+
+### Improvements
+- Removed VSCode settings from project
+- Synchronized branch structure (main, develop, release all match master)
+- Removed stale branches
+
+## Previous Changes
+
+### Consolidated Codebase
 
 - Removed Twisted dependency from requirements.txt and setup.py as the codebase has pivoted to using asyncio.
 - Created a cleanup script (cleanup_legacy_files.py) to remove redundant files from the root directory that have been replaced by the newer asyncio-based implementation in the src directory.
 - The script backs up the redundant files to a timestamped directory before removing them.
 
-## 2. Improved Error Handling
+### Improved Error Handling
 
-### Scanner.py
+#### Scanner.py
 
 - Enhanced error handling in the check_ssh method to differentiate between:
   - Authentication errors
@@ -28,7 +45,7 @@ This document summarizes the changes made to address the issues identified in th
   - Connection errors
   - Query errors
 
-## 3. Improved Test Coverage
+### Improved Test Coverage
 
 - Created a comprehensive test file for the scanner.py module (tests/test_scanner.py) that includes tests for:
   - Scanning devices (alive and not alive)
@@ -37,14 +54,14 @@ This document summarizes the changes made to address the issues identified in th
   - Checking SSH, MySQL, and SNMP services
   - Error handling during scanning
 
-## 4. Other Improvements
+### Other Improvements
 
 - Added asyncio dependency to requirements.txt and setup.py to explicitly declare this dependency.
 - Updated version constraints for dependencies to ensure compatibility.
 
 ## Next Steps
 
-The following items from the code review still need to be addressed:
+The following items still need to be addressed:
 
 1. Run linters (Black/Flake8) across the entire codebase.
 2. Replace `__del__` methods with context managers where appropriate (e.g., in any remaining database or spreadsheet managers).
