@@ -62,3 +62,13 @@ exclude_lines = [
     "pass",
     "raise ImportError",
 ]
+
+[tool.bandit]
+# Only report on the high-severity issues
+severity = "high"
+# Skip tests, which often have hardcoded credentials for testing
+exclude_dirs = ["tests", ".tox", ".venv", "venv"]
+# Focus on high-confidence issues
+confidence = "high"
+# Skip low-severity issues like using assert statements
+skips = ["B101", "B104", "B110", "B112"]

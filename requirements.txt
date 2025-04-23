@@ -22,6 +22,7 @@ pytest-asyncio>=0.21.0
 black>=23.0.0
 isort>=5.0.0
 flake8>=6.0.0
+bandit>=1.7.0
 mypy>=1.0.0
 tox>=4.0.0
 twine>=4.0.0
