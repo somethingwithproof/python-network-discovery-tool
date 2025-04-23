@@ -18,7 +18,7 @@ class DeviceScannerService(ABC):
 
         Args:
             device: The device to scan.
-            
+
         Returns:
             An updated Device instance with scan results.
         """

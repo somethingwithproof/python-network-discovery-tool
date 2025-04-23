@@ -5,7 +5,7 @@ This module provides an improved implementation of the RedisRepository class.
 
 import json
 import logging
-from typing import List, Optional, Set
+from typing import List, Optional
 
 import redis
 

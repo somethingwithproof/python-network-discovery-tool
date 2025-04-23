@@ -3,7 +3,11 @@
 from datetime import datetime, timedelta
 
 from network_discovery.domain.device import Device
-from network_discovery.enterprise.device import EnterpriseDevice, DeviceCategory, DeviceStatus
+from network_discovery.enterprise.device import (
+    EnterpriseDevice,
+    DeviceCategory,
+    DeviceStatus,
+)
 
 
 class TestEnterpriseDevice:
@@ -120,7 +124,9 @@ class TestEnterpriseDevice:
         assert device.days_since_patched() is None
         # Test with a patch date
         device = device.replace(last_patched=datetime.now() - timedelta(days=10))
-        assert device.days_since_patched() >= 9  # Allow for some flexibility due to timing
+        assert (
+            device.days_since_patched() >= 9
+        )  # Allow for some flexibility due to timing
         assert device.days_since_patched() <= 11
 
     def test_days_until_warranty_expiry(self):
@@ -186,7 +192,7 @@ class TestEnterpriseDevice:
         )
 
         device_dict = device.to_dict()
-        
+
         # Check base Device attributes
         assert device_dict["id"] == 1
         assert device_dict["host"] == "example.com"
@@ -201,7 +207,7 @@ class TestEnterpriseDevice:
         assert device_dict["uname"] == "Linux"
         assert device_dict["errors"] == ["Error 1", "Error 2"]
         assert device_dict["scanned"] is True
-        
+
         # Check EnterpriseDevice attributes
         assert device_dict["category"] == "SERVER"
         assert device_dict["status"] == "OPERATIONAL"
@@ -216,7 +222,10 @@ class TestEnterpriseDevice:
         assert device_dict["compliance"] is True
         assert device_dict["compliance_issues"] == []
         assert sorted(device_dict["tags"]) == sorted(["production", "web-server"])
-        assert device_dict["custom_attributes"] == {"rack": "A1", "power_supply": "redundant"}
+        assert device_dict["custom_attributes"] == {
+            "rack": "A1",
+            "power_supply": "redundant",
+        }
         assert device_dict["last_scan_time"] == last_scan_time.isoformat()
         assert device_dict["uptime"] == 86400
         assert device_dict["services"] == {"http": True, "https": True, "ftp": False}
@@ -263,7 +272,7 @@ class TestEnterpriseDevice:
         }
 
         device = EnterpriseDevice.from_dict(device_dict)
-        
+
         # Check base Device attributes
         assert device.id == 1
         assert device.host == "example.com"
@@ -278,7 +287,7 @@ class TestEnterpriseDevice:
         assert device.device.uname == "Linux"
         assert device.errors == ("Error 1", "Error 2")
         assert device.scanned is True
-        
+
         # Check EnterpriseDevice attributes
         assert device.category == DeviceCategory.SERVER
         assert device.status == DeviceStatus.OPERATIONAL

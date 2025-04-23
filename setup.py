@@ -79,15 +79,18 @@ setup(
         "Topic :: System :: Systems Administration",
     ],
     keywords="nmap portscanner network discovery sysadmin",
-    package_dir={"": "src"},
-    packages=find_packages(where="src"),
+    package_dir={
+        "": "src"},
+    packages=find_packages(
+        where="src"),
     python_requires=">=3.7",
     install_requires=requirements,
     extras_require={
-        "dev": dev_requirements,
-        "mysql": mysql_requirements,
-        "snmp": snmp_requirements,
-        "all": [req for reqs in optional_requirements.values() for req in reqs],
+                    "dev": dev_requirements,
+                    "mysql": mysql_requirements,
+                    "snmp": snmp_requirements,
+                    "all": [
+                        req for reqs in optional_requirements.values() for req in reqs],
     },
     entry_points={
         "console_scripts": [

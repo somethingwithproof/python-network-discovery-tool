@@ -136,7 +136,11 @@ class EnterpriseExporter:
                         device.os_version,
                         device.firmware_version,
                         device.compliance,
-                        device.last_scan_time.isoformat() if device.last_scan_time else "",
+                        (
+                            device.last_scan_time.isoformat()
+                            if device.last_scan_time
+                            else ""
+                        ),
                         device.uptime if device.uptime is not None else "",
                         ", ".join(device.tags),
                     ]
@@ -173,16 +177,16 @@ class EnterpriseExporter:
                 f.write(f"    alias                  {device.host}\n")
                 f.write(f"    address                {device.ip}\n")
                 f.write("    use                    generic-host\n")
-                
+
                 # Add custom attributes as custom variables
                 for key, value in device.custom_attributes.items():
                     if isinstance(value, (str, int, float, bool)):
                         f.write(f"    _{key}                 {value}\n")
-                
+
                 # Add tags as hostgroups
                 if device.tags:
                     f.write(f"    hostgroups             {','.join(device.tags)}\n")
-                
+
                 # Add notes based on device information
                 notes = []
                 if device.asset_id:
@@ -191,12 +195,12 @@ class EnterpriseExporter:
                     notes.append(f"Location: {device.location}")
                 if device.owner:
                     notes.append(f"Owner: {device.owner}")
-                
+
                 if notes:
                     f.write(f"    notes                  {'; '.join(notes)}\n")
-                
+
                 f.write("}\n\n")
-                
+
                 # Service definitions
                 if device.ssh:
                     f.write("define service {\n")
@@ -205,17 +209,19 @@ class EnterpriseExporter:
                     f.write("    check_command          check_ssh\n")
                     f.write("    use                    generic-service\n")
                     f.write("}\n\n")
-                
+
                 if device.snmp:
                     # Get the snmp_group from the base device
                     snmp_group = device.device.snmp_group
                     f.write("define service {\n")
                     f.write(f"    host_name              {device.host}\n")
                     f.write("    service_description    SNMP\n")
-                    f.write(f"    check_command          check_snmp!-C {snmp_group} -o sysDescr.0\n")
+                    f.write(
+                        f"    check_command          check_snmp!-C {snmp_group} -o sysDescr.0\n"
+                    )
                     f.write("    use                    generic-service\n")
                     f.write("}\n\n")
-                
+
                 if device.mysql:
                     f.write("define service {\n")
                     f.write(f"    host_name              {device.host}\n")
@@ -243,13 +249,13 @@ class EnterpriseExporter:
             filename = f"zenoss_devices_{timestamp}.json"
 
         output_path = os.path.join(self.output_dir, filename)
-        
+
         zenoss_devices = []
         for device in devices:
             # Skip devices that are not alive
             if not device.alive:
                 continue
-                
+
             # Map device category to Zenoss device class
             device_class = "/Devices"
             if device.category.name == "NETWORK":
@@ -260,10 +266,10 @@ class EnterpriseExporter:
                 device_class = "/Devices/Storage"
             elif device.category.name == "SECURITY":
                 device_class = "/Devices/Security"
-            
+
             # Get the base device properties
             base_device = device.device
-            
+
             # Create Zenoss device object
             zenoss_device = {
                 "deviceName": device.host,
@@ -281,38 +287,38 @@ class EnterpriseExporter:
                 "location": device.location,
                 "zProperties": {
                     "zCommandUsername": base_device.mysql_user if device.mysql else "",
-                    "zCommandPassword": base_device.mysql_password if device.mysql else "",
+                    "zCommandPassword": (
+                        base_device.mysql_password if device.mysql else ""
+                    ),
                 },
                 "properties": {
                     "assetId": device.asset_id,
                     "owner": device.owner,
                     "osVersion": device.os_version,
                     "firmwareVersion": device.firmware_version,
-                }
+                },
             }
-            
+
             # Add custom attributes as properties
             for key, value in device.custom_attributes.items():
                 if isinstance(value, (str, int, float, bool)):
                     zenoss_device["properties"][key] = value
-            
+
             zenoss_devices.append(zenoss_device)
-        
+
         # Create Zenoss import structure
-        zenoss_data = {
-            "devices": zenoss_devices
-        }
-        
+        zenoss_data = {"devices": zenoss_devices}
+
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(zenoss_data, f, indent=2)
 
         return output_path
 
     def export(
-        self, 
-        devices: List[EnterpriseDevice], 
-        format_type: str, 
-        filename: Optional[str] = None
+        self,
+        devices: List[EnterpriseDevice],
+        format_type: str,
+        filename: Optional[str] = None,
     ) -> str:
         """Export devices to the specified format.
 
@@ -328,7 +334,7 @@ class EnterpriseExporter:
             ValueError: If the format type is not supported.
         """
         format_type = format_type.lower()
-        
+
         if format_type == "json":
             return self.export_to_json(devices, filename)
         elif format_type == "yaml":

@@ -61,11 +61,13 @@ class TestCli:
             args = parse_args(
                 [
                     "192.168.1.0/24",
-                    "-o", temp_dir,
-                    "-t", temp_dir,
+                    "-o",
+                    temp_dir,
+                    "-t",
+                    temp_dir,
                     "--no-notification",
                     "--no-repository",
-                    "--no-report"
+                    "--no-report",
                 ]
             )
 
@@ -95,11 +97,13 @@ class TestCli:
             args = parse_args(
                 [
                     "192.168.1.1",
-                    "-o", temp_dir,
-                    "-t", temp_dir,
+                    "-o",
+                    temp_dir,
+                    "-t",
+                    temp_dir,
                     "--no-notification",
                     "--no-repository",
-                    "--no-report"
+                    "--no-report",
                 ]
             )
 
@@ -126,17 +130,21 @@ class TestCli:
         """Test that the CLI function works."""
         with tempfile.TemporaryDirectory() as temp_dir:
             # First patch the parse_args function
-            with patch("network_discovery.interfaces.cli.parse_args") as mock_parse_args:
+            with patch(
+                "network_discovery.interfaces.cli.parse_args"
+            ) as mock_parse_args:
                 # Then patch asyncio.run
                 with patch("asyncio.run") as mock_run:
                     mock_parse_args.return_value = parse_args(
                         [
                             "192.168.1.0/24",
-                            "-o", temp_dir,
-                            "-t", temp_dir,
+                            "-o",
+                            temp_dir,
+                            "-t",
+                            temp_dir,
                             "--no-notification",
                             "--no-repository",
-                            "--no-report"
+                            "--no-report",
                         ]
                     )
 
