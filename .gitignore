@@ -29,3 +29,17 @@ env/
 ENV/
 .env/
 .venv/
+
+# Legacy files
+auto-discover.py
+database.py
+device.py
+devices.py
+discover.py
+discovery.py
+ez_setup.py
+mail.py
+spreadsheet.py
+store.py
+test_redis.py
+test_scan.py
