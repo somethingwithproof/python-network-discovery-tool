@@ -1,5 +1,5 @@
 # Core dependencies
-setuptools~=68.2.0
+setuptools==70.0.0
 python-nmap~=0.7.1
 redis>=4.0.0
 openpyxl>=3.0.0
