@@ -3,7 +3,7 @@ python-nmap~=0.7.1
 redis
 openpyxl
 jinja2
-Twisted==23.10.0
+Twisted==24.7.0rc1
 paramiko==3.4.0
 snimpy==0.8.9
 libnmap==0.7.4
