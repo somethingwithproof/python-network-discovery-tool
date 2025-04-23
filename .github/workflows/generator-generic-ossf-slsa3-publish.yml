@@ -19,6 +19,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # Minimum required to read repository contents.
     outputs:
       digests: ${{ steps.hash.outputs.digests }}
 
