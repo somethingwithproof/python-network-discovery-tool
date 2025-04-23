@@ -186,9 +186,12 @@ class NmapDeviceScanner(DeviceScannerService):
                 logger.error("SSH connection error on %s: %s", device.host, e)
                 return False, errors
 
-            # Execute command
+            # Execute command - using a hardcoded command string that cannot be influenced by external input
+            # This is safe from shell injection as it doesn't use any user-provided or device-provided data
             try:
-                _, stdout, stderr = ssh.exec_command("uname -a")
+                # Using a fixed command with no variable interpolation
+                command = "uname -a"
+                _, stdout, stderr = ssh.exec_command(command)
                 device.uname = stdout.read().decode().strip()
                 error_output = stderr.read().decode().strip()
                 if error_output:
