@@ -125,7 +125,8 @@ class TestDevice:
             errors=["Error 1", "Error 2"],
         )
         status = device.status()
-        assert "example.com" in status
+        host = status.get("host") if isinstance(status, dict) else None
+        assert host == "example.com"
         assert "alive: True" in status
         assert "ssh: True" in status
         assert "snmp: False" in status
