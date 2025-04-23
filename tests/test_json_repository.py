@@ -4,7 +4,7 @@ import json
 import os
 import tempfile
 import pytest
-from unittest.mock import patch, mock_open
+from unittest.mock import patch
 
 from network_discovery.domain.device import Device
 from improvements.json_repository_improved import JsonFileRepository
@@ -50,7 +50,7 @@ class TestJsonFileRepository:
         """Test that a JsonFileRepository creates a file if it doesn't exist."""
         with tempfile.TemporaryDirectory() as temp_dir:
             file_path = os.path.join(temp_dir, "nonexistent.json")
-            repo = JsonFileRepository(file_path)
+            JsonFileRepository(file_path)
             assert os.path.exists(file_path)
             with open(file_path, "r", encoding="utf-8") as f:
                 assert f.read() == "{}"
@@ -62,7 +62,7 @@ class TestJsonFileRepository:
             temp_path = temp.name
 
         try:
-            repo = JsonFileRepository(temp_path)
+            JsonFileRepository(temp_path)
             with open(temp_path, "r", encoding="utf-8") as f:
                 assert f.read() == "{}"
         finally:

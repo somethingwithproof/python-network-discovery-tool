@@ -15,7 +15,10 @@ from typing import List, Optional, Union, Tuple
 from network_discovery.core.discovery import DeviceDiscoveryService
 from network_discovery.infrastructure.scanner import NmapDeviceScanner
 from network_discovery.infrastructure.repository import JsonFileRepository
-from network_discovery.infrastructure.notification import ConsoleNotificationService, EmailNotificationService
+from network_discovery.infrastructure.notification import (
+    ConsoleNotificationService,
+    EmailNotificationService,
+)
 from network_discovery.infrastructure.report import ReportGenerator
 
 # Setup logging
@@ -27,7 +30,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def validate_network(network: str) -> Tuple[bool, Union[ipaddress.IPv4Network, ipaddress.IPv4Address, None], str]:
+def validate_network(
+    network: str,
+) -> Tuple[bool, Union[ipaddress.IPv4Network, ipaddress.IPv4Address, None], str]:
     """Validate a network or IP address string.
 
     Args:
@@ -105,7 +110,7 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
         default="./devices.json",
         help="The file where devices will be stored.",
     )
-    
+
     # Email notification options
     email_group = parser.add_argument_group("Email Notification Options")
     email_group.add_argument(
@@ -157,7 +162,7 @@ async def run_discovery(args: argparse.Namespace) -> int:
 
     # Configure services
     scanner = NmapDeviceScanner()
-    
+
     # Configure repository
     repository = None
     if not args.no_repository:
@@ -167,16 +172,22 @@ async def run_discovery(args: argparse.Namespace) -> int:
         except Exception as e:
             logger.error("Error initializing repository: %s", e)
             return 1
-    
+
     # Configure notification service
     notification_service = None
     if not args.no_notification:
         if args.email:
             # Validate email parameters
-            if not args.smtp_username or not args.smtp_password or not args.email_recipient:
-                logger.error("Email notifications require --smtp-username, --smtp-password, and --email-recipient")
+            if (
+                not args.smtp_username
+                or not args.smtp_password
+                or not args.email_recipient
+            ):
+                logger.error(
+                    "Email notifications require --smtp-username, --smtp-password, and --email-recipient"
+                )
                 return 1
-            
+
             try:
                 notification_service = EmailNotificationService(
                     args.smtp_server,
@@ -184,28 +195,34 @@ async def run_discovery(args: argparse.Namespace) -> int:
                     args.smtp_username,
                     args.smtp_password,
                 )
-                logger.info("Using email notification service: %s", args.email_recipient)
+                logger.info(
+                    "Using email notification service: %s", args.email_recipient
+                )
             except Exception as e:
                 logger.error("Error initializing email notification service: %s", e)
                 return 1
         else:
             notification_service = ConsoleNotificationService()
             logger.info("Using console notification service")
-    
+
     # Configure report service
     report_service = None
     if not args.no_report:
         try:
             # Create output directory if it doesn't exist
             os.makedirs(args.output_dir, exist_ok=True)
-            
+
             # Validate template directory for HTML reports
             if args.format == "html" and not os.path.exists(args.template_dir):
                 logger.error("Template directory not found: %s", args.template_dir)
                 return 1
-            
+
             report_service = ReportGenerator(args.output_dir, args.template_dir)
-            logger.info("Using report generator: %s format, output to %s", args.format, args.output_dir)
+            logger.info(
+                "Using report generator: %s format, output to %s",
+                args.format,
+                args.output_dir,
+            )
         except Exception as e:
             logger.error("Error initializing report service: %s", e)
             return 1
@@ -222,7 +239,9 @@ async def run_discovery(args: argparse.Namespace) -> int:
             logger.info("Starting network discovery for %s", args.network)
             devices = await discovery_service.discover_network(args.network)
             alive_count = sum(1 for d in devices if d.alive)
-            logger.info("Discovered %d devices, %d are alive", len(devices), alive_count)
+            logger.info(
+                "Discovered %d devices, %d are alive", len(devices), alive_count
+            )
         else:
             # Single device scan
             logger.info("Starting device discovery for %s", args.network)

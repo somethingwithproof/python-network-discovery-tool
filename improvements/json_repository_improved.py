@@ -6,7 +6,7 @@ This module provides an improved implementation of the JsonFileRepository class.
 import json
 import logging
 import os
-from typing import List, Optional, Dict, Any, Iterator
+from typing import List, Optional
 import ijson
 
 from network_discovery.domain.device import Device

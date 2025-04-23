@@ -157,7 +157,7 @@ class TestDeviceManager:
 
         manager = DeviceManager.from_dict(dict_list)
         assert len(manager) == 2
-        
+
         device1 = manager.get_device(1)
         assert device1 is not None
         assert device1.id == 1

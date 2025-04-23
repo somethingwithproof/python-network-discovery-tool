@@ -79,7 +79,10 @@ class TestDevice:
         assert device_dict["mysql_user"] == "user"
         assert device_dict["mysql_password"] == "password"
         assert device_dict["uname"] == "Linux"
-        assert device_dict["errors"] == ["Error 1", "Error 2"]  # to_dict converts to list
+        assert device_dict["errors"] == [
+            "Error 1",
+            "Error 2",
+        ]  # to_dict converts to list
         assert device_dict["scanned"]
 
     def test_from_dict(self):
@@ -143,7 +146,7 @@ class TestDevice:
         """Test that a Device's string representation is correct."""
         device = Device(id=1, host="example.com", ip="192.168.1.1")
         assert str(device) == str(device.to_dict())
-        
+
     def test_replace(self):
         """Test that a Device's fields can be replaced."""
         device = Device(id=1, host="example.com", ip="192.168.1.1")
@@ -155,19 +158,19 @@ class TestDevice:
         assert not new_device.ssh
         assert not new_device.snmp
         assert not new_device.mysql
-        
+
     def test_hash(self):
         """Test that a Device can be hashed."""
         device1 = Device(id=1, host="example.com", ip="192.168.1.1")
         device2 = Device(id=1, host="example.com", ip="192.168.1.1")
         device3 = Device(id=2, host="example.com", ip="192.168.1.1")
-        
+
         # Same ID, host, and IP should hash to the same value
         assert hash(device1) == hash(device2)
-        
+
         # Different ID should hash to a different value
         assert hash(device1) != hash(device3)
-        
+
         # Can be used in sets
         device_set = {device1, device2, device3}
         assert len(device_set) == 2

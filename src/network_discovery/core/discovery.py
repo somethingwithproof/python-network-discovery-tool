@@ -69,24 +69,24 @@ class DeviceDiscoveryService:
             # Scan all devices
             tasks = []
             devices_by_id: Dict[int, Device] = {}
-            
+
             for device in self.device_manager.devices:
                 # Create a task for each device scan
                 task = asyncio.create_task(self.scanner.scan_device(device))
                 tasks.append(task)
-                
+
                 # Save the initial device state if repository is configured
                 if self.repository:
                     self.repository.save(device)
 
             # Wait for all scans to complete
             scanned_devices = await asyncio.gather(*tasks)
-            
+
             # Update the device manager with the scanned devices
             for device in scanned_devices:
                 # Replace the device in the manager
                 self.device_manager.add_device(device)
-                
+
                 # Save the updated device if repository is configured
                 if self.repository:
                     self.repository.save(device)
@@ -105,9 +105,7 @@ class DeviceDiscoveryService:
 
             # Generate report if configured
             if self.report_service:
-                self.report_service.generate_report(
-                    self.device_manager.devices, "html"
-                )
+                self.report_service.generate_report(self.device_manager.devices, "html")
 
             logger.info("Discovery completed on network %s", network)
             return self.device_manager.devices
@@ -131,10 +129,10 @@ class DeviceDiscoveryService:
         try:
             logger.info("Starting discovery for device %s", host)
             device = Device(id=device_id, host=host, ip=host)
-            
+
             # Scan the device
             scanned_device = await self.scanner.scan_device(device)
-            
+
             # Save the device if repository is configured
             if self.repository:
                 self.repository.save(scanned_device)

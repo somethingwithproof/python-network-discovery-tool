@@ -131,6 +131,6 @@ class TestCli:
             with patch("asyncio.run") as mock_run:
                 # Run the CLI
                 cli(["192.168.1.0/24"])
-                
+
                 # Check that asyncio.run was called
                 mock_run.assert_called_once()
