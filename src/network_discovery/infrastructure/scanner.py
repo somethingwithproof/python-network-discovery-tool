@@ -6,8 +6,6 @@ This module provides the implementation of the DeviceScannerService interface.
 import logging
 import os
 import importlib.util
-import subprocess
-import json
 
 import nmap
 from paramiko import SSHClient, RejectPolicy
@@ -47,7 +45,7 @@ class NmapDeviceScanner(DeviceScannerService):
 
         Args:
             device: The device to scan.
-            
+
         Returns:
             An updated Device instance with scan results.
         """
@@ -64,7 +62,7 @@ class NmapDeviceScanner(DeviceScannerService):
                 device.ssh = ssh_result
                 device.snmp = snmp_result
                 device.mysql = mysql_result
-                
+
                 # Add any errors from the service checks
                 for error in ssh_errors + snmp_errors + mysql_errors:
                     device.add_error(error)
@@ -92,11 +90,11 @@ class NmapDeviceScanner(DeviceScannerService):
         """
         try:
             nm = nmap.PortScanner()
-            nm.scan(hosts=str(device.ip), arguments='-sn')
-            
+            nm.scan(hosts=str(device.ip), arguments="-sn")
+
             # Check if the host is up
             if str(device.ip) in nm.all_hosts():
-                return nm[str(device.ip)].state() == 'up'
+                return nm[str(device.ip)].state() == "up"
             return False
         except Exception as e:
             logger.error("Error checking if device %s is alive: %s", device.host, e)
@@ -117,17 +115,19 @@ class NmapDeviceScanner(DeviceScannerService):
         errors = []
         try:
             nm = nmap.PortScanner()
-            nm.scan(hosts=str(device.ip), arguments=f'-p {port}')
-            
+            nm.scan(hosts=str(device.ip), arguments=f"-p {port}")
+
             # Check if the port is open
             if str(device.ip) in nm.all_hosts():
-                if 'tcp' in nm[str(device.ip)] and port in nm[str(device.ip)]['tcp']:
-                    return nm[str(device.ip)]['tcp'][port]['state'] == 'open', errors
+                if "tcp" in nm[str(device.ip)] and port in nm[str(device.ip)]["tcp"]:
+                    return nm[str(device.ip)]["tcp"][port]["state"] == "open", errors
             return False, errors
         except Exception as e:
             error_msg = f"(port {port}) Exception: {e}"
             errors.append(error_msg)
-            logger.error("Error checking if port %s is open on %s: %s", port, device.host, e)
+            logger.error(
+                "Error checking if port %s is open on %s: %s", port, device.host, e
+            )
             return False, errors
 
     async def check_ssh(self, device: Device) -> tuple[bool, list[str]]:
@@ -145,7 +145,7 @@ class NmapDeviceScanner(DeviceScannerService):
         device.uname = "unknown"
         port_open, port_errors = await self.is_port_open(device, 22)
         errors.extend(port_errors)
-        
+
         if not port_open:
             error_msg = "(ssh) Port closed"
             errors.append(error_msg)
@@ -156,7 +156,7 @@ class NmapDeviceScanner(DeviceScannerService):
             ssh.load_host_keys(SSH_KEY_FILE)
             # Use RejectPolicy instead of AutoAddPolicy for security
             ssh.set_missing_host_key_policy(RejectPolicy())
-            
+
             # Connect to the SSH server
             try:
                 ssh.connect(device.host, username=SSH_USER, timeout=3)
@@ -185,21 +185,25 @@ class NmapDeviceScanner(DeviceScannerService):
                 errors.append(error_msg)
                 logger.error("SSH connection error on %s: %s", device.host, e)
                 return False, errors
-            
+
             # Execute command
             try:
                 _, stdout, stderr = ssh.exec_command("uname -a")
                 device.uname = stdout.read().decode().strip()
                 error_output = stderr.read().decode().strip()
                 if error_output:
-                    logger.warning("SSH command produced error output on %s: %s", device.host, error_output)
+                    logger.warning(
+                        "SSH command produced error output on %s: %s",
+                        device.host,
+                        error_output,
+                    )
             except Exception as e:
                 error_msg = f"(ssh) Command execution error: {str(e)}"
                 errors.append(error_msg)
                 logger.error("SSH command execution error on %s: %s", device.host, e)
                 ssh.close()
                 return False, errors
-            
+
             # Close the connection
             ssh.close()
             return True, errors
@@ -225,16 +229,16 @@ class NmapDeviceScanner(DeviceScannerService):
             error_msg = "(snmp) SNMP checks disabled - snimpy not available"
             errors.append(error_msg)
             return False, errors
-        
+
         # Check if port 161 (SNMP) is open
         port_open, port_errors = await self.is_port_open(device, 161)
         errors.extend(port_errors)
-        
+
         if not port_open:
             error_msg = "(snmp) Port 161 closed"
             errors.append(error_msg)
             return False, errors
-            
+
         try:
             # Load SNMP MIB
             try:
@@ -244,21 +248,20 @@ class NmapDeviceScanner(DeviceScannerService):
                 errors.append(error_msg)
                 logger.error("SNMP MIB loading error: %s", e)
                 return False, errors
-            
+
             # Create SNMP manager and query device
             try:
                 m = SnimpyManager(
-                    host=device.host, 
-                    community=device.snmp_group, 
-                    version=2, 
-                    timeout=2
+                    host=device.host, community=device.snmp_group, version=2, timeout=2
                 )
-                
+
                 # Try to get system name
                 try:
                     system_name = m.sysName
                     if system_name is not None:
-                        logger.debug("SNMP system name on %s: %s", device.host, system_name)
+                        logger.debug(
+                            "SNMP system name on %s: %s", device.host, system_name
+                        )
                         return True, errors
                     else:
                         error_msg = "(snmp) No system name returned"
@@ -269,7 +272,7 @@ class NmapDeviceScanner(DeviceScannerService):
                     errors.append(error_msg)
                     logger.error("SNMP query error on %s: %s", device.host, e)
                     return False, errors
-                
+
             except TimeoutError as e:
                 error_msg = f"(snmp) Connection timeout: {str(e)}"
                 errors.append(error_msg)
@@ -285,7 +288,7 @@ class NmapDeviceScanner(DeviceScannerService):
                 errors.append(error_msg)
                 logger.error("SNMP connection error on %s: %s", device.host, e)
                 return False, errors
-                
+
         except Exception as e:
             error_msg = f"(snmp) Unexpected error: {str(e)}"
             errors.append(error_msg)
@@ -308,10 +311,10 @@ class NmapDeviceScanner(DeviceScannerService):
             error_msg = "(mysql) MySQL support not available"
             errors.append(error_msg)
             return False, errors
-            
+
         port_open, port_errors = await self.is_port_open(device, 3306)
         errors.extend(port_errors)
-        
+
         if not port_open:
             error_msg = "(mysql) Port closed"
             errors.append(error_msg)

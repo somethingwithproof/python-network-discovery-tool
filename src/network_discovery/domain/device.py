@@ -4,7 +4,7 @@ This module defines the Device entity, which represents a network device and its
 """
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Tuple
+from typing import Dict, Any, Tuple
 
 
 @dataclass(frozen=True)
@@ -13,7 +13,7 @@ class Device:
 
     This is the core domain entity that represents a device on the network.
     It contains all the properties and state of a network device.
-    
+
     This class is immutable (frozen) to make it hashable, which allows it to be used in sets.
     Methods that modify the device's state will return a new Device instance.
     """
@@ -37,7 +37,7 @@ class Device:
 
         Args:
             msg: The error message to add.
-            
+
         Returns:
             A new Device instance with the error added.
         """
@@ -45,32 +45,27 @@ class Device:
 
     def reset_services(self) -> "Device":
         """Reset the statuses of all services.
-        
+
         Returns:
             A new Device instance with services reset.
         """
-        return self.replace(
-            ssh=False,
-            snmp=False,
-            mysql=False,
-            uname="unknown"
-        )
+        return self.replace(ssh=False, snmp=False, mysql=False, uname="unknown")
 
     def replace(self, **kwargs) -> "Device":
         """Create a new Device with some fields replaced.
-        
+
         Args:
             **kwargs: The fields to replace and their new values.
-            
+
         Returns:
             A new Device instance with the specified fields replaced.
         """
         # Create a dictionary of the current field values
         fields = self.to_dict()
-        
+
         # Update with the new values
         fields.update(kwargs)
-        
+
         # Create a new Device instance
         return Device.from_dict(fields)
 
@@ -110,7 +105,7 @@ class Device:
         errors = dict_device.get("errors", [])
         if isinstance(errors, list):
             errors = tuple(errors)
-            
+
         return cls(
             id=dict_device["id"],
             host=str(dict_device["host"]),
@@ -154,10 +149,10 @@ class Device:
             A string representation of the device.
         """
         return str(self.to_dict())
-        
+
     def __hash__(self) -> int:
         """Return a hash of the device.
-        
+
         Returns:
             A hash value based on the device's ID, host, and IP.
         """
