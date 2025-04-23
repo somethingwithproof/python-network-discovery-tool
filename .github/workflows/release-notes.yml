@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*.*.*'
 
+# Define permissions
+permissions:
+  contents: write  # Needed to create releases
+
 jobs:
   release-notes:
     runs-on: ubuntu-latest
