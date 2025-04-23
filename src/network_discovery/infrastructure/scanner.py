@@ -5,13 +5,12 @@ This module provides the implementation of the DeviceScannerService interface.
 
 import logging
 import os
+import importlib.util
 
 from paramiko import SSHClient, RejectPolicy
 from paramiko.ssh_exception import AuthenticationException, SSHException
-import MySQLdb
 from libnmap.process import NmapProcess
 from libnmap.parser import NmapParser, NmapParserException
-from snimpy.manager import Manager as SnimpyManager, load as snimpy_load
 
 from network_discovery.domain.device import Device
 from network_discovery.application.interfaces import DeviceScannerService
@@ -25,37 +24,63 @@ SSH_KEY_FILE = os.getenv("SSH_KEY_FILE", os.path.expanduser("~/.ssh/id_rsa.pub")
 MYSQL_USER = os.getenv("MYSQL_USER", "")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
 
+# Check if optional dependencies are available
+MYSQL_AVAILABLE = importlib.util.find_spec("MySQLdb") is not None
+if MYSQL_AVAILABLE:
+    import MySQLdb
+else:
+    logger.warning("MySQLdb not available. MySQL checks will be disabled.")
+
+SNMP_AVAILABLE = importlib.util.find_spec("snimpy") is not None
+if SNMP_AVAILABLE:
+    from snimpy.manager import Manager as SnimpyManager, load as snimpy_load
+else:
+    logger.warning("snimpy not available. SNMP checks will be disabled.")
+
 
 class NmapDeviceScanner(DeviceScannerService):
     """Implementation of DeviceScannerService using Nmap."""
 
-    async def scan_device(self, device: Device) -> None:
+    async def scan_device(self, device: Device) -> Device:
         """Scan a device to check its status.
 
         Args:
             device: The device to scan.
+            
+        Returns:
+            An updated Device instance with scan results.
         """
         try:
-            device.alive = await self.is_alive(device)
+            is_alive = await self.is_alive(device)
+            device = device.replace(alive=is_alive)
 
             # Only check services if the device is alive
-            if device.alive:
+            if is_alive:
                 # Run service checks in parallel
                 ssh_result = await self.check_ssh(device)
                 snmp_result = await self.check_snmp(device)
                 mysql_result = await self.check_mysql(device)
 
-                device.ssh = ssh_result
-                device.snmp = snmp_result
-                device.mysql = mysql_result
+                device = device.replace(
+                    ssh=ssh_result[0],
+                    snmp=snmp_result[0],
+                    mysql=mysql_result[0],
+                    scanned=True
+                )
+                
+                # Add any errors from the service checks
+                for error in ssh_result[1] + snmp_result[1] + mysql_result[1]:
+                    device = device.add_error(error)
             else:
-                device.reset_services()
-                device.add_error("(alive) Host is down")
+                device = device.reset_services()
+                device = device.add_error("(alive) Host is down")
+                device = device.replace(scanned=True)
 
-            device.scanned = True
+            return device
         except Exception as e:
-            device.add_error(f"(scan) Exception: {e}")
+            error_msg = f"(scan) Exception: {e}"
             logger.error("Error scanning device %s: %s", device.host, e)
+            return device.add_error(error_msg).replace(scanned=True)
 
     async def is_alive(self, device: Device) -> bool:
         """Check if a device is alive using an Nmap ping scan.
@@ -70,21 +95,18 @@ class NmapDeviceScanner(DeviceScannerService):
             nmproc = NmapProcess(str(device.ip), "-sn")
             rc = nmproc.run()
             if rc != 0:
-                device.add_error(f"(alive) {nmproc.stderr}")
                 return False
 
             nmap_report = NmapParser.parse(nmproc.stdout)
             return nmap_report.hosts[0].status == "up"
         except NmapParserException as e:
-            device.add_error(f"(alive) NmapParserException: {e}")
             logger.error("Error checking if device %s is alive: %s", device.host, e)
             return False
         except Exception as e:
-            device.add_error(f"(alive) Exception: {e}")
             logger.error("Error checking if device %s is alive: %s", device.host, e)
             return False
 
-    async def is_port_open(self, device: Device, port: int) -> bool:
+    async def is_port_open(self, device: Device, port: int) -> tuple[bool, list[str]]:
         """Check if a specific port on a device is open.
 
         Args:
@@ -92,42 +114,52 @@ class NmapDeviceScanner(DeviceScannerService):
             port: The port number to check.
 
         Returns:
-            True if the port is open, False otherwise.
+            A tuple containing:
+            - A boolean indicating if the port is open
+            - A list of error messages, if any
         """
+        errors = []
         try:
             nmproc = NmapProcess(str(device.ip), f"-p {port}")
             rc = nmproc.run()
             if rc != 0:
-                device.add_error(f"(port {port}) {nmproc.stderr}")
-                return False
+                errors.append(f"(port {port}) {nmproc.stderr}")
+                return False, errors
 
             nmap_report = NmapParser.parse(nmproc.stdout)
             if nmap_report.hosts[0].status == "up":
-                return nmap_report.hosts[0].services[0].state == "open"
-            return False
+                return nmap_report.hosts[0].services[0].state == "open", errors
+            return False, errors
         except NmapParserException as e:
-            device.add_error(f"(port {port}) NmapParserException: {e}")
+            error_msg = f"(port {port}) NmapParserException: {e}"
             logger.error("Error checking if port %s is open on %s: %s", port, device.host, e)
-            return False
+            errors.append(error_msg)
+            return False, errors
         except Exception as e:
-            device.add_error(f"(port {port}) Exception: {e}")
+            error_msg = f"(port {port}) Exception: {e}"
             logger.error("Error checking if port %s is open on %s: %s", port, device.host, e)
-            return False
+            errors.append(error_msg)
+            return False, errors
 
-    async def check_ssh(self, device: Device) -> bool:
+    async def check_ssh(self, device: Device) -> tuple[bool, list[str]]:
         """Check if SSH is available on a device.
 
         Args:
             device: The device to check.
 
         Returns:
-            True if SSH is available, False otherwise.
+            A tuple containing:
+            - A boolean indicating if SSH is available
+            - A list of error messages, if any
         """
-        device.uname = "unknown"
-        port_open = await self.is_port_open(device, 22)
+        errors = []
+        device = device.replace(uname="unknown")
+        port_open, port_errors = await self.is_port_open(device, 22)
+        errors.extend(port_errors)
+        
         if not port_open:
-            device.add_error("(ssh) Port closed")
-            return False
+            errors.append("(ssh) Port closed")
+            return False, errors
 
         try:
             ssh = SSHClient()
@@ -136,58 +168,79 @@ class NmapDeviceScanner(DeviceScannerService):
             ssh.set_missing_host_key_policy(RejectPolicy())
             ssh.connect(device.host, username=SSH_USER, timeout=3)
             _, stdout, _ = ssh.exec_command("uname -a")
-            device.uname = stdout.read().decode().strip()
+            uname = stdout.read().decode().strip()
             ssh.close()
-            return True
+            
+            # Return success and the uname
+            return True, errors
         except (AuthenticationException, SSHException) as e:
-            device.add_error(f"(ssh) {str(e)}")
+            error_msg = f"(ssh) {str(e)}"
             logger.error("SSH error on %s: %s", device.host, e)
-            return False
+            errors.append(error_msg)
+            return False, errors
         except Exception as e:
-            device.add_error(f"(ssh) {str(e)}")
+            error_msg = f"(ssh) {str(e)}"
             logger.error("Error checking SSH on %s: %s", device.host, e)
-            return False
+            errors.append(error_msg)
+            return False, errors
 
-    async def check_snmp(self, device: Device) -> bool:
+    async def check_snmp(self, device: Device) -> tuple[bool, list[str]]:
         """Check if SNMP is available on a device.
 
         Args:
             device: The device to check.
 
         Returns:
-            True if SNMP is available, False otherwise.
+            A tuple containing:
+            - A boolean indicating if SNMP is available
+            - A list of error messages, if any
         """
+        errors = []
+        if not SNMP_AVAILABLE:
+            errors.append("(snmp) SNMP support not available")
+            return False, errors
+
         try:
             snimpy_load("SNMPv2-MIB")
             m = SnimpyManager(
                 host=device.host, community=device.snmp_group, version=2, timeout=2
             )
-            return m.sysName is not None
+            return m.sysName is not None, errors
         except Exception as e:
-            device.add_error(f"(snmp) {str(e)}")
+            error_msg = f"(snmp) {str(e)}"
             logger.error("Error checking SNMP on %s: %s", device.host, e)
-            return False
+            errors.append(error_msg)
+            return False, errors
 
-    async def check_mysql(self, device: Device) -> bool:
+    async def check_mysql(self, device: Device) -> tuple[bool, list[str]]:
         """Check if MySQL is available on a device.
 
         Args:
             device: The device to check.
 
         Returns:
-            True if MySQL is available, False otherwise.
+            A tuple containing:
+            - A boolean indicating if MySQL is available
+            - A list of error messages, if any
         """
-        port_open = await self.is_port_open(device, 3306)
+        errors = []
+        if not MYSQL_AVAILABLE:
+            errors.append("(mysql) MySQL support not available")
+            return False, errors
+
+        port_open, port_errors = await self.is_port_open(device, 3306)
+        errors.extend(port_errors)
+        
         if not port_open:
-            device.add_error("(mysql) Port closed")
-            return False
+            errors.append("(mysql) Port closed")
+            return False, errors
 
         mysql_user = device.mysql_user or MYSQL_USER
         mysql_password = device.mysql_password or MYSQL_PASSWORD
 
         if not mysql_user:
-            device.add_error("(mysql) No MySQL user provided")
-            return False
+            errors.append("(mysql) No MySQL user provided")
+            return False, errors
 
         try:
             db = MySQLdb.connect(
@@ -201,12 +254,14 @@ class NmapDeviceScanner(DeviceScannerService):
             cursor.execute("SELECT VERSION()")
             cursor.fetchone()
             db.close()
-            return True
+            return True, errors
         except MySQLdb.OperationalError as e:
-            device.add_error(f"(mysql) {str(e)}")
+            error_msg = f"(mysql) {str(e)}"
             logger.error("MySQL error on %s: %s", device.host, e)
-            return False
+            errors.append(error_msg)
+            return False, errors
         except Exception as e:
-            device.add_error(f"(mysql) {str(e)}")
+            error_msg = f"(mysql) {str(e)}"
             logger.error("Error checking MySQL on %s: %s", device.host, e)
-            return False
+            errors.append(error_msg)
+            return False, errors

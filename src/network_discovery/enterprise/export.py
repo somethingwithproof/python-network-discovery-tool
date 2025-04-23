@@ -207,10 +207,12 @@ class EnterpriseExporter:
                     f.write("}\n\n")
                 
                 if device.snmp:
+                    # Get the snmp_group from the base device
+                    snmp_group = device.device.snmp_group
                     f.write("define service {\n")
                     f.write(f"    host_name              {device.host}\n")
                     f.write("    service_description    SNMP\n")
-                    f.write(f"    check_command          check_snmp!-C {device.snmp_group} -o sysDescr.0\n")
+                    f.write(f"    check_command          check_snmp!-C {snmp_group} -o sysDescr.0\n")
                     f.write("    use                    generic-service\n")
                     f.write("}\n\n")
                 
@@ -250,14 +252,17 @@ class EnterpriseExporter:
                 
             # Map device category to Zenoss device class
             device_class = "/Devices"
-            if device.category == "NETWORK":
+            if device.category.name == "NETWORK":
                 device_class = "/Devices/Network"
-            elif device.category == "SERVER":
+            elif device.category.name == "SERVER":
                 device_class = "/Devices/Server"
-            elif device.category == "STORAGE":
+            elif device.category.name == "STORAGE":
                 device_class = "/Devices/Storage"
-            elif device.category == "SECURITY":
+            elif device.category.name == "SECURITY":
                 device_class = "/Devices/Security"
+            
+            # Get the base device properties
+            base_device = device.device
             
             # Create Zenoss device object
             zenoss_device = {
@@ -265,7 +270,7 @@ class EnterpriseExporter:
                 "deviceClass": device_class,
                 "manageIp": device.ip,
                 "title": device.host,
-                "snmpCommunity": device.snmp_group if device.snmp else "",
+                "snmpCommunity": base_device.snmp_group if device.snmp else "",
                 "snmpMonitor": device.snmp,
                 "pingMonitor": True,
                 "sshMonitor": device.ssh,
@@ -275,8 +280,8 @@ class EnterpriseExporter:
                 "groups": [],
                 "location": device.location,
                 "zProperties": {
-                    "zCommandUsername": device.mysql_user if device.mysql else "",
-                    "zCommandPassword": device.mysql_password if device.mysql else "",
+                    "zCommandUsername": base_device.mysql_user if device.mysql else "",
+                    "zCommandPassword": base_device.mysql_password if device.mysql else "",
                 },
                 "properties": {
                     "assetId": device.asset_id,

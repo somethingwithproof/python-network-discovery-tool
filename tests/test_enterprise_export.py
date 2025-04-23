@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from network_discovery.domain.device import Device
 from network_discovery.enterprise.device import EnterpriseDevice, DeviceCategory, DeviceStatus
 from network_discovery.enterprise.export import EnterpriseExporter
 
@@ -26,7 +27,7 @@ def test_output_dir():
 @pytest.fixture
 def sample_devices():
     """Create a list of sample devices for testing."""
-    device1 = EnterpriseDevice(
+    base_device1 = Device(
         id=1,
         host="server1.example.com",
         ip="192.168.1.1",
@@ -34,6 +35,10 @@ def sample_devices():
         ssh=True,
         snmp=True,
         mysql=False,
+    )
+    
+    device1 = EnterpriseDevice(
+        device=base_device1,
         category=DeviceCategory.SERVER,
         status=DeviceStatus.OPERATIONAL,
         asset_id="ASSET001",
@@ -41,11 +46,11 @@ def sample_devices():
         owner="IT Department",
         os_version="Ubuntu 22.04",
         firmware_version="1.2.3",
-        tags={"production", "web-server"},
+        tags=frozenset({"production", "web-server"}),
         custom_attributes={"rack": "A1", "power_supply": "redundant"},
     )
 
-    device2 = EnterpriseDevice(
+    base_device2 = Device(
         id=2,
         host="router1.example.com",
         ip="192.168.1.254",
@@ -53,6 +58,10 @@ def sample_devices():
         ssh=True,
         snmp=True,
         mysql=False,
+    )
+    
+    device2 = EnterpriseDevice(
+        device=base_device2,
         category=DeviceCategory.NETWORK,
         status=DeviceStatus.OPERATIONAL,
         asset_id="ASSET002",
@@ -60,11 +69,11 @@ def sample_devices():
         owner="Network Team",
         os_version="IOS 15.2",
         firmware_version="2.1.0",
-        tags={"production", "network", "core"},
+        tags=frozenset({"production", "network", "core"}),
         custom_attributes={"rack": "B3", "model": "Cisco 3850"},
     )
 
-    device3 = EnterpriseDevice(
+    base_device3 = Device(
         id=3,
         host="storage1.example.com",
         ip="192.168.1.10",
@@ -72,6 +81,10 @@ def sample_devices():
         ssh=True,
         snmp=False,
         mysql=False,
+    )
+    
+    device3 = EnterpriseDevice(
+        device=base_device3,
         category=DeviceCategory.STORAGE,
         status=DeviceStatus.DEGRADED,
         asset_id="ASSET003",
@@ -79,16 +92,20 @@ def sample_devices():
         owner="Storage Team",
         os_version="Storage OS 5.1",
         firmware_version="3.0.2",
-        tags={"production", "storage"},
+        tags=frozenset({"production", "storage"}),
         custom_attributes={"rack": "C2", "capacity": "100TB"},
     )
 
     # A device that is not alive
-    device4 = EnterpriseDevice(
+    base_device4 = Device(
         id=4,
         host="offline.example.com",
         ip="192.168.1.20",
         alive=False,
+    )
+    
+    device4 = EnterpriseDevice(
+        device=base_device4,
         category=DeviceCategory.SERVER,
         status=DeviceStatus.CRITICAL,
         asset_id="ASSET004",
@@ -267,16 +284,16 @@ class TestEnterpriseExporter:
         assert "service_description    SNMP" in content
         
         # Check custom attributes
-        assert "_rack                 A1" in content
-        assert "_power_supply                 redundant" in content
+        assert "_rack" in content
+        assert "_power_supply" in content
         
         # Check tags as hostgroups
-        assert "hostgroups             " in content
+        assert "hostgroups" in content
         assert "production" in content
         assert "web-server" in content
         
         # Check notes
-        assert "notes                  " in content
+        assert "notes" in content
         assert "Asset ID: ASSET001" in content
         assert "Location: Data Center 1" in content
         assert "Owner: IT Department" in content

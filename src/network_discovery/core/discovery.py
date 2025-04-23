@@ -1,4 +1,4 @@
-"""Device discovery service.
+ """Device discovery service.
 
 This module provides the core functionality for discovering devices on a network.
 """
@@ -6,7 +6,7 @@ This module provides the core functionality for discovering devices on a network
 import asyncio
 import ipaddress
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from network_discovery.domain.device import Device
 from network_discovery.domain.device_manager import DeviceManager
@@ -68,17 +68,27 @@ class DeviceDiscoveryService:
 
             # Scan all devices
             tasks = []
+            devices_by_id: Dict[int, Device] = {}
+            
             for device in self.device_manager.devices:
-                tasks.append(self.scanner.scan_device(device))
+                # Create a task for each device scan
+                task = asyncio.create_task(self.scanner.scan_device(device))
+                tasks.append(task)
+                
+                # Save the initial device state if repository is configured
                 if self.repository:
                     self.repository.save(device)
 
             # Wait for all scans to complete
-            await asyncio.gather(*tasks)
-
-            # Save final results
-            if self.repository:
-                for device in self.device_manager.devices:
+            scanned_devices = await asyncio.gather(*tasks)
+            
+            # Update the device manager with the scanned devices
+            for device in scanned_devices:
+                # Replace the device in the manager
+                self.device_manager.add_device(device)
+                
+                # Save the updated device if repository is configured
+                if self.repository:
                     self.repository.save(device)
 
             # Send notification if configured
@@ -121,13 +131,16 @@ class DeviceDiscoveryService:
         try:
             logger.info("Starting discovery for device %s", host)
             device = Device(id=device_id, host=host, ip=host)
-            await self.scanner.scan_device(device)
-
+            
+            # Scan the device
+            scanned_device = await self.scanner.scan_device(device)
+            
+            # Save the device if repository is configured
             if self.repository:
-                self.repository.save(device)
+                self.repository.save(scanned_device)
 
             logger.info("Discovery completed for device %s", host)
-            return device
+            return scanned_device
         except Exception as e:
             logger.error("Error during device discovery: %s", e)
             raise

@@ -20,16 +20,17 @@ class TestDevice:
         assert device.mysql_user == ""
         assert device.mysql_password == ""
         assert device.uname == ""
-        assert device.errors == []
+        assert device.errors == ()  # Now a tuple instead of a list
         assert not device.scanned
 
     def test_add_error(self):
         """Test that errors can be added to a Device."""
         device = Device(id=1, host="example.com", ip="192.168.1.1")
-        device.add_error("Test error")
-        assert device.errors == ["Test error"]
-        device.add_error("Another error")
-        assert device.errors == ["Test error", "Another error"]
+        # add_error now returns a new Device instance
+        device = device.add_error("Test error")
+        assert device.errors == ("Test error",)
+        device = device.add_error("Another error")
+        assert device.errors == ("Test error", "Another error")
 
     def test_reset_services(self):
         """Test that services can be reset."""
@@ -42,7 +43,8 @@ class TestDevice:
             mysql=True,
             uname="Linux",
         )
-        device.reset_services()
+        # reset_services now returns a new Device instance
+        device = device.reset_services()
         assert not device.ssh
         assert not device.snmp
         assert not device.mysql
@@ -62,7 +64,7 @@ class TestDevice:
             mysql_user="user",
             mysql_password="password",
             uname="Linux",
-            errors=["Error 1", "Error 2"],
+            errors=("Error 1", "Error 2"),  # Now a tuple instead of a list
             scanned=True,
         )
         device_dict = device.to_dict()
@@ -77,7 +79,7 @@ class TestDevice:
         assert device_dict["mysql_user"] == "user"
         assert device_dict["mysql_password"] == "password"
         assert device_dict["uname"] == "Linux"
-        assert device_dict["errors"] == ["Error 1", "Error 2"]
+        assert device_dict["errors"] == ["Error 1", "Error 2"]  # to_dict converts to list
         assert device_dict["scanned"]
 
     def test_from_dict(self):
@@ -109,7 +111,7 @@ class TestDevice:
         assert device.mysql_user == "user"
         assert device.mysql_password == "password"
         assert device.uname == "Linux"
-        assert device.errors == ["Error 1", "Error 2"]
+        assert device.errors == ("Error 1", "Error 2")  # Now a tuple instead of a list
         assert device.scanned
 
     def test_status(self):
@@ -122,11 +124,10 @@ class TestDevice:
             ssh=True,
             snmp=False,
             mysql=True,
-            errors=["Error 1", "Error 2"],
+            errors=("Error 1", "Error 2"),  # Now a tuple instead of a list
         )
         status = device.status()
-        host = status.get("host") if isinstance(status, dict) else None
-        assert host == "example.com"
+        assert "example.com" in status
         assert "alive: True" in status
         assert "ssh: True" in status
         assert "snmp: False" in status
@@ -142,3 +143,31 @@ class TestDevice:
         """Test that a Device's string representation is correct."""
         device = Device(id=1, host="example.com", ip="192.168.1.1")
         assert str(device) == str(device.to_dict())
+        
+    def test_replace(self):
+        """Test that a Device's fields can be replaced."""
+        device = Device(id=1, host="example.com", ip="192.168.1.1")
+        new_device = device.replace(host="new.example.com", alive=True)
+        assert new_device.id == 1
+        assert new_device.host == "new.example.com"
+        assert new_device.ip == "192.168.1.1"
+        assert new_device.alive
+        assert not new_device.ssh
+        assert not new_device.snmp
+        assert not new_device.mysql
+        
+    def test_hash(self):
+        """Test that a Device can be hashed."""
+        device1 = Device(id=1, host="example.com", ip="192.168.1.1")
+        device2 = Device(id=1, host="example.com", ip="192.168.1.1")
+        device3 = Device(id=2, host="example.com", ip="192.168.1.1")
+        
+        # Same ID, host, and IP should hash to the same value
+        assert hash(device1) == hash(device2)
+        
+        # Different ID should hash to a different value
+        assert hash(device1) != hash(device3)
+        
+        # Can be used in sets
+        device_set = {device1, device2, device3}
+        assert len(device_set) == 2
