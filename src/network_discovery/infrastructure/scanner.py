@@ -6,11 +6,12 @@ This module provides the implementation of the DeviceScannerService interface.
 import logging
 import os
 import importlib.util
+import subprocess
+import json
 
+import nmap
 from paramiko import SSHClient, RejectPolicy
 from paramiko.ssh_exception import AuthenticationException, SSHException
-from libnmap.process import NmapProcess
-from libnmap.parser import NmapParser, NmapParserException
 
 from network_discovery.domain.device import Device
 from network_discovery.application.interfaces import DeviceScannerService
@@ -25,11 +26,11 @@ MYSQL_USER = os.getenv("MYSQL_USER", "")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
 
 # Check if optional dependencies are available
-MYSQL_AVAILABLE = importlib.util.find_spec("MySQLdb") is not None
+MYSQL_AVAILABLE = importlib.util.find_spec("pymysql") is not None
 if MYSQL_AVAILABLE:
-    import MySQLdb
+    import pymysql
 else:
-    logger.warning("MySQLdb not available. MySQL checks will be disabled.")
+    logger.warning("pymysql not available. MySQL checks will be disabled.")
 
 SNMP_AVAILABLE = importlib.util.find_spec("snimpy") is not None
 if SNMP_AVAILABLE:
@@ -51,36 +52,34 @@ class NmapDeviceScanner(DeviceScannerService):
             An updated Device instance with scan results.
         """
         try:
-            is_alive = await self.is_alive(device)
-            device = device.replace(alive=is_alive)
+            device.alive = await self.is_alive(device)
 
             # Only check services if the device is alive
-            if is_alive:
+            if device.alive:
                 # Run service checks in parallel
-                ssh_result = await self.check_ssh(device)
-                snmp_result = await self.check_snmp(device)
-                mysql_result = await self.check_mysql(device)
+                ssh_result, ssh_errors = await self.check_ssh(device)
+                snmp_result, snmp_errors = await self.check_snmp(device)
+                mysql_result, mysql_errors = await self.check_mysql(device)
 
-                device = device.replace(
-                    ssh=ssh_result[0],
-                    snmp=snmp_result[0],
-                    mysql=mysql_result[0],
-                    scanned=True
-                )
+                device.ssh = ssh_result
+                device.snmp = snmp_result
+                device.mysql = mysql_result
                 
                 # Add any errors from the service checks
-                for error in ssh_result[1] + snmp_result[1] + mysql_result[1]:
-                    device = device.add_error(error)
+                for error in ssh_errors + snmp_errors + mysql_errors:
+                    device.add_error(error)
             else:
-                device = device.reset_services()
-                device = device.add_error("(alive) Host is down")
-                device = device.replace(scanned=True)
+                device.reset_services()
+                device.add_error("(alive) Host is down")
 
+            device.scanned = True
             return device
         except Exception as e:
             error_msg = f"(scan) Exception: {e}"
+            device.add_error(error_msg)
             logger.error("Error scanning device %s: %s", device.host, e)
-            return device.add_error(error_msg).replace(scanned=True)
+            device.scanned = True
+            return device
 
     async def is_alive(self, device: Device) -> bool:
         """Check if a device is alive using an Nmap ping scan.
@@ -92,15 +91,12 @@ class NmapDeviceScanner(DeviceScannerService):
             True if the device is alive, False otherwise.
         """
         try:
-            nmproc = NmapProcess(str(device.ip), "-sn")
-            rc = nmproc.run()
-            if rc != 0:
-                return False
-
-            nmap_report = NmapParser.parse(nmproc.stdout)
-            return nmap_report.hosts[0].status == "up"
-        except NmapParserException as e:
-            logger.error("Error checking if device %s is alive: %s", device.host, e)
+            nm = nmap.PortScanner()
+            nm.scan(hosts=str(device.ip), arguments='-sn')
+            
+            # Check if the host is up
+            if str(device.ip) in nm.all_hosts():
+                return nm[str(device.ip)].state() == 'up'
             return False
         except Exception as e:
             logger.error("Error checking if device %s is alive: %s", device.host, e)
@@ -120,25 +116,18 @@ class NmapDeviceScanner(DeviceScannerService):
         """
         errors = []
         try:
-            nmproc = NmapProcess(str(device.ip), f"-p {port}")
-            rc = nmproc.run()
-            if rc != 0:
-                errors.append(f"(port {port}) {nmproc.stderr}")
-                return False, errors
-
-            nmap_report = NmapParser.parse(nmproc.stdout)
-            if nmap_report.hosts[0].status == "up":
-                return nmap_report.hosts[0].services[0].state == "open", errors
-            return False, errors
-        except NmapParserException as e:
-            error_msg = f"(port {port}) NmapParserException: {e}"
-            logger.error("Error checking if port %s is open on %s: %s", port, device.host, e)
-            errors.append(error_msg)
+            nm = nmap.PortScanner()
+            nm.scan(hosts=str(device.ip), arguments=f'-p {port}')
+            
+            # Check if the port is open
+            if str(device.ip) in nm.all_hosts():
+                if 'tcp' in nm[str(device.ip)] and port in nm[str(device.ip)]['tcp']:
+                    return nm[str(device.ip)]['tcp'][port]['state'] == 'open', errors
             return False, errors
         except Exception as e:
             error_msg = f"(port {port}) Exception: {e}"
-            logger.error("Error checking if port %s is open on %s: %s", port, device.host, e)
             errors.append(error_msg)
+            logger.error("Error checking if port %s is open on %s: %s", port, device.host, e)
             return False, errors
 
     async def check_ssh(self, device: Device) -> tuple[bool, list[str]]:
@@ -153,12 +142,13 @@ class NmapDeviceScanner(DeviceScannerService):
             - A list of error messages, if any
         """
         errors = []
-        device = device.replace(uname="unknown")
+        device.uname = "unknown"
         port_open, port_errors = await self.is_port_open(device, 22)
         errors.extend(port_errors)
         
         if not port_open:
-            errors.append("(ssh) Port closed")
+            error_msg = "(ssh) Port closed"
+            errors.append(error_msg)
             return False, errors
 
         try:
@@ -166,22 +156,57 @@ class NmapDeviceScanner(DeviceScannerService):
             ssh.load_host_keys(SSH_KEY_FILE)
             # Use RejectPolicy instead of AutoAddPolicy for security
             ssh.set_missing_host_key_policy(RejectPolicy())
-            ssh.connect(device.host, username=SSH_USER, timeout=3)
-            _, stdout, _ = ssh.exec_command("uname -a")
-            uname = stdout.read().decode().strip()
-            ssh.close()
             
-            # Return success and the uname
+            # Connect to the SSH server
+            try:
+                ssh.connect(device.host, username=SSH_USER, timeout=3)
+            except AuthenticationException as e:
+                error_msg = f"(ssh) Authentication failed: {str(e)}"
+                errors.append(error_msg)
+                logger.error("SSH authentication error on %s: %s", device.host, e)
+                return False, errors
+            except SSHException as e:
+                error_msg = f"(ssh) SSH protocol error: {str(e)}"
+                errors.append(error_msg)
+                logger.error("SSH protocol error on %s: %s", device.host, e)
+                return False, errors
+            except TimeoutError as e:
+                error_msg = f"(ssh) Connection timeout: {str(e)}"
+                errors.append(error_msg)
+                logger.error("SSH connection timeout on %s: %s", device.host, e)
+                return False, errors
+            except ConnectionRefusedError as e:
+                error_msg = f"(ssh) Connection refused: {str(e)}"
+                errors.append(error_msg)
+                logger.error("SSH connection refused on %s: %s", device.host, e)
+                return False, errors
+            except Exception as e:
+                error_msg = f"(ssh) Connection error: {str(e)}"
+                errors.append(error_msg)
+                logger.error("SSH connection error on %s: %s", device.host, e)
+                return False, errors
+            
+            # Execute command
+            try:
+                _, stdout, stderr = ssh.exec_command("uname -a")
+                device.uname = stdout.read().decode().strip()
+                error_output = stderr.read().decode().strip()
+                if error_output:
+                    logger.warning("SSH command produced error output on %s: %s", device.host, error_output)
+            except Exception as e:
+                error_msg = f"(ssh) Command execution error: {str(e)}"
+                errors.append(error_msg)
+                logger.error("SSH command execution error on %s: %s", device.host, e)
+                ssh.close()
+                return False, errors
+            
+            # Close the connection
+            ssh.close()
             return True, errors
-        except (AuthenticationException, SSHException) as e:
-            error_msg = f"(ssh) {str(e)}"
-            logger.error("SSH error on %s: %s", device.host, e)
-            errors.append(error_msg)
-            return False, errors
         except Exception as e:
-            error_msg = f"(ssh) {str(e)}"
-            logger.error("Error checking SSH on %s: %s", device.host, e)
+            error_msg = f"(ssh) Unexpected error: {str(e)}"
             errors.append(error_msg)
+            logger.error("Unexpected error checking SSH on %s: %s", device.host, e)
             return False, errors
 
     async def check_snmp(self, device: Device) -> tuple[bool, list[str]]:
@@ -197,19 +222,74 @@ class NmapDeviceScanner(DeviceScannerService):
         """
         errors = []
         if not SNMP_AVAILABLE:
-            errors.append("(snmp) SNMP support not available")
-            return False, errors
-
-        try:
-            snimpy_load("SNMPv2-MIB")
-            m = SnimpyManager(
-                host=device.host, community=device.snmp_group, version=2, timeout=2
-            )
-            return m.sysName is not None, errors
-        except Exception as e:
-            error_msg = f"(snmp) {str(e)}"
-            logger.error("Error checking SNMP on %s: %s", device.host, e)
+            error_msg = "(snmp) SNMP checks disabled - snimpy not available"
             errors.append(error_msg)
+            return False, errors
+        
+        # Check if port 161 (SNMP) is open
+        port_open, port_errors = await self.is_port_open(device, 161)
+        errors.extend(port_errors)
+        
+        if not port_open:
+            error_msg = "(snmp) Port 161 closed"
+            errors.append(error_msg)
+            return False, errors
+            
+        try:
+            # Load SNMP MIB
+            try:
+                snimpy_load("SNMPv2-MIB")
+            except Exception as e:
+                error_msg = f"(snmp) Failed to load MIB: {str(e)}"
+                errors.append(error_msg)
+                logger.error("SNMP MIB loading error: %s", e)
+                return False, errors
+            
+            # Create SNMP manager and query device
+            try:
+                m = SnimpyManager(
+                    host=device.host, 
+                    community=device.snmp_group, 
+                    version=2, 
+                    timeout=2
+                )
+                
+                # Try to get system name
+                try:
+                    system_name = m.sysName
+                    if system_name is not None:
+                        logger.debug("SNMP system name on %s: %s", device.host, system_name)
+                        return True, errors
+                    else:
+                        error_msg = "(snmp) No system name returned"
+                        errors.append(error_msg)
+                        return False, errors
+                except Exception as e:
+                    error_msg = f"(snmp) Failed to query sysName: {str(e)}"
+                    errors.append(error_msg)
+                    logger.error("SNMP query error on %s: %s", device.host, e)
+                    return False, errors
+                
+            except TimeoutError as e:
+                error_msg = f"(snmp) Connection timeout: {str(e)}"
+                errors.append(error_msg)
+                logger.error("SNMP timeout on %s: %s", device.host, e)
+                return False, errors
+            except ConnectionRefusedError as e:
+                error_msg = f"(snmp) Connection refused: {str(e)}"
+                errors.append(error_msg)
+                logger.error("SNMP connection refused on %s: %s", device.host, e)
+                return False, errors
+            except Exception as e:
+                error_msg = f"(snmp) Connection error: {str(e)}"
+                errors.append(error_msg)
+                logger.error("SNMP connection error on %s: %s", device.host, e)
+                return False, errors
+                
+        except Exception as e:
+            error_msg = f"(snmp) Unexpected error: {str(e)}"
+            errors.append(error_msg)
+            logger.error("Unexpected error checking SNMP on %s: %s", device.host, e)
             return False, errors
 
     async def check_mysql(self, device: Device) -> tuple[bool, list[str]]:
@@ -225,43 +305,96 @@ class NmapDeviceScanner(DeviceScannerService):
         """
         errors = []
         if not MYSQL_AVAILABLE:
-            errors.append("(mysql) MySQL support not available")
+            error_msg = "(mysql) MySQL support not available"
+            errors.append(error_msg)
             return False, errors
-
+            
         port_open, port_errors = await self.is_port_open(device, 3306)
         errors.extend(port_errors)
         
         if not port_open:
-            errors.append("(mysql) Port closed")
+            error_msg = "(mysql) Port closed"
+            errors.append(error_msg)
             return False, errors
 
         mysql_user = device.mysql_user or MYSQL_USER
         mysql_password = device.mysql_password or MYSQL_PASSWORD
 
         if not mysql_user:
-            errors.append("(mysql) No MySQL user provided")
+            error_msg = "(mysql) No MySQL user provided"
+            errors.append(error_msg)
             return False, errors
 
         try:
-            db = MySQLdb.connect(
-                host=device.host,
-                user=mysql_user,
-                passwd=mysql_password,
-                db="mysql",
-                connect_timeout=3,
-            )
-            cursor = db.cursor()
-            cursor.execute("SELECT VERSION()")
-            cursor.fetchone()
+            # Attempt to connect to MySQL
+            try:
+                db = pymysql.connect(
+                    host=device.host,
+                    user=mysql_user,
+                    password=mysql_password,
+                    database="mysql",
+                    connect_timeout=3,
+                )
+            except pymysql.err.OperationalError as e:
+                error_code = e.args[0]
+                if error_code == 1045:  # Access denied
+                    error_msg = f"(mysql) Authentication failed: {str(e)}"
+                    errors.append(error_msg)
+                    logger.error("MySQL authentication error on %s: %s", device.host, e)
+                elif error_code == 2003:  # Can't connect
+                    error_msg = f"(mysql) Connection failed: {str(e)}"
+                    errors.append(error_msg)
+                    logger.error("MySQL connection error on %s: %s", device.host, e)
+                elif error_code == 1049:  # Unknown database
+                    error_msg = f"(mysql) Database not found: {str(e)}"
+                    errors.append(error_msg)
+                    logger.error("MySQL database error on %s: %s", device.host, e)
+                else:
+                    error_msg = f"(mysql) Operational error: {str(e)}"
+                    errors.append(error_msg)
+                    logger.error("MySQL operational error on %s: %s", device.host, e)
+                return False, errors
+            except TimeoutError as e:
+                error_msg = f"(mysql) Connection timeout: {str(e)}"
+                errors.append(error_msg)
+                logger.error("MySQL connection timeout on %s: %s", device.host, e)
+                return False, errors
+            except ConnectionRefusedError as e:
+                error_msg = f"(mysql) Connection refused: {str(e)}"
+                errors.append(error_msg)
+                logger.error("MySQL connection refused on %s: %s", device.host, e)
+                return False, errors
+            except Exception as e:
+                error_msg = f"(mysql) Connection error: {str(e)}"
+                errors.append(error_msg)
+                logger.error("MySQL connection error on %s: %s", device.host, e)
+                return False, errors
+
+            # Execute query
+            try:
+                cursor = db.cursor()
+                cursor.execute("SELECT VERSION()")
+                result = cursor.fetchone()
+                if result:
+                    logger.debug("MySQL version on %s: %s", device.host, result[0])
+            except pymysql.err.ProgrammingError as e:
+                error_msg = f"(mysql) Query error: {str(e)}"
+                errors.append(error_msg)
+                logger.error("MySQL query error on %s: %s", device.host, e)
+                db.close()
+                return False, errors
+            except Exception as e:
+                error_msg = f"(mysql) Query execution error: {str(e)}"
+                errors.append(error_msg)
+                logger.error("MySQL query execution error on %s: %s", device.host, e)
+                db.close()
+                return False, errors
+
+            # Close the connection
             db.close()
             return True, errors
-        except MySQLdb.OperationalError as e:
-            error_msg = f"(mysql) {str(e)}"
-            logger.error("MySQL error on %s: %s", device.host, e)
-            errors.append(error_msg)
-            return False, errors
         except Exception as e:
-            error_msg = f"(mysql) {str(e)}"
-            logger.error("Error checking MySQL on %s: %s", device.host, e)
+            error_msg = f"(mysql) Unexpected error: {str(e)}"
             errors.append(error_msg)
+            logger.error("Unexpected error checking MySQL on %s: %s", device.host, e)
             return False, errors

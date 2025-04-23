@@ -1,0 +1,55 @@
+# Changes Made to Address Code Review
+
+This document summarizes the changes made to address the issues identified in the code review.
+
+## 1. Consolidated Codebase
+
+- Removed Twisted dependency from requirements.txt and setup.py as the codebase has pivoted to using asyncio.
+- Created a cleanup script (cleanup_legacy_files.py) to remove redundant files from the root directory that have been replaced by the newer asyncio-based implementation in the src directory.
+- The script backs up the redundant files to a timestamped directory before removing them.
+
+## 2. Improved Error Handling
+
+### Scanner.py
+
+- Enhanced error handling in the check_ssh method to differentiate between:
+  - Authentication errors
+  - SSH protocol errors
+  - Connection timeouts
+  - Connection refused errors
+  - Command execution errors
+- Enhanced error handling in the check_mysql method to differentiate between:
+  - Authentication errors (error code 1045)
+  - Connection errors (error code 2003)
+  - Database not found errors (error code 1049)
+  - Query execution errors
+- Enhanced error handling in the check_snmp method to differentiate between:
+  - MIB loading errors
+  - Connection errors
+  - Query errors
+
+## 3. Improved Test Coverage
+
+- Created a comprehensive test file for the scanner.py module (tests/test_scanner.py) that includes tests for:
+  - Scanning devices (alive and not alive)
+  - Checking if a device is alive
+  - Checking if a port is open
+  - Checking SSH, MySQL, and SNMP services
+  - Error handling during scanning
+
+## 4. Other Improvements
+
+- Added asyncio dependency to requirements.txt and setup.py to explicitly declare this dependency.
+- Updated version constraints for dependencies to ensure compatibility.
+
+## Next Steps
+
+The following items from the code review still need to be addressed:
+
+1. Run linters (Black/Flake8) across the entire codebase.
+2. Replace `__del__` methods with context managers where appropriate (e.g., in any remaining database or spreadsheet managers).
+3. Further increase test coverage for other modules, particularly:
+   - infrastructure/report.py
+   - infrastructure/notification.py
+   - core/discovery.py
+4. Update documentation to match the final consolidated codebase.
