@@ -1,4 +1,4 @@
- """Device discovery service.
+"""Device discovery service.
 
 This module provides the core functionality for discovering devices on a network.
 """

@@ -1,15 +1,19 @@
 # Core dependencies
-python-nmap>=0.7.1
+setuptools~=68.2.0
+python-nmap~=0.7.1
 redis>=4.0.0
 openpyxl>=3.0.0
 jinja2>=3.0.0
+Twisted==24.7.0rc1
 paramiko>=3.4.0
+PyMySQL>=1.0.0
+asyncio>=3.4.3
 python-libnmap>=0.7.3
 ijson>=3.1.4
 
 # Optional dependencies
 # mysqlclient>=2.0.0  # Requires MySQL development libraries
-# snimpy>=0.8.9  # Requires SNMP development libraries
+# snimpy==0.8.9  # Requires SNMP development libraries
 
 # Development dependencies
 pytest>=7.0.0

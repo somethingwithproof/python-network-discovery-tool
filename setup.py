@@ -23,9 +23,17 @@ requirements = [
     "openpyxl>=3.0.0",
     "jinja2>=3.0.0",
     "paramiko>=3.4.0",
+    "PyMySQL>=1.0.0",
+    "asyncio>=3.4.3",
     "python-libnmap>=0.7.3",
     "ijson>=3.1.4",
 ]
+
+# Define optional requirements
+optional_requirements = {
+    "snmp": ["snimpy>=0.8.9"],
+    "mysql": ["mysqlclient>=2.0.0"],
+}
 
 # Define development requirements
 dev_requirements = [
@@ -41,8 +49,8 @@ dev_requirements = [
 ]
 
 # Define optional dependencies
-mysql_requirements = ["mysqlclient>=2.0.0"]
-snmp_requirements = ["snimpy>=0.8.9"]
+mysql_requirements = optional_requirements["mysql"]
+snmp_requirements = optional_requirements["snmp"]
 
 setup(
     name="network-discovery",
@@ -79,7 +87,7 @@ setup(
         "dev": dev_requirements,
         "mysql": mysql_requirements,
         "snmp": snmp_requirements,
-        "all": mysql_requirements + snmp_requirements,
+        "all": [req for reqs in optional_requirements.values() for req in reqs],
     },
     entry_points={
         "console_scripts": [
