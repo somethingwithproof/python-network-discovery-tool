@@ -4,7 +4,7 @@ This module defines the interfaces for the application services.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Any, Optional
+from typing import List, Any, Optional, Tuple
 
 from network_discovery.domain.device import Device
 
@@ -13,11 +13,14 @@ class DeviceScannerService(ABC):
     """Interface for device scanning services."""
 
     @abstractmethod
-    async def scan_device(self, device: Device) -> None:
+    async def scan_device(self, device: Device) -> Device:
         """Scan a device to check its status.
 
         Args:
             device: The device to scan.
+            
+        Returns:
+            An updated Device instance with scan results.
         """
 
     @abstractmethod
@@ -32,7 +35,7 @@ class DeviceScannerService(ABC):
         """
 
     @abstractmethod
-    async def is_port_open(self, device: Device, port: int) -> bool:
+    async def is_port_open(self, device: Device, port: int) -> Tuple[bool, List[str]]:
         """Check if a specific port on a device is open.
 
         Args:
@@ -40,40 +43,48 @@ class DeviceScannerService(ABC):
             port: The port number to check.
 
         Returns:
-            True if the port is open, False otherwise.
+            A tuple containing:
+            - A boolean indicating if the port is open
+            - A list of error messages, if any
         """
 
     @abstractmethod
-    async def check_ssh(self, device: Device) -> bool:
+    async def check_ssh(self, device: Device) -> Tuple[bool, List[str]]:
         """Check if SSH is available on a device.
 
         Args:
             device: The device to check.
 
         Returns:
-            True if SSH is available, False otherwise.
+            A tuple containing:
+            - A boolean indicating if SSH is available
+            - A list of error messages, if any
         """
 
     @abstractmethod
-    async def check_snmp(self, device: Device) -> bool:
+    async def check_snmp(self, device: Device) -> Tuple[bool, List[str]]:
         """Check if SNMP is available on a device.
 
         Args:
             device: The device to check.
 
         Returns:
-            True if SNMP is available, False otherwise.
+            A tuple containing:
+            - A boolean indicating if SNMP is available
+            - A list of error messages, if any
         """
 
     @abstractmethod
-    async def check_mysql(self, device: Device) -> bool:
+    async def check_mysql(self, device: Device) -> Tuple[bool, List[str]]:
         """Check if MySQL is available on a device.
 
         Args:
             device: The device to check.
 
         Returns:
-            True if MySQL is available, False otherwise.
+            A tuple containing:
+            - A boolean indicating if MySQL is available
+            - A list of error messages, if any
         """
 
 

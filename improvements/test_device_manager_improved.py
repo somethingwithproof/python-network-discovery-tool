@@ -1,8 +1,8 @@
-"""Tests for the DeviceManager class."""
+"""Tests for the improved DeviceManager class."""
 
 import pytest
 from network_discovery.domain.device import Device
-from network_discovery.domain.device_manager import DeviceManager
+from improvements.device_manager_improved import DeviceManager
 
 
 class TestDeviceManager:
@@ -178,5 +178,5 @@ class TestDeviceManager:
         assert not device2.snmp
         assert not device2.ssh
         assert not device2.mysql
-        assert tuple(device2.errors) == ("Error",)
+        assert device2.errors == ["Error"]
         assert device2.scanned

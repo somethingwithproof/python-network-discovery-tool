@@ -4,15 +4,18 @@ This module defines the Device entity, which represents a network device and its
 """
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
 
-@dataclass
+@dataclass(frozen=True)
 class Device:
     """Represents a network device and its properties.
 
     This is the core domain entity that represents a device on the network.
     It contains all the properties and state of a network device.
+    
+    This class is immutable (frozen) to make it hashable, which allows it to be used in sets.
+    Methods that modify the device's state will return a new Device instance.
     """
 
     id: int
@@ -26,23 +29,50 @@ class Device:
     mysql_user: str = ""
     mysql_password: str = ""
     uname: str = ""
-    errors: List[str] = field(default_factory=list)
+    errors: Tuple[str, ...] = field(default_factory=tuple)
     scanned: bool = False
 
-    def add_error(self, msg: str) -> None:
+    def add_error(self, msg: str) -> "Device":
         """Add an error message to the device's error log.
 
         Args:
             msg: The error message to add.
+            
+        Returns:
+            A new Device instance with the error added.
         """
-        self.errors.append(msg)
+        return self.replace(errors=self.errors + (msg,))
 
-    def reset_services(self) -> None:
-        """Reset the statuses of all services."""
-        self.ssh = False
-        self.snmp = False
-        self.mysql = False
-        self.uname = "unknown"
+    def reset_services(self) -> "Device":
+        """Reset the statuses of all services.
+        
+        Returns:
+            A new Device instance with services reset.
+        """
+        return self.replace(
+            ssh=False,
+            snmp=False,
+            mysql=False,
+            uname="unknown"
+        )
+
+    def replace(self, **kwargs) -> "Device":
+        """Create a new Device with some fields replaced.
+        
+        Args:
+            **kwargs: The fields to replace and their new values.
+            
+        Returns:
+            A new Device instance with the specified fields replaced.
+        """
+        # Create a dictionary of the current field values
+        fields = self.to_dict()
+        
+        # Update with the new values
+        fields.update(kwargs)
+        
+        # Create a new Device instance
+        return Device.from_dict(fields)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert the device attributes to a dictionary.
@@ -62,7 +92,7 @@ class Device:
             "mysql_user": self.mysql_user,
             "mysql_password": self.mysql_password,
             "uname": self.uname,
-            "errors": self.errors,
+            "errors": list(self.errors),
             "scanned": self.scanned,
         }
 
@@ -76,6 +106,11 @@ class Device:
         Returns:
             A new Device instance.
         """
+        # Convert errors list to tuple for immutability
+        errors = dict_device.get("errors", [])
+        if isinstance(errors, list):
+            errors = tuple(errors)
+            
         return cls(
             id=dict_device["id"],
             host=str(dict_device["host"]),
@@ -88,7 +123,7 @@ class Device:
             mysql_user=str(dict_device["mysql_user"]),
             mysql_password=str(dict_device["mysql_password"]),
             uname=str(dict_device["uname"]),
-            errors=dict_device["errors"],
+            errors=errors,
             scanned=dict_device["scanned"],
         )
 
@@ -119,3 +154,11 @@ class Device:
             A string representation of the device.
         """
         return str(self.to_dict())
+        
+    def __hash__(self) -> int:
+        """Return a hash of the device.
+        
+        Returns:
+            A hash value based on the device's ID, host, and IP.
+        """
+        return hash((self.id, self.host, self.ip))

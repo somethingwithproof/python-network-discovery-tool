@@ -6,7 +6,7 @@ This module provides an enterprise-class device implementation with enhanced fea
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
-from typing import List, Dict, Any, Optional, Set
+from typing import List, Dict, Any, Optional, Set, Tuple
 
 from network_discovery.domain.device import Device
 
@@ -34,14 +34,15 @@ class DeviceStatus(Enum):
     UNKNOWN = auto()
 
 
-@dataclass
-class EnterpriseDevice(Device):
+@dataclass(frozen=True)
+class EnterpriseDevice:
     """Enterprise-class device with enhanced features.
 
-    This class extends the base Device class with additional enterprise features
+    This class uses composition to extend the base Device class with additional enterprise features
     such as asset management, compliance tracking, and enhanced monitoring capabilities.
 
     Attributes:
+        device: The base Device object.
         category: The category of the device.
         status: The operational status of the device.
         asset_id: The asset ID of the device.
@@ -53,14 +54,15 @@ class EnterpriseDevice(Device):
         os_version: The operating system version.
         firmware_version: The firmware version.
         compliance: Whether the device is compliant with security policies.
-        compliance_issues: List of compliance issues.
-        tags: Set of tags associated with the device.
-        custom_attributes: Dictionary of custom attributes.
+        compliance_issues: Tuple of compliance issues.
+        tags: Frozenset of tags associated with the device.
+        custom_attributes: Dictionary of custom attributes (immutable).
         last_scan_time: The time of the last scan.
         uptime: The uptime of the device in seconds.
-        services: Dictionary of services running on the device.
+        services: Dictionary of services running on the device (immutable).
     """
 
+    device: Device
     category: DeviceCategory = DeviceCategory.UNKNOWN
     status: DeviceStatus = DeviceStatus.UNKNOWN
     asset_id: str = ""
@@ -72,37 +74,52 @@ class EnterpriseDevice(Device):
     os_version: str = ""
     firmware_version: str = ""
     compliance: bool = False
-    compliance_issues: List[str] = field(default_factory=list)
-    tags: Set[str] = field(default_factory=set)
+    compliance_issues: Tuple[str, ...] = field(default_factory=tuple)
+    tags: frozenset = field(default_factory=frozenset)
     custom_attributes: Dict[str, Any] = field(default_factory=dict)
     last_scan_time: Optional[datetime] = None
     uptime: Optional[int] = None
     services: Dict[str, bool] = field(default_factory=dict)
 
-    def add_tag(self, tag: str) -> None:
+    def add_tag(self, tag: str) -> 'EnterpriseDevice':
         """Add a tag to the device.
 
         Args:
             tag: The tag to add.
+            
+        Returns:
+            A new EnterpriseDevice instance with the tag added.
         """
-        self.tags.add(tag)
+        new_tags = set(self.tags)
+        new_tags.add(tag)
+        return self.replace(tags=frozenset(new_tags))
 
-    def remove_tag(self, tag: str) -> None:
+    def remove_tag(self, tag: str) -> 'EnterpriseDevice':
         """Remove a tag from the device.
 
         Args:
             tag: The tag to remove.
+            
+        Returns:
+            A new EnterpriseDevice instance with the tag removed.
         """
-        self.tags.discard(tag)
+        new_tags = set(self.tags)
+        new_tags.discard(tag)
+        return self.replace(tags=frozenset(new_tags))
 
-    def set_custom_attribute(self, key: str, value: Any) -> None:
+    def set_custom_attribute(self, key: str, value: Any) -> 'EnterpriseDevice':
         """Set a custom attribute on the device.
 
         Args:
             key: The attribute key.
             value: The attribute value.
+            
+        Returns:
+            A new EnterpriseDevice instance with the custom attribute set.
         """
-        self.custom_attributes[key] = value
+        new_attributes = dict(self.custom_attributes)
+        new_attributes[key] = value
+        return self.replace(custom_attributes=new_attributes)
 
     def get_custom_attribute(self, key: str, default: Any = None) -> Any:
         """Get a custom attribute from the device.
@@ -116,14 +133,19 @@ class EnterpriseDevice(Device):
         """
         return self.custom_attributes.get(key, default)
 
-    def add_service(self, service_name: str, status: bool = True) -> None:
+    def add_service(self, service_name: str, status: bool = True) -> 'EnterpriseDevice':
         """Add a service to the device.
 
         Args:
             service_name: The name of the service.
             status: The status of the service (True for running, False for stopped).
+            
+        Returns:
+            A new EnterpriseDevice instance with the service added.
         """
-        self.services[service_name] = status
+        new_services = dict(self.services)
+        new_services[service_name] = status
+        return self.replace(services=new_services)
 
     def get_service_status(self, service_name: str) -> Optional[bool]:
         """Get the status of a service.
@@ -136,9 +158,13 @@ class EnterpriseDevice(Device):
         """
         return self.services.get(service_name)
 
-    def update_scan_time(self) -> None:
-        """Update the last scan time to the current time."""
-        self.last_scan_time = datetime.now()
+    def update_scan_time(self) -> 'EnterpriseDevice':
+        """Update the last scan time to the current time.
+        
+        Returns:
+            A new EnterpriseDevice instance with the updated scan time.
+        """
+        return self.replace(last_scan_time=datetime.now())
 
     def days_since_patched(self) -> Optional[int]:
         """Calculate the number of days since the device was last patched.
@@ -169,7 +195,7 @@ class EnterpriseDevice(Device):
         Returns:
             A dictionary representation of the device.
         """
-        base_dict = super().to_dict()
+        base_dict = self.device.to_dict()
         
         # Add enterprise-specific attributes
         enterprise_dict = {
@@ -184,7 +210,7 @@ class EnterpriseDevice(Device):
             "os_version": self.os_version,
             "firmware_version": self.firmware_version,
             "compliance": self.compliance,
-            "compliance_issues": self.compliance_issues,
+            "compliance_issues": list(self.compliance_issues),
             "tags": list(self.tags),
             "custom_attributes": self.custom_attributes,
             "last_scan_time": self.last_scan_time.isoformat() if self.last_scan_time else None,
@@ -240,21 +266,15 @@ class EnterpriseDevice(Device):
             except (KeyError, ValueError):
                 pass
         
+        # Convert compliance issues to tuple
+        compliance_issues = tuple(dict_device.get("compliance_issues", []))
+        
+        # Convert tags to frozenset
+        tags = frozenset(dict_device.get("tags", []))
+        
         # Create the enterprise device
         return cls(
-            id=base_device.id,
-            host=base_device.host,
-            ip=base_device.ip,
-            snmp_group=base_device.snmp_group,
-            alive=base_device.alive,
-            snmp=base_device.snmp,
-            ssh=base_device.ssh,
-            mysql=base_device.mysql,
-            mysql_user=base_device.mysql_user,
-            mysql_password=base_device.mysql_password,
-            uname=base_device.uname,
-            errors=base_device.errors,
-            scanned=base_device.scanned,
+            device=base_device,
             category=category,
             status=status,
             asset_id=dict_device.get("asset_id", ""),
@@ -266,8 +286,8 @@ class EnterpriseDevice(Device):
             os_version=dict_device.get("os_version", ""),
             firmware_version=dict_device.get("firmware_version", ""),
             compliance=dict_device.get("compliance", False),
-            compliance_issues=dict_device.get("compliance_issues", []),
-            tags=set(dict_device.get("tags", [])),
+            compliance_issues=compliance_issues,
+            tags=tags,
             custom_attributes=dict_device.get("custom_attributes", {}),
             last_scan_time=last_scan_time,
             uptime=dict_device.get("uptime"),
@@ -280,4 +300,92 @@ class EnterpriseDevice(Device):
         Returns:
             A string representation of the device.
         """
-        return f"{self.host} ({self.ip}) - {self.category.name} - {self.status.name}"
+        return f"{self.device.host} ({self.device.ip}) - {self.category.name} - {self.status.name}"
+        
+    def replace(self, **kwargs) -> 'EnterpriseDevice':
+        """Create a new EnterpriseDevice with some fields replaced.
+        
+        Args:
+            **kwargs: The fields to replace and their new values.
+            
+        Returns:
+            A new EnterpriseDevice instance with the specified fields replaced.
+        """
+        # Create a dictionary of the current field values
+        fields = {
+            "device": self.device,
+            "category": self.category,
+            "status": self.status,
+            "asset_id": self.asset_id,
+            "location": self.location,
+            "owner": self.owner,
+            "purchase_date": self.purchase_date,
+            "warranty_expiry": self.warranty_expiry,
+            "last_patched": self.last_patched,
+            "os_version": self.os_version,
+            "firmware_version": self.firmware_version,
+            "compliance": self.compliance,
+            "compliance_issues": self.compliance_issues,
+            "tags": self.tags,
+            "custom_attributes": self.custom_attributes,
+            "last_scan_time": self.last_scan_time,
+            "uptime": self.uptime,
+            "services": self.services,
+        }
+        
+        # Update with the new values
+        fields.update(kwargs)
+        
+        # Create a new EnterpriseDevice instance
+        return EnterpriseDevice(**fields)
+        
+    # Delegate common Device methods and properties to the device attribute
+    
+    @property
+    def id(self) -> int:
+        """Get the device ID."""
+        return self.device.id
+        
+    @property
+    def host(self) -> str:
+        """Get the device hostname."""
+        return self.device.host
+        
+    @property
+    def ip(self) -> str:
+        """Get the device IP address."""
+        return self.device.ip
+        
+    @property
+    def alive(self) -> bool:
+        """Get whether the device is alive."""
+        return self.device.alive
+        
+    @property
+    def ssh(self) -> bool:
+        """Get whether SSH is available on the device."""
+        return self.device.ssh
+        
+    @property
+    def snmp(self) -> bool:
+        """Get whether SNMP is available on the device."""
+        return self.device.snmp
+        
+    @property
+    def mysql(self) -> bool:
+        """Get whether MySQL is available on the device."""
+        return self.device.mysql
+        
+    @property
+    def errors(self) -> Tuple[str, ...]:
+        """Get the device errors."""
+        return self.device.errors
+        
+    @property
+    def scanned(self) -> bool:
+        """Get whether the device has been scanned."""
+        return self.device.scanned
+        
+    def status_summary(self) -> str:
+        """Get a summary of the device's status."""
+        return self.device.status()
