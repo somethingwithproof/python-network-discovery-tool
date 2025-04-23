@@ -5,7 +5,7 @@ from typing import Optional, List, Any
 from twisted.internet import defer, task
 from twisted.python import log as twisted_log
 from snimpy.manager import Manager as M, load
-from paramiko import SSHClient, AutoAddPolicy
+from paramiko import SSHClient, RejectPolicy
 from paramiko.ssh_exception import AuthenticationException, SSHException
 import MySQLdb
 
@@ -223,7 +223,7 @@ class SSHHelper:
         """Connects to the host via SSH and runs a command."""
         ssh = SSHClient()
         ssh.load_host_keys(KEY_FILE)
-        ssh.set_missing_host_key_policy(AutoAddPolicy())
+        ssh.set_missing_host_key_policy(RejectPolicy())
         try:
             ssh.connect(host, username=user, timeout=3)
             stdin, stdout, stderr = ssh.exec_command(command)
