@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.3.0)'
+        required: true
+      dry_run:
+        description: 'Dry run (no actual changes)'
+        type: boolean
+        default: false
+      publish_to_pypi:
+        description: 'Publish to PyPI'
+        type: boolean
+        default: true
+      bump_dev_version:
+        description: 'Bump version for development after release'
+        type: boolean
+        default: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch all history for tags and branches
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine pytest pytest-cov
+          pip install -e ".[dev]"
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: Run release script
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/release.py ${{ github.event.inputs.version }} \
+            ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }} \
+            ${{ github.event.inputs.publish_to_pypi != 'true' && '--no-publish' || '' }} \
+            ${{ github.event.inputs.bump_dev_version == 'true' && '--bump-dev' || '' }}
+
+      - name: Push changes
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: git push origin main
