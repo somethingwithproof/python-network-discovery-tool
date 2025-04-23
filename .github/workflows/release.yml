@@ -19,6 +19,11 @@ on:
         type: boolean
         default: true
 
+# Define permissions
+permissions:
+  contents: write  # Needed to push changes to the repository
+  packages: write  # Needed if publishing packages
+
 jobs:
   release:
     runs-on: ubuntu-latest

@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*.*.*'
 
+# Define permissions
+permissions:
+  contents: read  # Needed to check out the code
+  id-token: write # Needed for PyPI token authentication
+
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest

@@ -9,6 +9,11 @@ on:
       - 'mkdocs.yml'
   workflow_dispatch:
 
+# Define permissions
+permissions:
+  contents: write  # Needed to push to gh-pages branch
+  pages: write     # Needed for GitHub Pages
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
