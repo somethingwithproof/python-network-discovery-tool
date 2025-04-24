@@ -1,0 +1,202 @@
+#!/usr/bin/env python3
+
+"""
+Development environment setup script for the network discovery tool.
+Supports macOS, Linux, and Windows platforms.
+"""
+
+import os
+import platform
+import subprocess
+import sys
+from pathlib import Path
+
+# ANSI colors
+GREEN = '\033[0;32m'
+YELLOW = '\033[1;33m'
+RED = '\033[0;31m'
+NC = '\033[0m'
+
+def print_step(msg):
+    """Print a step message."""
+    print(f"\n{YELLOW}==> {msg}{NC}")
+
+def print_success(msg):
+    """Print a success message."""
+    print(f"{GREEN}✓ {msg}{NC}")
+
+def print_error(msg):
+    """Print an error message."""
+    print(f"{RED}✗ {msg}{NC}")
+
+def run_command(cmd, shell=False):
+    """Run a command and return its output."""
+    try:
+        result = subprocess.run(
+            cmd,
+            shell=shell,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        return True, result.stdout
+    except subprocess.CalledProcessError as e:
+        return False, e.stderr
+
+def check_python_version():
+    """Check if Python version is 3.11.x."""
+    version = sys.version_info
+    if version.major != 3 or version.minor != 11:
+        print_error(f"Python 3.11.x required, found {sys.version.split()[0]}")
+        return False
+    return True
+
+def setup_virtual_env():
+    """Set up virtual environment."""
+    print_step("Setting up virtual environment")
+    
+    if os.path.exists(".venv"):
+        print("Removing existing virtual environment...")
+        if platform.system() == "Windows":
+            run_command(["rmdir", "/s", "/q", ".venv"], shell=True)
+        else:
+            run_command(["rm", "-rf", ".venv"])
+
+    success, output = run_command([sys.executable, "-m", "venv", ".venv"])
+    if not success:
+        print_error("Failed to create virtual environment")
+        print(output)
+        return False
+    
+    print_success("Virtual environment created")
+    return True
+
+def activate_virtual_env():
+    """Return the activation command for the current platform."""
+    if platform.system() == "Windows":
+        return str(Path(".venv/Scripts/activate"))
+    return "source .venv/bin/activate"
+
+def install_dependencies():
+    """Install all dependencies."""
+    print_step("Installing dependencies")
+    
+    pip_path = str(Path(".venv/bin/pip" if platform.system() != "Windows" else ".venv/Scripts/pip.exe"))
+    
+    # Upgrade pip
+    success, _ = run_command([pip_path, "install", "--upgrade", "pip"])
+    if not success:
+        print_error("Failed to upgrade pip")
+        return False
+    
+    # Install package in development mode
+    success, _ = run_command([pip_path, "install", "-e", "."])
+    if not success:
+        print_error("Failed to install package")
+        return False
+    
+    # Install development dependencies
+    success, _ = run_command([pip_path, "install", "-r", "requirements-dev.txt"])
+    if not success:
+        print_error("Failed to install development dependencies")
+        return False
+    
+    print_success("All dependencies installed")
+    return True
+
+def setup_git_hooks():
+    """Set up Git hooks."""
+    print_step("Setting up Git hooks")
+    
+    hooks_dir = Path(".git/hooks")
+    if not hooks_dir.exists():
+        print_error("Git repository not initialized")
+        return False
+    
+    # Copy pre-commit hook
+    pre_commit = hooks_dir / "pre-commit"
+    if pre_commit.exists():
+        pre_commit.unlink()
+    
+    pre_commit.write_text("""#!/bin/bash
+
+# Pre-commit hook for development environment verification
+source .venv/bin/activate 2>/dev/null || . .venv/Scripts/activate 2>/dev/null
+
+# Colors for output
+RED='\\033[0;31m'
+GREEN='\\033[0;32m'
+YELLOW='\\033[1;33m'
+NC='\\033[0m'
+
+echo -e "${YELLOW}Running pre-commit checks...${NC}"
+
+# Check Python version
+PYTHON_VERSION=$(python --version 2>&1)
+if [[ ! $PYTHON_VERSION =~ ^Python\ 3\.11\.[0-9]+$ ]]; then
+    echo -e "${RED}Error: Wrong Python version: $PYTHON_VERSION${NC}"
+    exit 1
+fi
+
+# Run tests
+echo "Running tests..."
+if ! pytest -q; then
+    echo -e "${RED}Error: Tests failed${NC}"
+    exit 1
+fi
+
+# Check formatting
+echo "Checking code format..."
+if ! black --check src tests; then
+    echo -e "${RED}Error: Code formatting issues found${NC}"
+    echo "Run: black src tests"
+    exit 1
+fi
+
+# Type checking
+echo "Running type checks..."
+if ! mypy src; then
+    echo -e "${RED}Error: Type check failed${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}All checks passed!${NC}"
+exit 0
+""")
+    
+    # Make hook executable
+    pre_commit.chmod(0o755)
+    print_success("Git hooks installed")
+    return True
+
+def main():
+    """Main setup function."""
+    print_step("Starting development environment setup")
+    
+    # Check Python version
+    if not check_python_version():
+        sys.exit(1)
+    
+    # Set up virtual environment
+    if not setup_virtual_env():
+        sys.exit(1)
+    
+    # Install dependencies
+    if not install_dependencies():
+        sys.exit(1)
+    
+    # Set up Git hooks
+    if not setup_git_hooks():
+        sys.exit(1)
+    
+    # Final instructions
+    activate_cmd = activate_virtual_env()
+    print("\nSetup completed successfully!")
+    print("\nTo activate the virtual environment, run:")
+    print(f"{YELLOW}{activate_cmd}{NC}")
+    print("\nTo verify the setup, run:")
+    print(f"{YELLOW}./verify_env.sh{NC}")
+
+if __name__ == "__main__":
+    main()

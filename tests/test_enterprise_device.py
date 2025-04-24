@@ -146,7 +146,11 @@ class TestEnterpriseDevice:
         assert days >= -51  # Allow for some flexibility due to timing
         assert days <= -49
 
-    def test_to_dict(self):
+    def test_to_dict(self, device_dict, device_dict, device_dict, device_dict, device_dict, device_dict, device_dict,
+                     device_dict, device_dict, device_dict, device_dict, device_dict, device_dict, device_dict,
+                     device_dict, device_dict, device_dict, device_dict, device_dict, device_dict, device_dict,
+                     device_dict, device_dict, device_dict, device_dict, device_dict, device_dict, device_dict,
+                     device_dict, device_dict):
         """Test that an EnterpriseDevice can be converted to a dictionary."""
         now = datetime.now()
         purchase_date = now - timedelta(days=365)
@@ -230,7 +234,7 @@ class TestEnterpriseDevice:
         assert device_dict["uptime"] == 86400
         assert device_dict["services"] == {"http": True, "https": True, "ftp": False}
 
-    def test_from_dict(self):
+    def test_from_dict(self, device_dict):
         """Test that an EnterpriseDevice can be created from a dictionary."""
         now = datetime.now()
         purchase_date = now - timedelta(days=365)
@@ -307,7 +311,7 @@ class TestEnterpriseDevice:
         assert device.uptime == 86400
         assert device.services == {"http": True, "https": True, "ftp": False}
 
-    def test_from_dict_with_invalid_enum_values(self):
+    def test_from_dict_with_invalid_enum_values(self, device_dict):
         """Test that an EnterpriseDevice can be created from a dictionary with invalid enum values."""
         device_dict = {
             "id": 1,
@@ -331,7 +335,7 @@ class TestEnterpriseDevice:
         assert device.category == DeviceCategory.UNKNOWN
         assert device.status == DeviceStatus.UNKNOWN
 
-    def test_from_dict_with_missing_dates(self):
+    def test_from_dict_with_missing_dates(self, device_dict):
         """Test that an EnterpriseDevice can be created from a dictionary with missing dates."""
         device_dict = {
             "id": 1,

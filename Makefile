@@ -1,73 +1,88 @@
-#
-# Makefile for the 'auto-discover' network discovery and analysis project 
-#
+.PHONY: help setup test lint docs clean verify dev-env
 
-# This Makefile provides targets for streamlining development tasks related to 
-# the 'auto-discover' project, including code linting, testing, documentation 
-# generation, and virtual environment management.
+# Colors
+GREEN  := $(shell tput -Txterm setaf 2)
+YELLOW := $(shell tput -Txterm setaf 3)
+WHITE  := $(shell tput -Txterm setaf 7)
+RESET  := $(shell tput -Txterm sgr0)
 
-# Author and Contact
-AUTHOR := Thomas Vincent <thomas.vincent@gmail.com>
+# Help target
+help: ## Show this help
+	@echo 'Usage:'
+	@echo '  ${YELLOW}make${RESET} ${GREEN}<target>${RESET}'
+	@echo ''
+	@echo 'Targets:'
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  ${YELLOW}%-15s${RESET} %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-# Version (optional)
-VERSION := 0.1
+setup: ## Set up development environment
+	@echo "${YELLOW}Setting up development environment...${RESET}"
+	./setup-dev-env
+	@echo "${GREEN}Setup complete! Run 'source .venv/bin/activate' to activate the virtual environment${RESET}"
 
-# Copyright notice
-COPYRIGHT := 2012-2024 Thomas Vincent
+test: ## Run tests
+	@echo "${YELLOW}Running tests...${RESET}"
+	./dev-tools test
 
-# License 
-LICENSE := MIT 
+test-watch: ## Run tests in watch mode
+	@echo "${YELLOW}Running tests in watch mode...${RESET}"
+	./dev-tools test -w
 
+test-cov: ## Run tests with coverage
+	@echo "${YELLOW}Running tests with coverage...${RESET}"
+	./dev-tools test -c
 
-# Variables
-PROJECT_NAME := auto-discover
-VENV_NAME := $(PROJECT_NAME)-venv
-FLAKE8_EXECUTABLE := flake8
+lint: ## Run all linting tools
+	@echo "${YELLOW}Running linting tools...${RESET}"
+	./dev-tools lint
 
-# Targets
-.PHONY: clean-pyc clean-build clean-venv lint test docs help
+docs: ## Build documentation
+	@echo "${YELLOW}Building documentation...${RESET}"
+	./dev-tools docs
 
-help:
-	@echo "Please use \`make <target>' where <target> is one of:"
-	@echo "  clean-build   to remove build artifacts"
-	@echo "  clean-pyc     to remove Python file artifacts"
-	@echo "  clean-venv    to remove the virtual environment"
-	@echo "  lint          to check style with flake8"
-	@echo "  test          to run tests"
-	@echo "  docs          to generate Sphinx HTML documentation, including API docs"
+docs-serve: ## Serve documentation locally
+	@echo "${YELLOW}Starting documentation server...${RESET}"
+	./dev-tools docs -s
 
-clean: clean-build clean-pyc clean-venv
+clean: ## Clean up development artifacts
+	@echo "${YELLOW}Cleaning up development artifacts...${RESET}"
+	./dev-tools clean
 
-clean-build:
-	rm -rf build/
-	rm -rf dist/
-	rm -rf *.egg-info
+verify: ## Verify development environment
+	@echo "${YELLOW}Verifying development environment...${RESET}"
+	./dev-tools verify
 
-clean-pyc:
-	find . -name '*.pyc' -delete -o -name '*.pyo' -delete -o -name '*~' -delete -o -name '__pycache__' -delete -print0 | xargs -0 -P4 rm -f
+dev-env: ## Activate development environment (run with source)
+	@echo "${YELLOW}Activating development environment...${RESET}"
+	@echo "Please run: ${GREEN}source .venv/bin/activate${RESET}"
 
-clean-venv:
-	rm -rf $(VENV_NAME)
+check: lint test ## Run linting and tests
 
-lint:
-	$(FLAKE8_EXECUTABLE) auto-discover tests
+all: setup lint test docs ## Set up environment and run all checks
 
-test:
-	python -m unittest discover
+# Development workflow shortcuts
+.PHONY: format type-check security-check
 
-docs:
-	rm -f docs/$(PROJECT_NAME).rst
-	rm -f docs/modules.rst
-	sphinx-apidoc -o docs/ auto-discover
-	$(MAKE) -C docs clean
-	$(MAKE) -C docs html
-	@echo "Documentation build complete. Open 'docs/_build/html/index.html' to view."
+format: ## Format code with black
+	@echo "${YELLOW}Formatting code...${RESET}"
+	black src tests
 
-# Development targets
-venv:
-	python3 -m venv $(VENV_NAME)
-	$(VENV_NAME)/bin/pip install -U pip
-	$(VENV_NAME)/bin/pip install -r requirements.txt
+type-check: ## Run type checking
+	@echo "${YELLOW}Running type checks...${RESET}"
+	mypy src
 
-venv-dev: venv
-	$(VENV_NAME)/bin/pip install -r requirements-dev.txt
+security-check: ## Run security checks
+	@echo "${YELLOW}Running security checks...${RESET}"
+	bandit -r src/
+
+# Quick development tasks
+.PHONY: quick-test quick-lint
+
+quick-test: ## Run only fast tests
+	@echo "${YELLOW}Running quick tests...${RESET}"
+	pytest -m "not slow" tests/
+
+quick-lint: ## Run quick linting checks
+	@echo "${YELLOW}Running quick lint...${RESET}"
+	black --check src tests
+	mypy --no-incremental src
+

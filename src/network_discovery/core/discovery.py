@@ -68,7 +68,7 @@ class DeviceDiscoveryService:
 
             # Scan all devices
             tasks = []
-            devices_by_id: Dict[int, Device] = {}
+            {}
 
             for device in self.device_manager.devices:
                 # Create a task for each device scan

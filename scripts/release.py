@@ -269,7 +269,7 @@ def bump_dev_version(version, dry_run=False):
     match = re.match(r"(\d+)\.(\d+)\.(\d+)", version)
     if not match:
         print(f"Error: Could not parse version '{version}'")
-        return
+        return None
     
     major, minor, patch = match.groups()
     

@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+
+"""
+Development tools script for common tasks.
+Provides a command-line interface for development operations.
+"""
+
+import argparse
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+# ANSI colors
+GREEN = '\033[0;32m'
+YELLOW = '\033[1;33m'
+RED = '\033[0;31m'
+NC = '\033[0m'
+
+def run_command(cmd, capture_output=True, shell=False):
+    """Run a command and return its status and output."""
+    try:
+        result = subprocess.run(
+            cmd,
+            shell=shell,
+            check=True,
+            capture_output=capture_output,
+            text=True
+        )
+        return True, result.stdout if capture_output else ""
+    except subprocess.CalledProcessError as e:
+        return False, e.stderr if capture_output else str(e)
+
+def ensure_venv():
+    """Ensure we're running in the virtual environment."""
+    if not os.environ.get("VIRTUAL_ENV"):
+        print(f"{RED}Error: Virtual environment not activated{NC}")
+        print(f"Please run: {YELLOW}source .venv/bin/activate{NC}")
+        sys.exit(1)
+
+def cmd_test(args):
+    """Run tests with specified options."""
+    cmd = ["pytest"]
+    if args.verbose:
+        cmd.append("-v")
+    if args.coverage:
+        cmd.extend(["--cov=network_discovery", "--cov-report=term-missing"])
+    if args.watch:
+        cmd = ["ptw", "--"] + cmd
+    
+    success, output = run_command(cmd, capture_output=False)
+    if not success:
+        print(f"{RED}Tests failed{NC}")
+        sys.exit(1)
+
+def cmd_lint(args):
+    """Run linting tools."""
+    print(f"{YELLOW}Running black...{NC}")
+    success, _ = run_command(["black", "src", "tests"], capture_output=False)
+    if not success:
+        sys.exit(1)
+
+    print(f"{YELLOW}Running mypy...{NC}")
+    success, _ = run_command(["mypy", "src"], capture_output=False)
+    if not success:
+        sys.exit(1)
+
+    print(f"{YELLOW}Running pylint...{NC}")
+    success, _ = run_command(["pylint", "src", "tests"], capture_output=False)
+    if not success:
+        sys.exit(1)
+
+    print(f"{GREEN}All checks passed!{NC}")
+
+def cmd_docs(args):
+    """Handle documentation tasks."""
+    if args.serve:
+        run_command(["mkdocs", "serve"], capture_output=False)
+    else:
+        run_command(["mkdocs", "build"], capture_output=False)
+
+def cmd_verify(args):
+    """Run environment verification."""
+    run_command(["./verify_env.sh"], capture_output=False)
+
+def cmd_clean(args):
+    """Clean up development artifacts."""
+    patterns = [
+        "**/__pycache__",
+        "**/*.pyc",
+        "**/*.pyo",
+        "**/*.pyd",
+        "**/.pytest_cache",
+        "**/.coverage",
+        "**/*.egg-info",
+        "**/build",
+        "**/dist",
+        "**/.tox",
+        "**/.mypy_cache",
+        "coverage.xml",
+        "htmlcov",
+    ]
+    
+    for pattern in patterns:
+        for path in Path('.').glob(pattern):
+            if path.is_file():
+                path.unlink()
+            elif path.is_dir():
+                import shutil
+                shutil.rmtree(path)
+    
+    print(f"{GREEN}Cleaned up development artifacts{NC}")
+
+def main():
+    """Main entry point."""
+    ensure_venv()
+
+    parser = argparse.ArgumentParser(description="Development tools for network-discovery")
+    subparsers = parser.add_subparsers(dest="command", help="Command to run")
+
+    # Test command
+    test_parser = subparsers.add_parser("test", help="Run tests")
+    test_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+    test_parser.add_argument("-c", "--coverage", action="store_true", help="Run with coverage")
+    test_parser.add_argument("-w", "--watch", action="store_true", help="Watch for changes")
+
+    # Lint command
+    subparsers.add_parser("lint", help="Run linting tools")
+
+    # Docs command
+    docs_parser = subparsers.add_parser("docs", help="Build documentation")
+    docs_parser.add_argument("-s", "--serve", action="store_true", help="Serve documentation")
+
+    # Verify command
+    subparsers.add_parser("verify", help="Verify development environment")
+
+    # Clean command
+    subparsers.add_parser("clean", help="Clean up development artifacts")
+
+    args = parser.parse_args()
+
+    if args.command == "test":
+        cmd_test(args)
+    elif args.command == "lint":
+        cmd_lint(args)
+    elif args.command == "docs":
+        cmd_docs(args)
+    elif args.command == "verify":
+        cmd_verify(args)
+    elif args.command == "clean":
+        cmd_clean(args)
+    else:
+        parser.print_help()
+
+if __name__ == "__main__":
+    main()
