@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Quick development environment verification script
+
+# Activate virtual environment if not already activated
+if [ -z "$VIRTUAL_ENV" ]; then
+    source .venv/bin/activate
+fi
+
+# Print environment info
+echo "Development Environment Status:"
+echo "-----------------------------"
+echo "Python: $(python --version)"
+echo "Pip: $(pip --version)"
+echo "Virtual Environment: $VIRTUAL_ENV"
+echo "-----------------------------"
+
+# Run full verification
+./verify_env.sh

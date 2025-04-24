@@ -1,0 +1,242 @@
+#!/usr/bin/env python3
+
+"""
+Development Environment Troubleshooter.
+Diagnoses and fixes common development environment issues.
+"""
+
+import os
+import sys
+import subprocess
+import shutil
+from pathlib import Path
+from typing import Dict, List, Tuple, Optional
+
+# ANSI colors
+GREEN = '\033[0;32m'
+YELLOW = '\033[1;33m'
+RED = '\033[0;31m'
+BLUE = '\033[0;34m'
+BOLD = '\033[1m'
+NC = '\033[0m'
+
+class Issue:
+    """Represents a development environment issue."""
+    def __init__(self, name: str, description: str, severity: str, fix_command: Optional[str] = None):
+        self.name = name
+        self.description = description
+        self.severity = severity
+        self.fix_command = fix_command
+
+def run_command(cmd: str, capture_output: bool = True) -> Tuple[bool, str]:
+    """Run a command and return its output."""
+    try:
+        result = subprocess.run(
+            cmd,
+            shell=True,
+            capture_output=capture_output,
+            text=True,
+            check=True
+        )
+        return True, result.stdout.strip() if capture_output else ""
+    except subprocess.CalledProcessError as e:
+        return False, e.stderr.strip() if capture_output else str(e)
+
+def check_python_version() -> List[Issue]:
+    """Check Python version issues."""
+    issues = []
+    version = sys.version_info
+    
+    if version.major != 3 or version.minor != 11:
+        issues.append(Issue(
+            "incorrect_python_version",
+            f"Wrong Python version: {sys.version.split()[0]}. Expected: 3.11.x",
+            "critical",
+            "brew install python@3.11  # Then recreate virtual environment"
+        ))
+    
+    return issues
+
+def check_virtual_env() -> List[Issue]:
+    """Check virtual environment issues."""
+    issues = []
+    
+    if not os.environ.get("VIRTUAL_ENV"):
+        issues.append(Issue(
+            "venv_not_activated",
+            "Virtual environment not activated",
+            "critical",
+            "source .venv/bin/activate"
+        ))
+    elif not Path(".venv").exists():
+        issues.append(Issue(
+            "venv_not_found",
+            "Virtual environment directory not found",
+            "critical",
+            "./setup-dev-env"
+        ))
+    
+    return issues
+
+def check_dependencies() -> List[Issue]:
+    """Check dependency issues."""
+    issues = []
+    
+    # Check if pip is available
+    success, _ = run_command("pip --version")
+    if not success:
+        issues.append(Issue(
+            "pip_not_found",
+            "pip not found in environment",
+            "critical",
+            "python -m ensurepip --upgrade"
+        ))
+        return issues
+    
+    # Check for outdated packages
+    success, output = run_command("pip list --outdated --format=json")
+    if success and output:
+        issues.append(Issue(
+            "outdated_packages",
+            "Some packages are outdated",
+            "warning",
+            "pip install --upgrade -r requirements.txt"
+        ))
+    
+    # Check for requirements.txt consistency
+    if Path("requirements.txt").exists():
+        success, _ = run_command("pip check")
+        if not success:
+            issues.append(Issue(
+                "dependency_conflicts",
+                "Dependency conflicts detected",
+                "error",
+                "pip install --upgrade --force-reinstall -r requirements.txt"
+            ))
+    
+    return issues
+
+def check_tools() -> List[Issue]:
+    """Check development tools issues."""
+    issues = []
+    required_tools = {
+        "black": "Code formatter not found",
+        "mypy": "Type checker not found",
+        "pytest": "Test runner not found",
+        "pylint": "Linter not found",
+        "bandit": "Security checker not found"
+    }
+    
+    for tool, message in required_tools.items():
+        if not shutil.which(tool):
+            issues.append(Issue(
+                f"missing_tool_{tool}",
+                message,
+                "error",
+                f"pip install {tool}"
+            ))
+    
+    return issues
+
+def check_git_setup() -> List[Issue]:
+    """Check Git setup issues."""
+    issues = []
+    
+    # Check Git hooks
+    hooks_dir = Path(".git/hooks")
+    required_hooks = ["pre-commit", "pre-push"]
+    
+    if not hooks_dir.exists():
+        issues.append(Issue(
+            "git_not_initialized",
+            "Git repository not initialized",
+            "critical",
+            "git init"
+        ))
+    else:
+        for hook in required_hooks:
+            hook_path = hooks_dir / hook
+            if not hook_path.exists() or not os.access(hook_path, os.X_OK):
+                issues.append(Issue(
+                    f"missing_git_hook_{hook}",
+                    f"Git {hook} hook not found or not executable",
+                    "warning",
+                    f"chmod +x .git/hooks/{hook}"
+                ))
+
+    return issues
+
+def fix_issue(issue: Issue) -> bool:
+    """Attempt to fix an issue."""
+    if not issue.fix_command:
+        return False
+    
+    print(f"\n{YELLOW}Attempting to fix: {issue.name}{NC}")
+    print(f"Running: {issue.fix_command}")
+    
+    success, output = run_command(issue.fix_command)
+    if success:
+        print(f"{GREEN}Fix successful!{NC}")
+        return True
+    else:
+        print(f"{RED}Fix failed: {output}{NC}")
+        return False
+
+def main():
+    """Main function."""
+    print(f"\n{BOLD}{BLUE}Development Environment Troubleshooter{NC}")
+    print("Checking for common issues...\n")
+    
+    # Collect all issues
+    all_issues = []
+    all_issues.extend(check_python_version())
+    all_issues.extend(check_virtual_env())
+    all_issues.extend(check_dependencies())
+    all_issues.extend(check_tools())
+    all_issues.extend(check_git_setup())
+    
+    if not all_issues:
+        print(f"{GREEN}No issues found! Development environment is healthy.{NC}")
+        return
+    
+    # Group issues by severity
+    issues_by_severity: Dict[str, List[Issue]] = {
+        "critical": [],
+        "error": [],
+        "warning": []
+    }
+    
+    for issue in all_issues:
+        issues_by_severity[issue.severity].append(issue)
+    
+    # Report issues
+    print(f"{BOLD}Found {len(all_issues)} issue(s):{NC}\n")
+    
+    for severity in ["critical", "error", "warning"]:
+        issues = issues_by_severity[severity]
+        if not issues:
+            continue
+        
+        severity_color = RED if severity == "critical" else (
+            RED if severity == "error" else YELLOW
+        )
+        print(f"{severity_color}{severity.upper()}{NC}")
+        for issue in issues:
+            print(f"- {issue.description}")
+            if issue.fix_command:
+                print(f"  Fix: {issue.fix_command}")
+        print()
+    
+    # Offer to fix issues
+    if input("Would you like to attempt to fix these issues? (y/N) ").lower() == 'y':
+        print("\nAttempting to fix issues...")
+        for issue in all_issues:
+            if issue.fix_command:
+                fix_issue(issue)
+        
+        print(f"\n{YELLOW}Please run the troubleshooter again to verify fixes.{NC}")
+    else:
+        print("\nTo fix issues manually, run the suggested commands or seek help in the documentation.")
+
+if __name__ == "__main__":
+    main()

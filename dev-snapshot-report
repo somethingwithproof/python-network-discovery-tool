@@ -1,0 +1,250 @@
+#!/usr/bin/env python3
+
+"""
+Development Environment Snapshot Report Generator.
+Creates detailed reports of snapshot analyses and comparisons.
+"""
+
+import argparse
+import json
+import os
+import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, Optional
+
+# ANSI colors (for console output)
+GREEN = '\033[0;32m'
+YELLOW = '\033[1;33m'
+RED = '\033[0;31m'
+BLUE = '\033[0;34m'
+BOLD = '\033[1m'
+NC = '\033[0m'
+
+# HTML template for reports
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Environment Snapshot Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .header { margin-bottom: 30px; }
+        .section { margin: 20px 0; }
+        .success { color: #28a745; }
+        .warning { color: #ffc107; }
+        .error { color: #dc3545; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f8f9fa; }
+        .changes { margin-left: 20px; }
+        .added { color: #28a745; }
+        .removed { color: #dc3545; }
+        .updated { color: #ffc107; }
+    </style>
+</head>
+<body>
+    {content}
+</body>
+</html>
+"""
+
+class SnapshotReporter:
+    """Generates reports for snapshot analyses and comparisons."""
+
+    def __init__(self):
+        self.snapshot_dir = Path("env_snapshots")
+        self.metadata_file = self.snapshot_dir / "snapshots.json"
+        self.reports_dir = Path("snapshot_reports")
+        self.reports_dir.mkdir(exist_ok=True)
+        self.metadata = self.load_metadata()
+
+    def load_metadata(self) -> Dict:
+        """Load snapshot metadata."""
+        if not self.metadata_file.exists():
+            print(f"{RED}Error: No snapshots found{NC}")
+            sys.exit(1)
+        return json.loads(self.metadata_file.read_text())
+
+    def generate_snapshot_analysis(self, name: str, format: str = "html") -> Optional[str]:
+        """Generate analysis report for a single snapshot."""
+        if name not in self.metadata["snapshots"]:
+            print(f"{RED}Error: Snapshot '{name}' not found{NC}")
+            return None
+
+        snapshot = self.metadata["snapshots"][name]
+        info = snapshot["info"]
+
+        if format == "html":
+            content = f"""
+                <div class="header">
+                    <h1>Snapshot Analysis: {name}</h1>
+                    <p>Generated: {datetime.now().isoformat()}</p>
+                </div>
+
+                <div class="section">
+                    <h2>Environment Information</h2>
+                    <table>
+                        <tr><th>Description</th><td>{snapshot['description']}</td></tr>
+                        <tr><th>Python Version</th><td>{info['python_version']}</td></tr>
+                        <tr><th>Created</th><td>{info['timestamp']}</td></tr>
+                        <tr><th>Total Packages</th><td>{len(info['packages'])}</td></tr>
+                    </table>
+                </div>
+
+                <div class="section">
+                    <h2>Installed Packages</h2>
+                    <table>
+                        <tr><th>Package</th><th>Version</th></tr>
+                        {''.join(f"<tr><td>{pkg.split('==')[0]}</td><td>{pkg.split('==')[1] if '==' in pkg else ''}</td></tr>"
+                                for pkg in sorted(info['packages']))}
+                    </table>
+                </div>
+            """
+            
+            report_path = self.reports_dir / f"snapshot_analysis_{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            report_path.write_text(HTML_TEMPLATE.format(content=content))
+            return str(report_path)
+
+        elif format == "json":
+            report = {
+                "name": name,
+                "description": snapshot["description"],
+                "python_version": info["python_version"],
+                "created": info["timestamp"],
+                "packages": info["packages"]
+            }
+            report_path = self.reports_dir / f"snapshot_analysis_{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            report_path.write_text(json.dumps(report, indent=2))
+            return str(report_path)
+
+        return None
+
+    def generate_comparison_report(self, name1: str, name2: str, format: str = "html") -> Optional[str]:
+        """Generate comparison report between two snapshots."""
+        if name1 not in self.metadata["snapshots"] or name2 not in self.metadata["snapshots"]:
+            print(f"{RED}Error: One or both snapshots not found{NC}")
+            return None
+
+        s1 = self.metadata["snapshots"][name1]
+        s2 = self.metadata["snapshots"][name2]
+        
+        # Compare packages
+        pkgs1 = set(s1["info"]["packages"])
+        pkgs2 = set(s2["info"]["packages"])
+        
+        added = sorted(pkgs2 - pkgs1)
+        removed = sorted(pkgs1 - pkgs2)
+        common = pkgs1 & pkgs2
+        
+        if format == "html":
+            content = f"""
+                <div class="header">
+                    <h1>Snapshot Comparison Report</h1>
+                    <p>Generated: {datetime.now().isoformat()}</p>
+                </div>
+
+                <div class="section">
+                    <h2>Comparison Overview</h2>
+                    <table>
+                        <tr>
+                            <th></th>
+                            <th>Base ({name1})</th>
+                            <th>Target ({name2})</th>
+                        </tr>
+                        <tr>
+                            <td>Python Version</td>
+                            <td>{s1['info']['python_version']}</td>
+                            <td>{s2['info']['python_version']}</td>
+                        </tr>
+                        <tr>
+                            <td>Created</td>
+                            <td>{s1['info']['timestamp']}</td>
+                            <td>{s2['info']['timestamp']}</td>
+                        </tr>
+                        <tr>
+                            <td>Total Packages</td>
+                            <td>{len(pkgs1)}</td>
+                            <td>{len(pkgs2)}</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div class="section">
+                    <h2>Package Changes</h2>
+                    
+                    <h3>Added Packages ({len(added)})</h3>
+                    <div class="changes added">
+                        {'<br>'.join(added) if added else 'None'}
+                    </div>
+
+                    <h3>Removed Packages ({len(removed)})</h3>
+                    <div class="changes removed">
+                        {'<br>'.join(removed) if removed else 'None'}
+                    </div>
+                </div>
+            """
+            
+            report_path = self.reports_dir / f"snapshot_comparison_{name1}_vs_{name2}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            report_path.write_text(HTML_TEMPLATE.format(content=content))
+            return str(report_path)
+
+        elif format == "json":
+            report = {
+                "base": {
+                    "name": name1,
+                    "python_version": s1["info"]["python_version"],
+                    "created": s1["info"]["timestamp"],
+                    "packages": list(pkgs1)
+                },
+                "target": {
+                    "name": name2,
+                    "python_version": s2["info"]["python_version"],
+                    "created": s2["info"]["timestamp"],
+                    "packages": list(pkgs2)
+                },
+                "changes": {
+                    "added": list(added),
+                    "removed": list(removed),
+                    "common": list(common)
+                }
+            }
+            report_path = self.reports_dir / f"snapshot_comparison_{name1}_vs_{name2}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            report_path.write_text(json.dumps(report, indent=2))
+            return str(report_path)
+
+        return None
+
+def main():
+    """Main entry point."""
+    parser = argparse.ArgumentParser(description="Generate snapshot reports")
+    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
+
+    # Analyze command
+    analyze_parser = subparsers.add_parser("analyze", help="Generate snapshot analysis report")
+    analyze_parser.add_argument("name", help="Snapshot name")
+    analyze_parser.add_argument("--format", choices=["html", "json"], default="html", help="Report format")
+
+    # Compare command
+    compare_parser = subparsers.add_parser("compare", help="Generate snapshot comparison report")
+    compare_parser.add_argument("snapshot1", help="Base snapshot name")
+    compare_parser.add_argument("snapshot2", help="Target snapshot name")
+    compare_parser.add_argument("--format", choices=["html", "json"], default="html", help="Report format")
+
+    args = parser.parse_args()
+    reporter = SnapshotReporter()
+
+    if args.command == "analyze":
+        report_path = reporter.generate_snapshot_analysis(args.name, args.format)
+        if report_path:
+            print(f"{GREEN}Report generated: {report_path}{NC}")
+    elif args.command == "compare":
+        report_path = reporter.generate_comparison_report(args.snapshot1, args.snapshot2, args.format)
+        if report_path:
+            print(f"{GREEN}Report generated: {report_path}{NC}")
+    else:
+        parser.print_help()
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

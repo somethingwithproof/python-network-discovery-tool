@@ -189,7 +189,7 @@ async def run_discovery(args: argparse.Namespace) -> int:
                 return 1
 
             try:
-                notification_service = EmailNotificationService(
+                EmailNotificationService(
                     args.smtp_server,
                     args.smtp_port,
                     args.smtp_username,

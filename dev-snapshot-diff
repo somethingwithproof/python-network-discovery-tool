@@ -1,0 +1,214 @@
+#!/usr/bin/env python3
+
+"""
+Development Environment Snapshot Comparison Tool.
+Analyzes and compares different environment snapshots.
+"""
+
+import argparse
+import json
+import os
+import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Set, Tuple
+
+# ANSI colors
+GREEN = '\033[0;32m'
+YELLOW = '\033[1;33m'
+RED = '\033[0;31m'
+BLUE = '\033[0;34m'
+BOLD = '\033[1m'
+NC = '\033[0m'
+
+class SnapshotAnalyzer:
+    """Analyzes and compares environment snapshots."""
+
+    def __init__(self):
+        self.snapshot_dir = Path("env_snapshots")
+        self.metadata_file = self.snapshot_dir / "snapshots.json"
+        self.metadata = self.load_metadata()
+
+    def load_metadata(self) -> Dict:
+        """Load snapshot metadata."""
+        if not self.metadata_file.exists():
+            print(f"{RED}Error: No snapshots found{NC}")
+            sys.exit(1)
+        return json.loads(self.metadata_file.read_text())
+
+    def parse_package_info(self, package_str: str) -> Tuple[str, str]:
+        """Parse package name and version from requirement string."""
+        parts = package_str.split('==')
+        if len(parts) == 2:
+            return parts[0], parts[1]
+        return package_str, ""
+
+    def compare_packages(self, packages1: List[str], packages2: List[str]) -> Dict:
+        """Compare two lists of packages."""
+        pkg_dict1 = dict(self.parse_package_info(p) for p in packages1)
+        pkg_dict2 = dict(self.parse_package_info(p) for p in packages2)
+        
+        pkg_set1 = set(pkg_dict1.keys())
+        pkg_set2 = set(pkg_dict2.keys())
+        
+        return {
+            "added": sorted(pkg_set2 - pkg_set1),
+            "removed": sorted(pkg_set1 - pkg_set2),
+            "updated": sorted(
+                pkg for pkg in pkg_set1 & pkg_set2
+                if pkg_dict1[pkg] != pkg_dict2[pkg]
+            ),
+            "version_changes": {
+                pkg: (pkg_dict1[pkg], pkg_dict2[pkg])
+                for pkg in pkg_set1 & pkg_set2
+                if pkg_dict1[pkg] != pkg_dict2[pkg]
+            }
+        }
+
+    def analyze_snapshot(self, name: str) -> Dict:
+        """Analyze a single snapshot."""
+        if name not in self.metadata["snapshots"]:
+            print(f"{RED}Error: Snapshot '{name}' not found{NC}")
+            sys.exit(1)
+
+        snapshot = self.metadata["snapshots"][name]
+        info = snapshot["info"]
+        
+        # Analyze packages
+        dev_packages = []
+        prod_packages = []
+        for pkg in info["packages"]:
+            name, _ = self.parse_package_info(pkg)
+            if any(name.endswith(suffix) for suffix in ['-dev', '-test', 'pytest', 'mock', 'coverage']):
+                dev_packages.append(pkg)
+            else:
+                prod_packages.append(pkg)
+
+        return {
+            "name": name,
+            "description": snapshot["description"],
+            "python_version": info["python_version"],
+            "created": info["timestamp"],
+            "total_packages": len(info["packages"]),
+            "dev_packages": len(dev_packages),
+            "prod_packages": len(prod_packages),
+            "all_packages": info["packages"],
+            "dev_package_list": dev_packages,
+            "prod_package_list": prod_packages
+        }
+
+    def compare_snapshots(self, name1: str, name2: str) -> Dict:
+        """Compare two snapshots."""
+        snapshot1 = self.analyze_snapshot(name1)
+        snapshot2 = self.analyze_snapshot(name2)
+        
+        package_diff = self.compare_packages(
+            snapshot1["all_packages"],
+            snapshot2["all_packages"]
+        )
+        
+        # Check Python version compatibility
+        python_compatible = snapshot1["python_version"].startswith("3.11") and \
+                          snapshot2["python_version"].startswith("3.11")
+
+        return {
+            "snapshot1": snapshot1,
+            "snapshot2": snapshot2,
+            "package_changes": package_diff,
+            "python_compatible": python_compatible,
+            "total_changes": len(package_diff["added"]) + 
+                           len(package_diff["removed"]) + 
+                           len(package_diff["updated"])
+        }
+
+    def print_snapshot_analysis(self, name: str):
+        """Print analysis of a single snapshot."""
+        analysis = self.analyze_snapshot(name)
+        
+        print(f"\n{BOLD}{BLUE}Snapshot Analysis: {name}{NC}")
+        print(f"\nDescription: {analysis['description']}")
+        print(f"Created: {analysis['created']}")
+        print(f"Python Version: {analysis['python_version']}")
+        
+        print(f"\n{BOLD}Package Statistics:{NC}")
+        print(f"Total Packages: {analysis['total_packages']}")
+        print(f"Development Packages: {analysis['dev_packages']}")
+        print(f"Production Packages: {analysis['prod_packages']}")
+        
+        print(f"\n{BOLD}Development Packages:{NC}")
+        for pkg in sorted(analysis['dev_package_list']):
+            print(f"  {pkg}")
+        
+        print(f"\n{BOLD}Production Packages:{NC}")
+        for pkg in sorted(analysis['prod_package_list']):
+            print(f"  {pkg}")
+
+    def print_comparison(self, name1: str, name2: str):
+        """Print comparison between two snapshots."""
+        comparison = self.compare_snapshots(name1, name2)
+        s1 = comparison["snapshot1"]
+        s2 = comparison["snapshot2"]
+        changes = comparison["package_changes"]
+        
+        print(f"\n{BOLD}{BLUE}Snapshot Comparison{NC}")
+        print(f"{BOLD}Base:{NC} {name1} ({s1['created']})")
+        print(f"{BOLD}Target:{NC} {name2} ({s2['created']})")
+        
+        # Python version compatibility
+        compat_color = GREEN if comparison["python_compatible"] else RED
+        print(f"\n{BOLD}Python Versions:{NC}")
+        print(f"Base: {s1['python_version']}")
+        print(f"Target: {s2['python_version']}")
+        print(f"Compatible: {compat_color}{'Yes' if comparison['python_compatible'] else 'No'}{NC}")
+        
+        print(f"\n{BOLD}Package Changes:{NC}")
+        print(f"Total Changes: {comparison['total_changes']}")
+        
+        if changes["added"]:
+            print(f"\n{GREEN}Added Packages:{NC}")
+            for pkg in changes["added"]:
+                print(f"  + {pkg}")
+        
+        if changes["removed"]:
+            print(f"\n{RED}Removed Packages:{NC}")
+            for pkg in changes["removed"]:
+                print(f"  - {pkg}")
+        
+        if changes["updated"]:
+            print(f"\n{YELLOW}Updated Packages:{NC}")
+            for pkg in changes["updated"]:
+                old_ver, new_ver = changes["version_changes"][pkg]
+                print(f"  * {pkg}: {old_ver} → {new_ver}")
+        
+        # Package counts
+        print(f"\n{BOLD}Package Statistics:{NC}")
+        print(f"Base: {s1['total_packages']} total, {s1['dev_packages']} dev, {s1['prod_packages']} prod")
+        print(f"Target: {s2['total_packages']} total, {s2['dev_packages']} dev, {s2['prod_packages']} prod")
+
+def main():
+    """Main entry point."""
+    parser = argparse.ArgumentParser(description="Analyze and compare environment snapshots")
+    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
+
+    # Analyze command
+    analyze_parser = subparsers.add_parser("analyze", help="Analyze a snapshot")
+    analyze_parser.add_argument("name", help="Snapshot name")
+
+    # Compare command
+    compare_parser = subparsers.add_parser("compare", help="Compare two snapshots")
+    compare_parser.add_argument("snapshot1", help="Base snapshot name")
+    compare_parser.add_argument("snapshot2", help="Target snapshot name")
+
+    args = parser.parse_args()
+    analyzer = SnapshotAnalyzer()
+
+    if args.command == "analyze":
+        analyzer.print_snapshot_analysis(args.name)
+    elif args.command == "compare":
+        analyzer.print_comparison(args.snapshot1, args.snapshot2)
+    else:
+        parser.print_help()
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

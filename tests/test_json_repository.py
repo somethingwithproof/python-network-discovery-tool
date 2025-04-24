@@ -46,7 +46,7 @@ class TestJsonFileRepository:
         repo = JsonFileRepository(temp_file)
         assert repo.file_path == temp_file
 
-    def test_init_file_not_exists(self):
+    def test_init_file_not_exists(self, temp_dir):
         """Test that a JsonFileRepository creates a file if it doesn't exist."""
         with tempfile.TemporaryDirectory() as temp_dir:
             file_path = os.path.join(temp_dir, "nonexistent.json")
@@ -91,7 +91,7 @@ class TestJsonFileRepository:
         assert retrieved_device.mysql == sample_device.mysql
         assert retrieved_device.errors == sample_device.errors
 
-    def test_get_not_found(self, temp_file):
+    def test_get_not_found(self, temp_file, device):
         """Test that None is returned when a device is not found."""
         repo = JsonFileRepository(temp_file)
         device = repo.get(999)
@@ -178,7 +178,7 @@ class TestJsonFileRepository:
         with open(temp_file, "r", encoding="utf-8") as f:
             assert f.read() == "{}"
 
-    def test_save_io_error(self, sample_device):
+    def test_save_io_error(self, sample_device, temp_dir):
         """Test that an IOError is handled when saving a device."""
         with tempfile.TemporaryDirectory() as temp_dir:
             file_path = os.path.join(temp_dir, "test.json")
@@ -196,7 +196,7 @@ class TestJsonFileRepository:
             # Restore permissions for cleanup
             os.chmod(file_path, 0o644)
 
-    def test_get_io_error(self):
+    def test_get_io_error(self, device, temp_dir):
         """Test that an IOError is handled when retrieving a device."""
         with tempfile.TemporaryDirectory() as temp_dir:
             file_path = os.path.join(temp_dir, "nonexistent.json")
@@ -209,7 +209,7 @@ class TestJsonFileRepository:
             device = repo.get(1)
             assert device is None
 
-    def test_get_all_io_error(self):
+    def test_get_all_io_error(self, temp_dir):
         """Test that an IOError is handled when retrieving all devices."""
         with tempfile.TemporaryDirectory() as temp_dir:
             file_path = os.path.join(temp_dir, "nonexistent.json")
@@ -222,7 +222,7 @@ class TestJsonFileRepository:
             devices = repo.get_all()
             assert devices == []
 
-    def test_delete_io_error(self):
+    def test_delete_io_error(self, temp_dir):
         """Test that an IOError is handled when deleting a device."""
         with tempfile.TemporaryDirectory() as temp_dir:
             file_path = os.path.join(temp_dir, "test.json")
@@ -240,7 +240,7 @@ class TestJsonFileRepository:
             # Restore permissions for cleanup
             os.chmod(file_path, 0o644)
 
-    def test_clear_all_io_error(self):
+    def test_clear_all_io_error(self, temp_dir):
         """Test that an IOError is handled when clearing all devices."""
         with tempfile.TemporaryDirectory() as temp_dir:
             file_path = os.path.join(temp_dir, "test.json")

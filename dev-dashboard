@@ -1,0 +1,128 @@
+#!/usr/bin/env python3
+
+"""
+Development dashboard for the network discovery tool.
+Provides a quick overview of the project status and available commands.
+"""
+
+import os
+import subprocess
+import sys
+from datetime import datetime
+
+# ANSI colors
+GREEN = '\033[0;32m'
+YELLOW = '\033[1;33m'
+RED = '\033[0;31m'
+BLUE = '\033[0;34m'
+BOLD = '\033[1m'
+NC = '\033[0m'
+
+def run_command(cmd, capture_output=True):
+    """Run a command and return its output."""
+    try:
+        result = subprocess.run(cmd, capture_output=capture_output, text=True, check=True)
+        return True, result.stdout.strip() if capture_output else ""
+    except subprocess.CalledProcessError:
+        return False, ""
+
+def get_python_info():
+    """Get Python environment information."""
+    python_version = sys.version.split()[0]
+    pip_version = subprocess.getoutput("pip --version").split()[1]
+    venv_active = os.environ.get("VIRTUAL_ENV") is not None
+    return {
+        "Python Version": python_version,
+        "Pip Version": pip_version,
+        "Virtual Env": "Active" if venv_active else "Inactive"
+    }
+
+def get_git_info():
+    """Get Git repository information."""
+    branch = subprocess.getoutput("git branch --show-current")
+    status = subprocess.getoutput("git status --porcelain")
+    last_commit = subprocess.getoutput("git log -1 --format=%cd --date=relative")
+    return {
+        "Branch": branch,
+        "Status": "Clean" if not status else f"{len(status.splitlines())} files modified",
+        "Last Commit": last_commit
+    }
+
+def print_header(text):
+    """Print a formatted header."""
+    print(f"\n{BOLD}{BLUE}=== {text} ==={NC}\n")
+
+def print_command_help():
+    """Print available development commands."""
+    commands = {
+        "Development Setup": {
+            "make setup": "Set up development environment",
+            "make verify": "Verify environment setup",
+            "source .venv/bin/activate": "Activate virtual environment"
+        },
+        "Testing": {
+            "make test": "Run all tests",
+            "make test-watch": "Run tests in watch mode",
+            "make test-cov": "Run tests with coverage",
+            "make quick-test": "Run fast tests only"
+        },
+        "Code Quality": {
+            "make lint": "Run all linting tools",
+            "make format": "Format code with black",
+            "make type-check": "Run type checking",
+            "make security-check": "Run security checks"
+        },
+        "Documentation": {
+            "make docs": "Build documentation",
+            "make docs-serve": "Serve documentation locally"
+        },
+        "Development Tools": {
+            "./dev-tools clean": "Clean up artifacts",
+            "./dev-tools verify": "Verify environment",
+            "make help": "Show all make commands"
+        }
+    }
+
+    for category, cmds in commands.items():
+        print(f"{BOLD}{YELLOW}{category}:{NC}")
+        for cmd, desc in cmds.items():
+            print(f"  {BLUE}{cmd:<25}{NC} {desc}")
+        print()
+
+def main():
+    """Main dashboard function."""
+    os.system('clear' if os.name == 'posix' else 'cls')
+    
+    print(f"{BOLD}{GREEN}Network Discovery Tool - Development Dashboard{NC}")
+    print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+
+    # Environment Information
+    print_header("Environment Status")
+    env_info = get_python_info()
+    for key, value in env_info.items():
+        print(f"{YELLOW}{key:<15}{NC} {value}")
+
+    # Git Status
+    print_header("Git Status")
+    git_info = get_git_info()
+    for key, value in git_info.items():
+        print(f"{YELLOW}{key:<15}{NC} {value}")
+
+    # Quick Actions
+    print_header("Quick Actions")
+    print("1. Setup/Verify Environment:")
+    print(f"   {BLUE}make setup{NC} - Set up development environment")
+    print(f"   {BLUE}make verify{NC} - Verify current setup")
+    print("\n2. Development Workflow:")
+    print(f"   {BLUE}make quick-lint{NC} - Quick code check")
+    print(f"   {BLUE}make quick-test{NC} - Run fast tests")
+    print(f"   {BLUE}make check{NC} - Full code check")
+    print("\n3. Documentation:")
+    print(f"   {BLUE}make docs-serve{NC} - Start documentation server")
+
+    # Available Commands
+    print_header("Available Commands")
+    print_command_help()
+
+if __name__ == "__main__":
+    main()

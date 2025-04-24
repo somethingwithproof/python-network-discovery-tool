@@ -1,0 +1,308 @@
+#!/usr/bin/env python3
+
+"""
+Development Environment Configuration Validator.
+Ensures consistent environment setup across different machines.
+"""
+
+import hashlib
+import json
+import os
+import platform
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional, Set
+
+# ANSI colors
+GREEN = '\033[0;32m'
+YELLOW = '\033[1;33m'
+RED = '\033[0;31m'
+BLUE = '\033[0;34m'
+BOLD = '\033[1m'
+NC = '\033[0m'
+
+class EnvironmentValidator:
+    """Validates development environment configuration."""
+
+    def __init__(self):
+        self.config_file = Path("env_config.json")
+        self.validation_dir = Path("validation_reports")
+        self.validation_dir.mkdir(exist_ok=True)
+        self.required_python_version = "3.11"
+        self.load_config()
+
+    def load_config(self):
+        """Load or create configuration baseline."""
+        if self.config_file.exists():
+            self.config = json.loads(self.config_file.read_text())
+        else:
+            self.config = self.create_baseline_config()
+            self.save_config()
+
+    def save_config(self):
+        """Save configuration baseline."""
+        self.config_file.write_text(json.dumps(self.config, indent=2))
+
+    def create_baseline_config(self) -> Dict:
+        """Create baseline configuration from current environment."""
+        config = {
+            "python": {
+                "version": self.required_python_version,
+                "required_packages": self.get_installed_packages()
+            },
+            "environment": {
+                "required_tools": [
+                    "verify_env.sh",
+                    "dev-troubleshoot",
+                    "dev-snapshot",
+                    "dev-snapshot-diff",
+                    "dev-snapshot-report",
+                    "dev-reset",
+                    "dev-hub",
+                    "dev-monitor"
+                ],
+                "required_directories": [
+                    "src",
+                    "tests",
+                    "docs"
+                ]
+            },
+            "git": {
+                "required_hooks": [
+                    "pre-commit",
+                    "pre-push"
+                ]
+            },
+            "created": datetime.now().isoformat(),
+            "last_updated": datetime.now().isoformat()
+        }
+        return config
+
+    def get_installed_packages(self) -> List[str]:
+        """Get list of installed packages."""
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "freeze"],
+            capture_output=True,
+            text=True
+        )
+        return result.stdout.strip().split('\n')
+
+    def check_python_version(self) -> Dict:
+        """Check Python version compatibility."""
+        current_version = sys.version.split()[0]
+        major_minor = '.'.join(current_version.split('.')[:2])
+        
+        return {
+            "status": "ok" if major_minor == self.required_python_version else "error",
+            "current": current_version,
+            "required": self.required_python_version,
+            "message": "Python version matches requirement" if major_minor == self.required_python_version
+                      else f"Python version mismatch: found {current_version}, need {self.required_python_version}.x"
+        }
+
+    def check_packages(self) -> Dict:
+        """Check installed packages against requirements."""
+        current_packages = set(self.get_installed_packages())
+        required_packages = set(self.config["python"]["required_packages"])
+        
+        missing = required_packages - current_packages
+        extra = current_packages - required_packages
+        
+        return {
+            "status": "ok" if not missing else "error",
+            "missing": sorted(missing),
+            "extra": sorted(extra),
+            "message": "All required packages installed" if not missing
+                      else f"Missing {len(missing)} required packages"
+        }
+
+    def check_tools(self) -> Dict:
+        """Check development tools availability."""
+        missing_tools = []
+        for tool in self.config["environment"]["required_tools"]:
+            if not Path(tool).exists() or not os.access(tool, os.X_OK):
+                missing_tools.append(tool)
+        
+        return {
+            "status": "ok" if not missing_tools else "error",
+            "missing": missing_tools,
+            "message": "All required tools available" if not missing_tools
+                      else f"Missing {len(missing_tools)} required tools"
+        }
+
+    def check_directories(self) -> Dict:
+        """Check required directories."""
+        missing_dirs = []
+        for directory in self.config["environment"]["required_directories"]:
+            if not Path(directory).is_dir():
+                missing_dirs.append(directory)
+        
+        return {
+            "status": "ok" if not missing_dirs else "error",
+            "missing": missing_dirs,
+            "message": "All required directories present" if not missing_dirs
+                      else f"Missing {len(missing_dirs)} required directories"
+        }
+
+    def check_git_hooks(self) -> Dict:
+        """Check Git hooks configuration."""
+        missing_hooks = []
+        hooks_dir = Path(".git/hooks")
+        
+        if not hooks_dir.exists():
+            return {
+                "status": "error",
+                "message": "Git hooks directory not found",
+                "missing": self.config["git"]["required_hooks"]
+            }
+        
+        for hook in self.config["git"]["required_hooks"]:
+            hook_path = hooks_dir / hook
+            if not hook_path.exists() or not os.access(hook_path, os.X_OK):
+                missing_hooks.append(hook)
+        
+        return {
+            "status": "ok" if not missing_hooks else "error",
+            "missing": missing_hooks,
+            "message": "All required Git hooks configured" if not missing_hooks
+                      else f"Missing {len(missing_hooks)} required Git hooks"
+        }
+
+    def validate_environment(self) -> Dict:
+        """Perform complete environment validation."""
+        validation = {
+            "timestamp": datetime.now().isoformat(),
+            "platform": {
+                "system": platform.system(),
+                "version": platform.version(),
+                "machine": platform.machine()
+            },
+            "checks": {
+                "python_version": self.check_python_version(),
+                "packages": self.check_packages(),
+                "tools": self.check_tools(),
+                "directories": self.check_directories(),
+                "git_hooks": self.check_git_hooks()
+            }
+        }
+        
+        # Overall status
+        validation["status"] = "ok" if all(
+            check["status"] == "ok" for check in validation["checks"].values()
+        ) else "error"
+        
+        return validation
+
+    def generate_report(self, validation: Dict) -> str:
+        """Generate HTML validation report."""
+        report_path = self.validation_dir / f"validation_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Environment Validation Report</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 40px; }}
+                .ok {{ color: green; }}
+                .error {{ color: red; }}
+                table {{ border-collapse: collapse; width: 100%; margin: 20px 0; }}
+                th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+                th {{ background-color: #f8f9fa; }}
+                .details {{ margin-left: 20px; }}
+            </style>
+        </head>
+        <body>
+            <h1>Environment Validation Report</h1>
+            <p>Generated: {validation['timestamp']}</p>
+            
+            <h2>Platform Information</h2>
+            <table>
+                <tr><th>System</th><td>{validation['platform']['system']}</td></tr>
+                <tr><th>Version</th><td>{validation['platform']['version']}</td></tr>
+                <tr><th>Machine</th><td>{validation['platform']['machine']}</td></tr>
+            </table>
+            
+            <h2>Validation Results</h2>
+        """
+        
+        for check_name, check in validation["checks"].items():
+            status_class = "ok" if check["status"] == "ok" else "error"
+            html_content += f"""
+            <h3>{check_name.replace('_', ' ').title()}</h3>
+            <p class="{status_class}">{check['message']}</p>
+            """
+            
+            if check["status"] != "ok":
+                html_content += "<div class='details'>"
+                if "missing" in check:
+                    html_content += f"<p>Missing items:</p><ul>"
+                    for item in check["missing"]:
+                        html_content += f"<li>{item}</li>"
+                    html_content += "</ul>"
+                if "extra" in check:
+                    html_content += f"<p>Extra items:</p><ul>"
+                    for item in check["extra"]:
+                        html_content += f"<li>{item}</li>"
+                    html_content += "</ul>"
+                html_content += "</div>"
+        
+        html_content += """
+        </body>
+        </html>
+        """
+        
+        report_path.write_text(html_content)
+        return str(report_path)
+
+def main():
+    """Main entry point."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Validate development environment")
+    parser.add_argument("--update-baseline", action="store_true",
+                       help="Update configuration baseline")
+    parser.add_argument("--report", action="store_true",
+                       help="Generate HTML report")
+    args = parser.parse_args()
+
+    validator = EnvironmentValidator()
+    
+    if args.update_baseline:
+        print(f"{YELLOW}Updating configuration baseline...{NC}")
+        validator.config = validator.create_baseline_config()
+        validator.save_config()
+        print(f"{GREEN}Configuration baseline updated!{NC}")
+        return
+
+    print(f"{BLUE}Validating development environment...{NC}")
+    validation = validator.validate_environment()
+    
+    # Print results
+    status_color = GREEN if validation["status"] == "ok" else RED
+    print(f"\nValidation Status: {status_color}{validation['status'].upper()}{NC}")
+    
+    for check_name, check in validation["checks"].items():
+        status_color = GREEN if check["status"] == "ok" else RED
+        print(f"\n{BOLD}{check_name.replace('_', ' ').title()}:{NC}")
+        print(f"Status: {status_color}{check['status'].upper()}{NC}")
+        print(f"Message: {check['message']}")
+        
+        if check["status"] != "ok":
+            if "missing" in check:
+                print(f"{RED}Missing:{NC}")
+                for item in check["missing"]:
+                    print(f"  - {item}")
+            if "extra" in check:
+                print(f"{YELLOW}Extra:{NC}")
+                for item in check["extra"]:
+                    print(f"  - {item}")
+    
+    if args.report:
+        report_path = validator.generate_report(validation)
+        print(f"\n{GREEN}Report generated: {report_path}{NC}")
+
+if __name__ == "__main__":
+    main()

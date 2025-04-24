@@ -1,0 +1,210 @@
+#!/usr/bin/env python3
+
+"""
+Development Status Report Generator.
+Provides comprehensive project health checks and dependency status.
+"""
+
+import os
+import subprocess
+import sys
+import json
+from datetime import datetime
+from pathlib import Path
+
+# ANSI colors
+GREEN = '\033[0;32m'
+YELLOW = '\033[1;33m'
+RED = '\033[0;31m'
+BLUE = '\033[0;34m'
+BOLD = '\033[1m'
+NC = '\033[0m'
+
+def run_command(cmd, capture_output=True):
+    """Run a command and return its output."""
+    try:
+        result = subprocess.run(
+            cmd,
+            shell=isinstance(cmd, str),
+            capture_output=capture_output,
+            text=True,
+            check=True
+        )
+        return True, result.stdout.strip() if capture_output else ""
+    except subprocess.CalledProcessError as e:
+        return False, e.stderr.strip() if capture_output else str(e)
+
+def check_environment():
+    """Check development environment status."""
+    env_info = {
+        "Python Version": sys.version.split()[0],
+        "Virtual Env": os.environ.get("VIRTUAL_ENV", "Not activated"),
+        "Platform": sys.platform
+    }
+    
+    # Check pip and dependencies
+    success, pip_version = run_command("pip --version")
+    env_info["Pip Version"] = pip_version.split()[1] if success else "Unknown"
+    
+    return env_info
+
+def check_dependencies():
+    """Check dependency status and updates."""
+    deps_info = {
+        "outdated": [],
+        "up_to_date": [],
+        "total": 0
+    }
+    
+    success, output = run_command("pip list --outdated --format=json")
+    if success:
+        outdated = json.loads(output)
+        deps_info["outdated"] = [
+            {
+                "name": pkg["name"],
+                "current": pkg["version"],
+                "latest": pkg["latest_version"]
+            }
+            for pkg in outdated
+        ]
+    
+    success, output = run_command("pip list --format=json")
+    if success:
+        all_pkgs = json.loads(output)
+        deps_info["total"] = len(all_pkgs)
+        deps_info["up_to_date"] = [
+            pkg["name"]
+            for pkg in all_pkgs
+            if not any(o["name"] == pkg["name"] for o in deps_info["outdated"])
+        ]
+    
+    return deps_info
+
+def check_test_coverage():
+    """Check test coverage status."""
+    success, output = run_command("pytest --cov=network_discovery --cov-report=term-missing")
+    
+    coverage_info = {
+        "total_coverage": "0%",
+        "missing_coverage": [],
+        "last_run": datetime.now().isoformat()
+    }
+    
+    if success:
+        # Parse coverage information from output
+        for line in output.split('\n'):
+            if "TOTAL" in line:
+                parts = line.split()
+                coverage_info["total_coverage"] = f"{parts[-1]}%"
+    
+    return coverage_info
+
+def check_code_quality():
+    """Check code quality metrics."""
+    quality_info = {
+        "black": {"status": "unknown"},
+        "mypy": {"status": "unknown"},
+        "pylint": {"status": "unknown"}
+    }
+    
+    # Check black formatting
+    success, _ = run_command("black --check src tests", capture_output=False)
+    quality_info["black"]["status"] = "passed" if success else "failed"
+    
+    # Check mypy
+    success, output = run_command("mypy src")
+    quality_info["mypy"]["status"] = "passed" if success else "failed"
+    quality_info["mypy"]["output"] = output if not success else ""
+    
+    # Check pylint
+    success, output = run_command("pylint src tests")
+    quality_info["pylint"]["status"] = "passed" if success else "failed"
+    quality_info["pylint"]["output"] = output if not success else ""
+    
+    return quality_info
+
+def check_git_status():
+    """Check git repository status."""
+    git_info = {}
+    
+    success, output = run_command("git status --porcelain")
+    git_info["clean"] = output == ""
+    git_info["modified_files"] = output.split('\n') if output else []
+    
+    success, output = run_command("git log -1 --format=%cd --date=relative")
+    git_info["last_commit"] = output if success else "unknown"
+    
+    success, output = run_command("git branch --show-current")
+    git_info["current_branch"] = output if success else "unknown"
+    
+    return git_info
+
+def generate_report(args):
+    """Generate development status report."""
+    report = {
+        "timestamp": datetime.now().isoformat(),
+        "environment": check_environment(),
+        "dependencies": check_dependencies(),
+        "test_coverage": check_test_coverage(),
+        "code_quality": check_code_quality(),
+        "git_status": check_git_status()
+    }
+    
+    # Print report
+    print(f"\n{BOLD}{BLUE}Development Status Report{NC}")
+    print(f"Generated: {report['timestamp']}\n")
+    
+    # Environment
+    print(f"{BOLD}Environment:{NC}")
+    for key, value in report["environment"].items():
+        print(f"  {key}: {value}")
+    
+    # Dependencies
+    print(f"\n{BOLD}Dependencies:{NC}")
+    print(f"  Total packages: {report['dependencies']['total']}")
+    print(f"  Up to date: {len(report['dependencies']['up_to_date'])}")
+    if report['dependencies']['outdated']:
+        print(f"\n  {YELLOW}Outdated packages:{NC}")
+        for pkg in report['dependencies']['outdated']:
+            print(f"    {pkg['name']}: {pkg['current']} → {pkg['latest']}")
+    
+    # Test Coverage
+    print(f"\n{BOLD}Test Coverage:{NC}")
+    print(f"  Total coverage: {report['test_coverage']['total_coverage']}")
+    
+    # Code Quality
+    print(f"\n{BOLD}Code Quality:{NC}")
+    for tool, info in report['code_quality'].items():
+        status_color = GREEN if info['status'] == "passed" else RED
+        print(f"  {tool}: {status_color}{info['status']}{NC}")
+        if info.get('output'):
+            print(f"    {info['output']}")
+    
+    # Git Status
+    print(f"\n{BOLD}Git Status:{NC}")
+    print(f"  Branch: {report['git_status']['current_branch']}")
+    print(f"  Last commit: {report['git_status']['last_commit']}")
+    if not report['git_status']['clean']:
+        print(f"  {YELLOW}Modified files:{NC}")
+        for file in report['git_status']['modified_files']:
+            print(f"    {file}")
+    
+    # Save report if requested
+    if args.save:
+        report_file = f"dev_status_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        with open(report_file, 'w') as f:
+            json.dump(report, f, indent=2)
+        print(f"\nReport saved to: {report_file}")
+
+def main():
+    """Main entry point."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Generate development status report")
+    parser.add_argument("--save", action="store_true", help="Save report to file")
+    args = parser.parse_args()
+    
+    generate_report(args)
+
+if __name__ == "__main__":
+    main()

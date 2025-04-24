@@ -13,7 +13,7 @@ class TestRedisRepository:
     """Tests for the RedisRepository class."""
 
     @pytest.fixture
-    def mock_redis(self):
+    def mock_redis(self, mock_redis):
         """Create a mock Redis client."""
         with patch("redis.Redis") as mock_redis:
             mock_instance = MagicMock()
@@ -72,7 +72,8 @@ class TestRedisRepository:
         with pytest.raises(redis.RedisError):
             repository.save(sample_device)
 
-    def test_get(self, repository, mock_redis, sample_device):
+    def test_get(self, repository, mock_redis, sample_device, device, device, device, device, device, device, device,
+                 device, device):
         """Test that a device can be retrieved from the repository."""
         # Setup mock to return device data
         mock_redis.get.return_value = json.dumps(sample_device.to_dict())
@@ -94,7 +95,7 @@ class TestRedisRepository:
         assert device.mysql == sample_device.mysql
         assert device.errors == sample_device.errors
 
-    def test_get_not_found(self, repository, mock_redis):
+    def test_get_not_found(self, repository, mock_redis, device):
         """Test that None is returned when a device is not found."""
         # Setup mock to return None
         mock_redis.get.return_value = None
@@ -115,7 +116,7 @@ class TestRedisRepository:
         with pytest.raises(redis.RedisError):
             repository.get(1)
 
-    def test_get_json_error(self, repository, mock_redis):
+    def test_get_json_error(self, repository, mock_redis, device):
         """Test that a JSONDecodeError is handled when retrieving a device."""
         # Setup mock to return invalid JSON
         mock_redis.get.return_value = "invalid json"

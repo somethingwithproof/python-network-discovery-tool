@@ -1,0 +1,181 @@
+#!/usr/bin/env python3
+
+"""
+Development Environment Hub.
+Central dashboard for managing development environment tools.
+"""
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional
+
+# ANSI colors
+GREEN = '\033[0;32m'
+YELLOW = '\033[1;33m'
+RED = '\033[0;31m'
+BLUE = '\033[0;34m'
+BOLD = '\033[1m'
+NC = '\033[0m'
+
+class DevHub:
+    """Central hub for development environment management."""
+
+    def __init__(self):
+        self.tools = {
+            "verify": "./verify_env.sh",
+            "troubleshoot": "./dev-troubleshoot",
+            "snapshot": "./dev-snapshot",
+            "snapshot-diff": "./dev-snapshot-diff",
+            "snapshot-report": "./dev-snapshot-report",
+            "reset": "./dev-reset"
+        }
+        self.venv_path = Path(".venv")
+
+    def run_command(self, cmd: str, capture_output: bool = True) -> tuple[bool, str]:
+        """Run a shell command."""
+        try:
+            result = subprocess.run(
+                cmd,
+                shell=isinstance(cmd, str),
+                capture_output=capture_output,
+                text=True,
+                check=True
+            )
+            return True, result.stdout.strip() if capture_output else ""
+        except subprocess.CalledProcessError as e:
+            return False, e.stderr.strip() if capture_output else str(e)
+
+    def check_tools(self) -> Dict[str, bool]:
+        """Check availability of development tools."""
+        return {name: Path(path).exists() and os.access(path, os.X_OK)
+                for name, path in self.tools.items()}
+
+    def get_environment_status(self) -> Dict:
+        """Get current environment status."""
+        status = {
+            "python_version": sys.version.split()[0],
+            "virtual_env": os.environ.get("VIRTUAL_ENV", "Not activated"),
+            "timestamp": datetime.now().isoformat()
+        }
+
+        # Check if we're in the correct Python version
+        status["correct_python"] = status["python_version"].startswith("3.11")
+
+        # Get pip version if available
+        success, pip_version = self.run_command("pip --version")
+        status["pip_version"] = pip_version.split()[1] if success else "Unknown"
+
+        return status
+
+    def get_snapshot_info(self) -> Dict:
+        """Get information about available snapshots."""
+        snapshot_dir = Path("env_snapshots")
+        if not snapshot_dir.exists():
+            return {"available": False, "count": 0, "snapshots": []}
+
+        metadata_file = snapshot_dir / "snapshots.json"
+        if not metadata_file.exists():
+            return {"available": False, "count": 0, "snapshots": []}
+
+        try:
+            metadata = json.loads(metadata_file.read_text())
+            return {
+                "available": True,
+                "count": len(metadata["snapshots"]),
+                "snapshots": list(metadata["snapshots"].keys())
+            }
+        except:
+            return {"available": False, "count": 0, "snapshots": []}
+
+    def print_dashboard(self):
+        """Display the development environment dashboard."""
+        print(f"\n{BOLD}{BLUE}Development Environment Hub{NC}")
+        print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+
+        # Environment Status
+        env_status = self.get_environment_status()
+        print(f"{BOLD}Environment Status:{NC}")
+        python_color = GREEN if env_status["correct_python"] else RED
+        print(f"Python Version: {python_color}{env_status['python_version']}{NC}")
+        print(f"Pip Version: {env_status['pip_version']}")
+        print(f"Virtual Environment: {env_status['virtual_env']}")
+
+        # Tools Status
+        print(f"\n{BOLD}Development Tools:{NC}")
+        tools_status = self.check_tools()
+        for tool, available in tools_status.items():
+            status_color = GREEN if available else RED
+            status_text = "Available" if available else "Missing"
+            print(f"{tool}: {status_color}{status_text}{NC}")
+
+        # Snapshot Status
+        snapshot_info = self.get_snapshot_info()
+        print(f"\n{BOLD}Environment Snapshots:{NC}")
+        if snapshot_info["available"]:
+            print(f"Available Snapshots: {snapshot_info['count']}")
+            if snapshot_info["snapshots"]:
+                print("Latest snapshots:")
+                for snapshot in snapshot_info["snapshots"][-3:]:
+                    print(f"  - {snapshot}")
+        else:
+            print(f"{YELLOW}No snapshots available{NC}")
+
+    def print_quick_actions(self):
+        """Display available quick actions."""
+        print(f"\n{BOLD}Quick Actions:{NC}")
+        print("1. Environment Management:")
+        print(f"   {YELLOW}./dev-reset{NC}              - Reset environment")
+        print(f"   {YELLOW}./verify_env.sh{NC}         - Verify setup")
+        print(f"   {YELLOW}./dev-troubleshoot{NC}      - Fix issues")
+
+        print("\n2. Snapshot Management:")
+        print(f"   {YELLOW}./dev-snapshot create NAME{NC}   - Create snapshot")
+        print(f"   {YELLOW}./dev-snapshot restore NAME{NC}  - Restore snapshot")
+        print(f"   {YELLOW}./dev-snapshot-diff compare A B{NC} - Compare snapshots")
+
+        print("\n3. Reporting:")
+        print(f"   {YELLOW}./dev-snapshot-report analyze NAME{NC}    - Analyze snapshot")
+        print(f"   {YELLOW}./dev-snapshot-report compare A B{NC}     - Generate comparison")
+
+    def execute_command(self, command: List[str]):
+        """Execute a development tool command."""
+        if not command:
+            return
+
+        tool = command[0]
+        if tool not in self.tools:
+            print(f"{RED}Error: Unknown tool '{tool}'{NC}")
+            return
+
+        if not os.path.exists(self.tools[tool]):
+            print(f"{RED}Error: Tool '{tool}' not found{NC}")
+            return
+
+        try:
+            subprocess.run([self.tools[tool]] + command[1:], check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"{RED}Error executing command: {e}{NC}")
+
+def main():
+    """Main entry point."""
+    parser = argparse.ArgumentParser(description="Development Environment Hub")
+    parser.add_argument("command", nargs="*", help="Command to execute")
+    args = parser.parse_args()
+
+    hub = DevHub()
+
+    if not args.command:
+        # Display dashboard and quick actions
+        hub.print_dashboard()
+        hub.print_quick_actions()
+    else:
+        # Execute requested command
+        hub.execute_command(args.command)
+
+if __name__ == "__main__":
+    main()
