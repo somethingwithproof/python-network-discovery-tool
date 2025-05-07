@@ -7,6 +7,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+env/
 build/
 develop-eggs/
 dist/
@@ -18,10 +19,11 @@ lib64/
 parts/
 sdist/
 var/
-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.coverage
+htmlcov/
 
 # Virtual Environments
 venv/
@@ -29,6 +31,8 @@ env/
 ENV/
 .env/
 .venv/
+env.bak/
+venv.bak/
 
 # Testing and coverage
 .pytest_cache/
@@ -39,9 +43,19 @@ coverage.xml
 *.cover
 htmlcov/
 
+# Docker
+.env
+
+# Project specific
+output/
+devices.json
+
 # IDE specific files
 .idea/
 .vscode/
 *.swp
 *.swo
+
+# OS specific
 .DS_Store
+Thumbs.db

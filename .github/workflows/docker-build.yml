@@ -1,0 +1,42 @@
+name: Docker Build and Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: Build Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        push: false
+        load: true
+        tags: network-discovery:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Test Docker image
+      run: |
+        docker run --rm network-discovery:test --help
+    
+    - name: Run tests in Docker
+      run: |
+        docker run --rm -v ${{ github.workspace }}:/app --entrypoint pytest network-discovery:test -xvs tests/
+    
+    - name: Run linters in Docker
+      run: |
+        docker run --rm -v ${{ github.workspace }}:/app --entrypoint bash network-discovery:test -c "pip install flake8 black isort mypy && flake8 src tests && black --check src tests && isort --check src tests && mypy src tests"

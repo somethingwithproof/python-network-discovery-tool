@@ -1,4 +1,4 @@
-"""Tests for the improved RedisRepository class."""
+"""Tests for the RedisRepository class."""
 
 import json
 import pytest
@@ -6,7 +6,7 @@ import redis
 from unittest.mock import MagicMock, patch
 
 from network_discovery.domain.device import Device
-from improvements.redis_repository_improved import RedisRepository
+from network_discovery.infrastructure.repository import RedisRepository
 
 
 class TestRedisRepository:

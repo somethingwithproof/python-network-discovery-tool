@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  network-discovery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mount the output directory to persist reports
+      - ./output:/app/output
+      # Mount the templates directory for custom templates
+      - ./templates:/app/templates
+      # Mount SSH keys for authentication
+      - ~/.ssh:/root/.ssh:ro
+    environment:
+      # Environment variables for authentication
+      - SSH_USER=${SSH_USER:-zenossmon}
+      - SSH_KEY_FILE=/root/.ssh/id_rsa.pub
+      - MYSQL_USER=${MYSQL_USER:-}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-}
+    # Default command can be overridden via CLI
+    command: --help
+
+  # Development environment with all dependencies
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mount the entire project for development
+      - .:/app
+      # Mount SSH keys for authentication
+      - ~/.ssh:/root/.ssh:ro
+    environment:
+      - SSH_USER=${SSH_USER:-zenossmon}
+      - SSH_KEY_FILE=/root/.ssh/id_rsa.pub
+      - MYSQL_USER=${MYSQL_USER:-}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-}
+    # Override entrypoint to provide a shell for development
+    entrypoint: /bin/bash
+    # Keep the container running
+    tty: true
+
+  # Test environment for running tests
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mount the entire project for testing
+      - .:/app
+    environment:
+      - PYTHONPATH=/app
+    # Override entrypoint to run tests
+    entrypoint: pytest
+    # Default command can be overridden via CLI
+    command: -xvs tests/

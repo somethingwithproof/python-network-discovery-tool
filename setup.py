@@ -22,7 +22,7 @@ requirements = [
     "redis>=4.0.0",
     "openpyxl>=3.0.0",
     "jinja2>=3.0.0",
-    "paramiko>=3.4.0",
+    "paramiko>=2.10.0",
     "PyMySQL>=1.0.0",
     "asyncio>=3.4.3",
     "python-libnmap>=0.7.3",
@@ -48,10 +48,6 @@ dev_requirements = [
     "twine>=4.0.0",
 ]
 
-# Define optional dependencies
-mysql_requirements = optional_requirements["mysql"]
-snmp_requirements = optional_requirements["snmp"]
-
 setup(
     name="network-discovery",
     version=version,
@@ -69,7 +65,6 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
@@ -79,18 +74,15 @@ setup(
         "Topic :: System :: Systems Administration",
     ],
     keywords="nmap portscanner network discovery sysadmin",
-    package_dir={
-        "": "src"},
-    packages=find_packages(
-        where="src"),
-    python_requires=">=3.7",
+    package_dir={"": "src"},
+    packages=find_packages(where="src"),
+    python_requires=">=3.8",
     install_requires=requirements,
     extras_require={
-                    "dev": dev_requirements,
-                    "mysql": mysql_requirements,
-                    "snmp": snmp_requirements,
-                    "all": [
-                        req for reqs in optional_requirements.values() for req in reqs],
+        "dev": dev_requirements,
+        "mysql": optional_requirements["mysql"],
+        "snmp": optional_requirements["snmp"],
+        "all": [req for reqs in optional_requirements.values() for req in reqs],
     },
     entry_points={
         "console_scripts": [

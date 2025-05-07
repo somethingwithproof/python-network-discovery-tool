@@ -29,11 +29,29 @@ cd python-network-discovery-tool
 pip install -e .
 ```
 
+### Using Docker
+
+```bash
+# Build and run using Docker
+git clone https://github.com/thomasvincent/python-network-discovery-tool.git
+cd python-network-discovery-tool
+docker build -t network-discovery .
+docker run --rm network-discovery 192.168.1.0/24
+
+# Or use Docker Compose
+docker-compose run network-discovery 192.168.1.0/24
+```
+
 ## Requirements
 
+### For Local Installation
 - Python 3.7 or higher
 - Nmap (must be installed on the system)
 - Other dependencies are installed automatically
+
+### For Docker Installation
+- Docker
+- Docker Compose (optional, for using docker-compose.yml)
 
 ## Usage
 
@@ -141,29 +159,81 @@ Recent improvements include:
 ### Setup Development Environment
 
 ```bash
+# Local setup
 pip install -e ".[dev]"
+
+# Or using Docker
+docker-compose run dev
 ```
 
 ### Run Tests
 
 ```bash
+# Local testing
 pytest
+
+# Or using Docker
+docker-compose run test
 ```
 
 ### Run Linters
 
 ```bash
+# Local linting
 flake8 src tests
 black src tests
 isort src tests
 mypy src tests
+
+# Or using Docker
+docker-compose run dev bash -c "flake8 src tests && black src tests && isort src tests && mypy src tests"
 ```
 
 ### Run Tox
 
 ```bash
+# Local tox
 tox
+
+# Or using Docker
+docker-compose run dev tox
 ```
+
+## Docker Usage
+
+The project includes Docker support for simplified testing and deployment.
+
+### Available Docker Services
+
+- `network-discovery`: Run the network discovery tool
+- `dev`: Development environment with all dependencies
+- `test`: Run tests
+
+### Examples
+
+```bash
+# Scan a network
+docker-compose run network-discovery 192.168.1.0/24
+
+# Generate a report in a specific format
+docker-compose run network-discovery 192.168.1.0/24 -f csv
+
+# Run with custom environment variables
+SSH_USER=admin MYSQL_USER=root MYSQL_PASSWORD=password docker-compose run network-discovery 192.168.1.0/24
+
+# Start a development shell
+docker-compose run dev
+
+# Run specific tests
+docker-compose run test tests/test_scanner.py
+```
+
+### Volumes and Persistence
+
+The Docker setup mounts the following volumes:
+- `./output:/app/output`: Persists generated reports
+- `./templates:/app/templates`: Uses custom templates
+- `~/.ssh:/root/.ssh:ro`: Mounts SSH keys for authentication (read-only)
 
 ## License
 

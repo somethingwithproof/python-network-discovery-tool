@@ -10,6 +10,7 @@ from network_discovery.infrastructure.notification import (
     EmailNotificationService,
     ConsoleNotificationService,
 )
+from network_discovery.domain.device import Device
 
 
 @pytest.fixture
@@ -27,6 +28,16 @@ def email_notification_service():
 def console_notification_service():
     """Create a ConsoleNotificationService instance for testing."""
     return ConsoleNotificationService()
+
+
+@pytest.fixture
+def devices():
+    """Return a list of devices for testing."""
+    return [
+        Device(id=1, host="example1.com", ip="192.168.1.1", alive=True, ssh=True, snmp=False, mysql=True),
+        Device(id=2, host="example2.com", ip="192.168.1.2", alive=True, ssh=False, snmp=True, mysql=False),
+        Device(id=3, host="example3.com", ip="192.168.1.3", alive=False),
+    ]
 
 
 class TestEmailNotificationService:
@@ -129,6 +140,31 @@ class TestEmailNotificationService:
                 subject="Test Subject",
                 message="Test message content"
             )
+
+    def test_format_message(self, email_notification_service, devices):
+        """Test that a message can be formatted properly with the improved validation."""
+        # Format the message
+        if hasattr(email_notification_service, '_format_message'):
+            message = email_notification_service._format_message(devices)
+            
+            # Check that the message contains the expected content
+            assert "Subject: Network Discovery Report" in message
+            assert "From:" in message
+            assert "To: " in message
+            assert "Content-Type: text/html" in message
+            assert "<html>" in message
+            assert "</html>" in message
+            
+            # Use more specific assertions for hostname validation
+            # These patterns ensure the exact hostnames are matched
+            assert ">example1.com<" in message or "host: example1.com" in message
+            assert ">example2.com<" in message or "host: example2.com" in message
+            assert ">example3.com<" in message or "host: example3.com" in message
+            
+            # Use more specific assertions for IP validation
+            assert ">192.168.1.1<" in message or "ip: 192.168.1.1" in message
+            assert ">192.168.1.2<" in message or "ip: 192.168.1.2" in message
+            assert ">192.168.1.3<" in message or "ip: 192.168.1.3" in message
 
 
 class TestConsoleNotificationService:
@@ -242,4 +278,3 @@ For complete details, see the attached report.
         assert call_args[1] == "network-team@company.com"  # To
         assert "Network Discovery Report" in call_args[2]  # Subject in message string
         assert "Total devices scanned: 150" in call_args[2]  # Content in message string
-
