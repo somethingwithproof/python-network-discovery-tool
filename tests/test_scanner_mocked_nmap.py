@@ -1,15 +1,21 @@
 """Test scanner with completely mocked nmap module."""
 
 import sys
-from unittest.mock import MagicMock
-import pytest
 import gc
+import pytest
+from unittest.mock import MagicMock
+
+# Import modules that depend on the mocked 'nmap'
+# These imports must be placed after the mock setup below
+# We'll avoid the E402 by using a different import approach
 
 # Mock the nmap module before importing scanner code
 mock_nmap = MagicMock()
 
+
 class MockPortScanner:
     """Mock implementation of nmap.PortScanner."""
+
     def __init__(self):
         self.last_scan_hosts = None
         self.last_scan_args = None
@@ -30,12 +36,14 @@ class MockPortScanner:
         host_mock.state.return_value = "down"
         return host_mock
 
+
+# Set up the mock before importing the modules that use nmap
 mock_nmap.PortScanner = MockPortScanner
 sys.modules["nmap"] = mock_nmap
 
-# Now import the modules that depend on the mocked 'nmap'
-from network_discovery.domain.device import Device
-from network_discovery.infrastructure.scanner import NmapDeviceScanner
+# Now we can import the modules that depend on the mocked 'nmap'
+from network_discovery.domain.device import Device  # noqa: E402
+from network_discovery.infrastructure.scanner import NmapDeviceScanner  # noqa: E402
 
 
 @pytest.fixture

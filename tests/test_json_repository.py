@@ -1,4 +1,4 @@
-"""Tests for the improved JsonFileRepository class."""
+"""Tests for the JsonFileRepository class."""
 
 import json
 import os
@@ -7,7 +7,7 @@ import pytest
 from unittest.mock import patch
 
 from network_discovery.domain.device import Device
-from improvements.json_repository_improved import JsonFileRepository
+from network_discovery.infrastructure.repository import JsonFileRepository
 
 
 class TestJsonFileRepository:

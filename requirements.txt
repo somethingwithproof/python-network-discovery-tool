@@ -1,11 +1,10 @@
 # Core dependencies
-setuptools==79.0.0
-python-nmap~=0.7.1
+setuptools>=65.5.1
+python-nmap>=0.7.1
 redis>=4.0.0
 openpyxl>=3.0.0
 jinja2>=3.0.0
-Twisted==24.10.0
-paramiko>=3.4.0
+paramiko>=2.10.0
 PyMySQL>=1.0.0
 asyncio>=3.4.3
 python-libnmap>=0.7.3

@@ -39,3 +39,5 @@ nav:
   - Getting Started: getting-started.md
   - Development:
     - Release Process: release-process.md
+  - Deployment:
+    - Docker Setup: docker-setup.md

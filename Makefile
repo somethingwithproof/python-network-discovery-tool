@@ -86,3 +86,27 @@ quick-lint: ## Run quick linting checks
 	black --check src tests
 	mypy --no-incremental src
 
+# Docker specific tasks
+.PHONY: docker-build docker-run docker-test docker-dev docker-lint docker-clean
+
+docker-build: ## Build the Docker image
+	docker-compose build
+
+docker-run: docker-build ## Run the network discovery tool (use ARGS='192.168.1.0/24' to pass arguments)
+	docker-compose run --rm network-discovery $(ARGS)
+
+docker-test: docker-build ## Run tests in Docker (use ARGS='tests/test_scanner.py' to specify tests)
+	docker-compose run --rm test $(ARGS)
+
+docker-dev: docker-build ## Start a development shell in Docker
+	docker-compose run --rm dev
+
+docker-lint: docker-build ## Run linters in Docker
+	docker-compose run --rm dev bash -c "flake8 src tests && black src tests && isort src tests && mypy src tests"
+
+docker-clean: ## Clean up Docker resources
+	docker-compose down --rmi local
+	rm -rf output/*.html output/*.csv output/*.xlsx output/*.json
+	rm -rf devices.json
+	rm -rf __pycache__ .pytest_cache
+	find . -name "*.pyc" -delete

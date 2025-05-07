@@ -1,5 +1,16 @@
 # Changelog
 
+## Version 0.4.0 (2025-04-23)
+
+### Features
+- feat(docker): add containerization for simplified testing and deployment
+  - Added Dockerfile and docker-compose.yml for containerization
+  - Created helper scripts for Docker setup and testing
+  - Added Makefile for common Docker operations
+  - Updated documentation with Docker usage instructions
+  - Added GitHub Actions workflow for Docker CI
+  - Configured environment variables and .dockerignore
+
 ## Version 0.3.0 (2025-04-22)
 
 ### Features
