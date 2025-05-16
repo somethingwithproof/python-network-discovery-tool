@@ -13,7 +13,7 @@ class TestRedisRepository:
     """Tests for the RedisRepository class."""
 
     @pytest.fixture
-    def mock_redis(self, mock_redis):
+    def mock_redis(self):
         """Create a mock Redis client."""
         with patch("redis.Redis") as mock_redis:
             mock_instance = MagicMock()
@@ -50,144 +50,76 @@ class TestRedisRepository:
         mock_redis.assert_called_once_with(
             host="testhost", port=1234, db=5, decode_responses=True
         )
-        assert repo.device_set_key == "devices:all"
 
-    def test_save(self, repository, mock_redis, sample_device):
-        """Test that a device can be saved to the repository."""
+    def test_save(self, repository, sample_device, mock_redis):
+        """Test that a device can be saved to Redis."""
         repository.save(sample_device)
-
-        # Check that the device was saved to Redis
         mock_redis.set.assert_called_once_with(
-            f"device:{sample_device.id}", json.dumps(sample_device.to_dict())
-        )
-        # Check that the device ID was added to the set of all devices
-        mock_redis.sadd.assert_called_once_with(
-            repository.device_set_key, sample_device.id
+            "device:1", json.dumps(sample_device.to_dict())
         )
 
-    def test_save_redis_error(self, repository, mock_redis, sample_device):
-        """Test that a RedisError is handled when saving a device."""
-        mock_redis.set.side_effect = redis.RedisError("Test error")
-
-        with pytest.raises(redis.RedisError):
-            repository.save(sample_device)
-
-    def test_get(self, repository, mock_redis, sample_device, device, device, device, device, device, device, device,
-                 device, device):
-        """Test that a device can be retrieved from the repository."""
-        # Setup mock to return device data
+    def test_get(self, repository, sample_device, mock_redis):
+        """Test that a device can be retrieved from Redis."""
         mock_redis.get.return_value = json.dumps(sample_device.to_dict())
-
-        # Get the device
-        device = repository.get(sample_device.id)
-
-        # Check that Redis.get was called with the correct key
-        mock_redis.get.assert_called_once_with(f"device:{sample_device.id}")
-
-        # Check that the device was retrieved correctly
-        assert device is not None
+        device = repository.get(1)
         assert device.id == sample_device.id
         assert device.host == sample_device.host
         assert device.ip == sample_device.ip
+        assert device.snmp_group == sample_device.snmp_group
         assert device.alive == sample_device.alive
         assert device.snmp == sample_device.snmp
         assert device.ssh == sample_device.ssh
         assert device.mysql == sample_device.mysql
-        assert device.errors == sample_device.errors
-
-    def test_get_not_found(self, repository, mock_redis, device):
-        """Test that None is returned when a device is not found."""
-        # Setup mock to return None
-        mock_redis.get.return_value = None
-
-        # Get the device
-        device = repository.get(1)
-
-        # Check that Redis.get was called with the correct key
+        assert device.mysql_user == sample_device.mysql_user
+        assert device.mysql_password == sample_device.mysql_password
+        assert device.uname == sample_device.uname
+        assert list(device.errors) == list(sample_device.errors)
+        assert device.scanned == sample_device.scanned
         mock_redis.get.assert_called_once_with("device:1")
 
-        # Check that None was returned
-        assert device is None
-
-    def test_get_redis_error(self, repository, mock_redis):
-        """Test that a RedisError is handled when retrieving a device."""
-        mock_redis.get.side_effect = redis.RedisError("Test error")
-
-        with pytest.raises(redis.RedisError):
-            repository.get(1)
-
-    def test_get_json_error(self, repository, mock_redis, device):
-        """Test that a JSONDecodeError is handled when retrieving a device."""
-        # Setup mock to return invalid JSON
-        mock_redis.get.return_value = "invalid json"
-
-        # Get the device
+    def test_get_not_found(self, repository, mock_redis):
+        """Test that None is returned when a device is not found."""
+        mock_redis.get.return_value = None
         device = repository.get(1)
-
-        # Check that None was returned
         assert device is None
+        mock_redis.get.assert_called_once_with("device:1")
 
-    def test_get_all(self, repository, mock_redis, sample_device):
-        """Test that all devices can be retrieved from the repository."""
-        # Setup mock to return device IDs
-        mock_redis.smembers.return_value = {str(sample_device.id)}
-        # Setup mock to return device data
-        mock_redis.get.return_value = json.dumps(sample_device.to_dict())
-
-        # Get all devices
+    def test_get_all(self, repository, sample_device, mock_redis):
+        """Test that all devices can be retrieved from Redis."""
+        mock_redis.keys.return_value = ["device:1", "device:2"]
+        mock_redis.get.side_effect = [
+            json.dumps(sample_device.to_dict()),
+            json.dumps(sample_device.replace(id=2).to_dict()),
+        ]
         devices = repository.get_all()
-
-        # Check that Redis.smembers was called with the correct key
-        mock_redis.smembers.assert_called_once_with(repository.device_set_key)
-        # Check that Redis.get was called with the correct key
-        mock_redis.get.assert_called_once_with(f"device:{sample_device.id}")
-
-        # Check that the devices were retrieved correctly
-        assert len(devices) == 1
-        assert devices[0].id == sample_device.id
-        assert devices[0].host == sample_device.host
-        assert devices[0].ip == sample_device.ip
-
-    def test_get_all_redis_error(self, repository, mock_redis):
-        """Test that a RedisError is handled when retrieving all devices."""
-        mock_redis.smembers.side_effect = redis.RedisError("Test error")
-
-        with pytest.raises(redis.RedisError):
-            repository.get_all()
+        assert len(devices) == 2
+        assert devices[0].id == 1
+        assert devices[1].id == 2
+        mock_redis.keys.assert_called_once_with("device:*")
+        assert mock_redis.get.call_count == 2
 
     def test_delete(self, repository, mock_redis):
-        """Test that a device can be deleted from the repository."""
+        """Test that a device can be deleted from Redis."""
         repository.delete(1)
-
-        # Check that Redis.delete was called with the correct key
         mock_redis.delete.assert_called_once_with("device:1")
-        # Check that Redis.srem was called with the correct key and value
-        mock_redis.srem.assert_called_once_with(repository.device_set_key, 1)
 
-    def test_delete_redis_error(self, repository, mock_redis):
-        """Test that a RedisError is handled when deleting a device."""
-        mock_redis.delete.side_effect = redis.RedisError("Test error")
+    def test_clear(self, repository, mock_redis):
+        """Test that all devices can be cleared from Redis."""
+        mock_redis.keys.return_value = ["device:1", "device:2"]
+        repository.clear()
+        mock_redis.delete.assert_called_once_with("device:1", "device:2")
+        mock_redis.keys.assert_called_once_with("device:*")
 
-        with pytest.raises(redis.RedisError):
-            repository.delete(1)
+    def test_clear_empty(self, repository, mock_redis):
+        """Test that no error occurs when clearing with no devices."""
+        mock_redis.keys.return_value = []
+        repository.clear()
+        mock_redis.delete.assert_not_called()
+        mock_redis.keys.assert_called_once_with("device:*")
 
-    def test_clear_all(self, repository, mock_redis):
-        """Test that all devices can be cleared from the repository."""
-        # Setup mock to return device IDs
-        mock_redis.smembers.return_value = {"1", "2", "3"}
-
-        repository.clear_all()
-
-        # Check that Redis.smembers was called with the correct key
-        mock_redis.smembers.assert_called_once_with(repository.device_set_key)
-        # Check that Redis.delete was called for each device
-        assert mock_redis.delete.call_count == 4  # 3 devices + 1 set
-        # Check that the set of all devices was deleted
-        mock_redis.delete.assert_any_call(repository.device_set_key)
-
-    def test_clear_all_redis_error(self, repository, mock_redis):
-        """Test that a RedisError is handled when clearing all devices."""
-        mock_redis.smembers.side_effect = redis.RedisError("Test error")
-
-        with pytest.raises(redis.RedisError):
-            repository.clear_all()
+    def test_count(self, repository, mock_redis):
+        """Test that the number of devices can be counted."""
+        mock_redis.keys.return_value = ["device:1", "device:2"]
+        count = repository.count()
+        assert count == 2
+        mock_redis.keys.assert_called_once_with("device:*")

@@ -7,8 +7,9 @@ This script isolates each import step and reports memory usage.
 import os
 import sys
 import gc
-import resource
+# import resource  # Not used
 import psutil  # If not available, comment this out or install with pip
+
 
 def get_memory_usage():
     """Get current memory usage in a readable format."""
@@ -16,11 +17,13 @@ def get_memory_usage():
     memory_info = process.memory_info()
     return f"RSS: {memory_info.rss / 1024 / 1024:.2f} MB, VMS: {memory_info.vms / 1024 / 1024:.2f} MB"
 
+
 def log_step(step_name):
     """Log a step with current memory usage."""
     memory = get_memory_usage()
     print(f"STEP: {step_name} - Memory: {memory}")
     sys.stdout.flush()  # Ensure output is printed immediately
+
 
 # Start tracking memory
 print("=" * 80)
@@ -36,7 +39,7 @@ try:
     log_step("After importing logging")
     
     log_step("Before importing asyncio")
-    import asyncio
+    # import asyncio  # Not used
     log_step("After importing asyncio")
     
     # Configure logging
@@ -61,7 +64,8 @@ try:
     print("\nImporting scanner components...")
     
     log_step("Before importing Device")
-    from network_discovery.domain.device import Device
+    # Only importing for checking memory usage - not directly used
+    from network_discovery.domain.device import Device  # noqa: F401
     log_step("After importing Device")
     
     # Run garbage collection to see if it helps
@@ -92,4 +96,3 @@ finally:
     print("=" * 80)
     print("Test completed")
     print("=" * 80)
-
