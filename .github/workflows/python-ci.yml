@@ -1,0 +1,76 @@
+name: Python CI
+
+on:
+  push:
+    branches: [ main, develop, master ] # Adjusted to include master
+  pull_request:
+    branches: [ main, develop, master ]
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # Allow other Python versions to test even if one fails
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+
+    - name: Install Nmap (Linux prerequisite)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y nmap
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        # Install dev dependencies if they are separate, e.g., requirements-dev.txt
+        # For this example, assuming all are in requirements.txt or installed manually below for linters/formatters
+
+    - name: Install linters and formatters
+      run: |
+        pip install black isort flake8 mypy
+
+    - name: Lint with Flake8
+      run: |
+        # Flake8 is configured in setup.cfg or pyproject.toml
+        flake8 src/ tests/
+
+    - name: Check formatting with Black and isort
+      run: |
+        black --check src/ tests/
+        isort --check-only src/ tests/
+
+    - name: Static analysis with MyPy
+      run: |
+        # MyPy configuration is in pyproject.toml
+        mypy --config-file pyproject.toml src/ tests/
+
+    - name: Run tests with Pytest and generate coverage
+      run: |
+        # PYTHONPATH might be needed if 'src' is not automatically discoverable
+        # export PYTHONPATH=${{ github.workspace }}/src:$PYTHONPATH
+        pytest --cov=src/network_discovery --cov-report=xml --cov-report=term-missing tests/
+      env:
+        # Example of setting env vars for tests, if your tool needs them
+        # DISCOVERY_SMTP_USERNAME: testuser 
+        # DISCOVERY_SMTP_PASSWORD: testpassword
+
+    - name: Upload coverage to Codecov
+      if: success() && matrix.python-version == '3.11' # Upload from one Python version job
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }} # Optional: for private repos or specific Codecov setup
+        files: ./coverage.xml
+        fail_ci_if_error: false # Optional: true to fail CI if upload fails
+        verbose: true # Optional: for debugging Codecov upload
+
