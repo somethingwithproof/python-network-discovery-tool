@@ -11,29 +11,35 @@ import asyncio
 import ipaddress
 import logging
 import os
-import sys
 from pathlib import Path
+import sys
 from typing import List, Optional, Tuple, Union
 
-import typer
 from pydantic import Field
+import typer
 
 from network_discovery.core.discovery import DeviceDiscoveryService
 from network_discovery.infrastructure.notification import (
     ConsoleNotificationService,
+)
+from network_discovery.infrastructure.notification import (
     EmailNotificationService,
 )
-from network_discovery.infrastructure.repository import JsonFileRepository
 from network_discovery.infrastructure.report import ReportGenerator
+from network_discovery.infrastructure.repository import JsonFileRepository
 from network_discovery.infrastructure.scanner import NmapDeviceScanner
+
 from .settings import Settings
 
 # Create Typer app
-app = typer.Typer(help="Network discovery tool to identify running services on devices")
+app = typer.Typer(
+    help="Network discovery tool to identify running services on devices"
+)
+
 
 def configure_logging(verbose: bool) -> None:
     """Configure logging system based on verbosity level.
-    
+
     Args:
         verbose: If True, set log level to DEBUG; otherwise, set to INFO.
     """
@@ -47,12 +53,14 @@ def configure_logging(verbose: bool) -> None:
 
 def validate_network(
     network: str,
-) -> Tuple[bool, Union[ipaddress.IPv4Network, ipaddress.IPv4Address, None], str]:
+) -> Tuple[
+    bool, Union[ipaddress.IPv4Network, ipaddress.IPv4Address, None], str
+]:
     """Validate a network or IP address string.
-    
+
     Args:
         network: Network CIDR (e.g., "192.168.1.0/24") or IP address.
-        
+
     Returns:
         A tuple containing:
         - Boolean indicating if input is a network (True) or single IP (False)
@@ -74,47 +82,53 @@ def validate_network(
 
 def init_repository(settings: Settings):
     """Initialize the device repository based on settings.
-    
+
     Args:
         settings: Application settings containing repository configuration.
-        
+
     Returns:
         Initialized repository service or None if disabled.
-        
+
     Raises:
         Exception: If repository initialization fails.
     """
     if settings.no_repository:
         return None
-    
+
     try:
         repo = JsonFileRepository(settings.repository_file)
         logging.info("Using JSON file repository: %s", settings.repository_file)
         return repo
     except Exception as e:
-        logging.getLogger(__name__).error("Error initializing repository: %s", e)
+        logging.getLogger(__name__).error(
+            "Error initializing repository: %s", e
+        )
         raise
 
 
 def init_notification(settings: Settings):
     """Initialize the notification service based on settings.
-    
+
     Args:
         settings: Application settings containing notification configuration.
-        
+
     Returns:
         Initialized notification service or None if disabled.
-        
+
     Raises:
         ValueError: If email notifications are enabled but required settings
             are missing.
     """
     if settings.no_notification:
         return None
-    
+
     if settings.email:
         # Validate email notification settings
-        if not settings.smtp_username or not settings.smtp_password or not settings.email_recipient:
+        if (
+            not settings.smtp_username
+            or not settings.smtp_password
+            or not settings.email_recipient
+        ):
             raise ValueError(
                 "Email notifications require smtp_username, smtp_password, and email_recipient"
             )
@@ -124,40 +138,43 @@ def init_notification(settings: Settings):
             settings.smtp_username,
             settings.smtp_password,
         )
-    
+
     return ConsoleNotificationService()
 
 
 def init_report(settings: Settings):
     """Initialize the report service based on settings.
-    
+
     Args:
         settings: Application settings containing report configuration.
-        
+
     Returns:
         Initialized report service or None if disabled.
-        
+
     Raises:
         ValueError: If HTML reports are enabled but template directory doesn't exist.
     """
     if settings.no_report:
         return None
-    
+
     # Create output directory if it doesn't exist
     settings.output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Validate template directory for HTML reports
     if settings.format == "html" and not settings.template_dir.exists():
-        raise ValueError(f"Template directory not found: {settings.template_dir}")
-    
+        raise ValueError(
+            f"Template directory not found: {settings.template_dir}"
+        )
+
     return ReportGenerator(settings.output_dir, settings.template_dir)
+
 
 async def run_discovery(settings: Settings) -> int:
     """Run the network discovery process using the provided settings.
-    
+
     Args:
         settings: Application settings for the discovery process.
-        
+
     Returns:
         int: Exit code (0 for success, 1 for failure).
     """
@@ -211,89 +228,68 @@ async def run_discovery(settings: Settings) -> int:
 
     return 0
 
+
 @app.command()
 def discover(
     network: str = typer.Argument(
-        ..., 
-        help="Network CIDR (e.g., 192.168.1.0/24) or single IP address"
+        ..., help="Network CIDR (e.g., 192.168.1.0/24) or single IP address"
     ),
     config: Path = typer.Option(
-        Path(".env"), 
-        "--config", 
-        help="Path to env file with configuration"
+        Path(".env"), "--config", help="Path to env file with configuration"
     ),
     output_dir: Path = typer.Option(
-        Path("./output"), 
-        "--output-dir", "-o",
-        help="Directory where reports will be saved"
+        Path("./output"),
+        "--output-dir",
+        "-o",
+        help="Directory where reports will be saved",
     ),
     format: str = typer.Option(
-        "html", 
-        "--format", "-f",
-        help="Report format (html, csv, xlsx, json)"
+        "html", "--format", "-f", help="Report format (html, csv, xlsx, json)"
     ),
     template_dir: Path = typer.Option(
-        Path("./templates"), 
-        "--template-dir", "-t",
-        help="Directory containing HTML templates"
+        Path("./templates"),
+        "--template-dir",
+        "-t",
+        help="Directory containing HTML templates",
     ),
     verbose: bool = typer.Option(
-        False, 
-        "--verbose", "-v", 
-        help="Enable verbose logging output"
+        False, "--verbose", "-v", help="Enable verbose logging output"
     ),
     no_report: bool = typer.Option(
-        False, 
-        "--no-report", 
-        help="Disable report generation"
+        False, "--no-report", help="Disable report generation"
     ),
     no_notification: bool = typer.Option(
-        False, 
-        "--no-notification", 
-        help="Disable notifications"
+        False, "--no-notification", help="Disable notifications"
     ),
     no_repository: bool = typer.Option(
-        False, 
-        "--no-repository", 
-        help="Disable device storage"
+        False, "--no-repository", help="Disable device storage"
     ),
     repository_file: Path = typer.Option(
-        Path("./devices.json"), 
-        help="File where device data will be stored"
+        Path("./devices.json"), help="File where device data will be stored"
     ),
     email: bool = typer.Option(
-        False, 
-        "--email", 
-        help="Enable email notifications instead of console"
+        False, "--email", help="Enable email notifications instead of console"
     ),
     smtp_server: str = typer.Option(
-        "smtp.gmail.com", 
-        "--smtp-server", 
-        help="SMTP server for email notifications"
+        "smtp.gmail.com",
+        "--smtp-server",
+        help="SMTP server for email notifications",
     ),
     smtp_port: int = typer.Option(
-        587, 
-        "--smtp-port", 
-        help="SMTP port for email notifications"
+        587, "--smtp-port", help="SMTP port for email notifications"
     ),
     smtp_username: str = typer.Option(
-        "", 
-        "--smtp-username", 
-        help="SMTP username for email notifications"
+        "", "--smtp-username", help="SMTP username for email notifications"
     ),
     smtp_password: str = typer.Option(
-        "", 
-        "--smtp-password", 
-        help="SMTP password for email notifications"
+        "", "--smtp-password", help="SMTP password for email notifications"
     ),
     email_recipient: str = typer.Option(
-        "", 
-        "--email-recipient", 
-        help="Email address to send notifications to"
+        "", "--email-recipient", help="Email address to send notifications to"
     ),
 ) -> None:
     """Discover network devices and check for running services.
-    
+
     This command scans a network or single device for running services like
     SSH, SNMP, and MySQL. It can generate reports in various formats.
     """
@@ -316,10 +312,10 @@ def discover(
         smtp_password=smtp_password,
         email_recipient=email_recipient,
     )
-    
+
     # Configure logging based on verbosity setting
     configure_logging(settings.verbose)
-    
+
     # Run the discovery process
     code = asyncio.run(run_discovery(settings))
     sys.exit(code)
@@ -327,7 +323,7 @@ def discover(
 
 def cli() -> None:
     """Run the command-line interface.
-    
+
     This is the main entry point for the command-line interface when the package
     is run as a script.
     """

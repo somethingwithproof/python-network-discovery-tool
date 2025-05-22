@@ -7,13 +7,13 @@ import csv
 import json
 import logging
 import os
-from typing import List, Any
+from typing import Any, List
 
 import jinja2
 import openpyxl
 
-from network_discovery.domain.device import Device
 from network_discovery.application.interfaces import ReportService
+from network_discovery.domain.device import Device
 
 # Setup logging
 logger = logging.getLogger(__name__)

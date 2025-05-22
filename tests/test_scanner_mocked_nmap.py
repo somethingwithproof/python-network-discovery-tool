@@ -1,9 +1,10 @@
 """Test scanner with completely mocked nmap module."""
 
-import sys
 import gc
-import pytest
+import sys
 from unittest.mock import MagicMock
+
+import pytest
 
 # Import modules that depend on the mocked 'nmap'
 # These imports must be placed after the mock setup below
@@ -43,7 +44,9 @@ sys.modules["nmap"] = mock_nmap
 
 # Now we can import the modules that depend on the mocked 'nmap'
 from network_discovery.domain.device import Device  # noqa: E402
-from network_discovery.infrastructure.scanner import NmapDeviceScanner  # noqa: E402
+from network_discovery.infrastructure.scanner import (  # noqa: E402
+    NmapDeviceScanner,
+)
 
 
 @pytest.fixture
@@ -59,7 +62,7 @@ def setup_scanner():
     return {
         "scanner": NmapDeviceScanner(),
         "device": device,
-        "mock_scanner": mock_scanner
+        "mock_scanner": mock_scanner,
     }
 
 

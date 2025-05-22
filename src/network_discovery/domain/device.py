@@ -5,7 +5,8 @@ and its key properties. The Device class is implemented as an immutable
 dataclass to ensure consistency and thread safety.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 from typing import Any, Dict, Tuple
 
 
@@ -18,7 +19,7 @@ class Device:
 
     This class is immutable (frozen) to make it hashable and usable in sets.
     Methods that modify the device's state will return a new Device instance.
-    
+
     Attributes:
         id: Unique identifier for the device.
         host: Hostname or IP address string for the device.
@@ -117,7 +118,9 @@ class Device:
             "mysql_user": self.mysql_user,
             "mysql_password": self.mysql_password,
             "uname": self.uname,
-            "errors": list(self.errors),  # Convert tuple to list for serialization
+            "errors": list(
+                self.errors
+            ),  # Convert tuple to list for serialization
             "scanned": self.scanned,
         }
 

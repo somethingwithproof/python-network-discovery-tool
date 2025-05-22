@@ -3,10 +3,12 @@
 This module provides an enterprise-class device implementation with enhanced features.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 from datetime import datetime
-from enum import Enum, auto
-from typing import Dict, Any, Optional, Tuple
+from enum import auto
+from enum import Enum
+from typing import Any, Dict, Optional, Tuple
 
 from network_discovery.domain.device import Device
 
@@ -133,7 +135,9 @@ class EnterpriseDevice:
         """
         return self.custom_attributes.get(key, default)
 
-    def add_service(self, service_name: str, status: bool = True) -> "EnterpriseDevice":
+    def add_service(
+        self, service_name: str, status: bool = True
+    ) -> "EnterpriseDevice":
         """Add a service to the device.
 
         Args:
@@ -208,7 +212,9 @@ class EnterpriseDevice:
                 self.purchase_date.isoformat() if self.purchase_date else None
             ),
             "warranty_expiry": (
-                self.warranty_expiry.isoformat() if self.warranty_expiry else None
+                self.warranty_expiry.isoformat()
+                if self.warranty_expiry
+                else None
             ),
             "last_patched": (
                 self.last_patched.isoformat() if self.last_patched else None
@@ -249,7 +255,9 @@ class EnterpriseDevice:
 
         warranty_expiry = None
         if dict_device.get("warranty_expiry"):
-            warranty_expiry = datetime.fromisoformat(dict_device["warranty_expiry"])
+            warranty_expiry = datetime.fromisoformat(
+                dict_device["warranty_expiry"]
+            )
 
         last_patched = None
         if dict_device.get("last_patched"):
@@ -257,7 +265,9 @@ class EnterpriseDevice:
 
         last_scan_time = None
         if dict_device.get("last_scan_time"):
-            last_scan_time = datetime.fromisoformat(dict_device["last_scan_time"])
+            last_scan_time = datetime.fromisoformat(
+                dict_device["last_scan_time"]
+            )
 
         # Parse enums
         category = DeviceCategory.UNKNOWN

@@ -3,10 +3,10 @@
 This module provides implementations of the NotificationService interface.
 """
 
-import logging
-import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+import logging
+import smtplib
 
 from network_discovery.application.interfaces import NotificationService
 
@@ -33,7 +33,9 @@ class EmailNotificationService(NotificationService):
         self.username = username
         self.password = password
 
-    def send_notification(self, recipient: str, subject: str, message: str) -> None:
+    def send_notification(
+        self, recipient: str, subject: str, message: str
+    ) -> None:
         """Send a notification via email.
 
         Args:
@@ -61,7 +63,9 @@ class EmailNotificationService(NotificationService):
 class ConsoleNotificationService(NotificationService):
     """Implementation of NotificationService using console output."""
 
-    def send_notification(self, recipient: str, subject: str, message: str) -> None:
+    def send_notification(
+        self, recipient: str, subject: str, message: str
+    ) -> None:
         """Send a notification to the console.
 
         Args:

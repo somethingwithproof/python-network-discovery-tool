@@ -5,10 +5,10 @@ Development dashboard for the network discovery tool.
 Provides a quick overview of the project status and available commands.
 """
 
+from datetime import datetime
 import os
 import subprocess
 import sys
-from datetime import datetime
 
 # ANSI colors
 GREEN = '\033[0;32m'

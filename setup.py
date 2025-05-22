@@ -1,14 +1,18 @@
 """Setup script for the network-discovery package."""
 
-from setuptools import setup, find_packages
 import os
+
+from setuptools import find_packages
+from setuptools import setup
 
 # Read the contents of the README file
 with open("README.md", encoding="utf-8") as f:
     long_description = f.read()
 
 # Read the version from the package
-with open(os.path.join("src", "network_discovery", "__init__.py"), encoding="utf-8") as f:
+with open(
+    os.path.join("src", "network_discovery", "__init__.py"), encoding="utf-8"
+) as f:
     for line in f:
         if line.startswith("__version__"):
             version = line.split("=")[1].strip().strip('"').strip("'")
@@ -65,17 +69,17 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
         "Topic :: System :: Networking :: Monitoring",
         "Topic :: System :: Systems Administration",
     ],
     keywords="nmap portscanner network discovery sysadmin",
     package_dir={"": "src"},
     packages=find_packages(where="src"),
-    python_requires=">=3.9",
+    python_requires=">=3.10",
     install_requires=requirements,
     extras_require={
         "dev": dev_requirements,

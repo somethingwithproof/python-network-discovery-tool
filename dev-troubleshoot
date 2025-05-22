@@ -6,11 +6,11 @@ Diagnoses and fixes common development environment issues.
 """
 
 import os
-import sys
-import subprocess
-import shutil
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+import shutil
+import subprocess
+import sys
+from typing import Dict, List, Optional, Tuple
 
 # ANSI colors
 GREEN = '\033[0;32m'

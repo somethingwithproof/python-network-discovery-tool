@@ -3,10 +3,12 @@
 This package contains the implementations of the application service interfaces.
 """
 
-from .scanner import NmapDeviceScanner
-from .repository import JsonFileRepository, RedisRepository
-from .notification import EmailNotificationService, ConsoleNotificationService
+from .notification import ConsoleNotificationService
+from .notification import EmailNotificationService
 from .report import ReportGenerator
+from .repository import JsonFileRepository
+from .repository import RedisRepository
+from .scanner import NmapDeviceScanner
 
 __all__ = [
     "NmapDeviceScanner",

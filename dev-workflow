@@ -6,10 +6,10 @@ Provides common workflow sequences and task automation.
 """
 
 import argparse
+from datetime import datetime
 import os
 import subprocess
 import sys
-from datetime import datetime
 
 # ANSI colors
 GREEN = '\033[0;32m'

@@ -22,30 +22,35 @@ class TestDevice:
     def test_invalid_id_type(self):
         """Test that a Device with an invalid ID type raises an error."""
         import pytest
+
         with pytest.raises(ValueError):
             Device(id="not_an_int", host="example.com", ip="192.168.1.1")
 
     def test_empty_host(self):
         """Test that a Device with an empty hostname raises an error."""
         import pytest
+
         with pytest.raises(ValueError):
             Device(id=1, host="", ip="192.168.1.1")
 
     def test_empty_ip(self):
         """Test that a Device with an empty IP raises an error."""
         import pytest
+
         with pytest.raises(ValueError):
             Device(id=1, host="example.com", ip="")
 
     def test_invalid_ip_format(self):
         """Test that a Device with an invalid IP format raises an error."""
         import pytest
+
         with pytest.raises(ValueError):
             Device(id=1, host="example.com", ip="not_an_ip")
 
     def test_negative_id(self):
         """Test that a Device with a negative ID raises an error."""
         import pytest
+
         with pytest.raises(ValueError):
             Device(id=-1, host="example.com", ip="192.168.1.1")
 
@@ -66,30 +71,30 @@ class TestDevice:
     def test_service_state_transitions(self):
         """Test transitioning between service states."""
         device = Device(id=1, host="example.com", ip="192.168.1.1")
-        
+
         # All services initially off
         assert not device.ssh
         assert not device.snmp
         assert not device.mysql
-        
+
         # Turn on SSH
         ssh_device = device.replace(ssh=True)
         assert ssh_device.ssh
         assert not ssh_device.snmp
         assert not ssh_device.mysql
-        
+
         # Turn on SNMP
         snmp_device = ssh_device.replace(snmp=True)
         assert snmp_device.ssh
         assert snmp_device.snmp
         assert not snmp_device.mysql
-        
+
         # Turn on MySQL
         all_services_device = snmp_device.replace(mysql=True)
         assert all_services_device.ssh
         assert all_services_device.snmp
         assert all_services_device.mysql
-        
+
         # Reset all services
         reset_device = all_services_device.reset_services()
         assert not reset_device.ssh
@@ -100,15 +105,15 @@ class TestDevice:
         """Test adding and clearing errors."""
         device = Device(id=1, host="example.com", ip="192.168.1.1")
         assert device.errors == ()
-        
+
         # Add first error
         device_with_error = device.add_error("Error 1")
         assert device_with_error.errors == ("Error 1",)
-        
+
         # Add second error
         device_with_two_errors = device_with_error.add_error("Error 2")
         assert device_with_two_errors.errors == ("Error 1", "Error 2")
-        
+
         # Clear errors
         cleared_device = device_with_two_errors.replace(errors=())
         assert cleared_device.errors == ()
@@ -117,11 +122,11 @@ class TestDevice:
         """Test changing the scanned state."""
         device = Device(id=1, host="example.com", ip="192.168.1.1")
         assert not device.scanned
-        
+
         # Mark as scanned
         scanned_device = device.replace(scanned=True)
         assert scanned_device.scanned
-        
+
         # Mark as not scanned
         unscanned_device = scanned_device.replace(scanned=False)
         assert not unscanned_device.scanned
@@ -134,12 +139,12 @@ class TestDevice:
         for ip in valid_ips:
             device = Device(id=1, host="example.com", ip=ip)
             assert device.ip == ip
-        
+
         # Valid IPv6 addresses (if supported)
         try:
             device = Device(id=1, host="example.com", ip="::1")
             assert device.ip == "::1"
-            
+
             device = Device(id=1, host="example.com", ip="2001:db8::1")
             assert device.ip == "2001:db8::1"
         except ValueError:
@@ -149,59 +154,62 @@ class TestDevice:
     def test_snmp_group_validation(self):
         """Test SNMP group validation."""
         import pytest
-        
+
         # Valid SNMP groups
         valid_groups = ["public", "private", "community1"]
         for group in valid_groups:
-            device = Device(id=1, host="example.com", ip="192.168.1.1", snmp_group=group)
+            device = Device(
+                id=1, host="example.com", ip="192.168.1.1", snmp_group=group
+            )
             assert device.snmp_group == group
-        
+
         # Invalid SNMP groups (too long)
         with pytest.raises(ValueError):
-            Device(id=1, host="example.com", ip="192.168.1.1", 
-                   snmp_group="a" * 256)  # Assuming max length is 255
+            Device(
+                id=1, host="example.com", ip="192.168.1.1", snmp_group="a" * 256
+            )  # Assuming max length is 255
 
     def test_complex_state_machine(self):
         """Test a complex sequence of state transitions."""
         # Start with a base device
         device = Device(id=1, host="example.com", ip="192.168.1.1")
-        
+
         # Step 1: Mark device as alive and turn on SSH
         device = device.replace(alive=True, ssh=True)
         assert device.alive
         assert device.ssh
-        
+
         # Step 2: Add some errors during scanning
         device = device.add_error("SSH connection timed out")
         assert "SSH connection timed out" in device.errors
-        
+
         # Step 3: Turn on SNMP
         device = device.replace(snmp=True)
         assert device.snmp
-        
+
         # Step 4: Add another error
         device = device.add_error("SNMP community string incorrect")
         assert len(device.errors) == 2
-        
+
         # Step 5: Mark device as scanned
         device = device.replace(scanned=True)
         assert device.scanned
-        
+
         # Step 6: Change hostname
         device = device.replace(host="new.example.com")
         assert device.host == "new.example.com"
-        
+
         # Step 7: Reset services
         device = device.reset_services()
         assert not device.ssh
         assert not device.snmp
         assert not device.mysql
         assert device.uname == "unknown"
-        
+
         # Step 8: Turn device offline
         device = device.replace(alive=False)
         assert not device.alive
-        
+
         # Verify the final state contains all accumulated errors
         assert len(device.errors) == 2
         assert "SSH connection timed out" in device.errors
@@ -210,20 +218,21 @@ class TestDevice:
     def test_immutability(self):
         """Test that Device instances are actually immutable."""
         import pytest
-        
-        device = Device(id=1, host="example.com", ip="192.168.1.1", 
-                        alive=True, ssh=True)
-        
+
+        device = Device(
+            id=1, host="example.com", ip="192.168.1.1", alive=True, ssh=True
+        )
+
         # Attempt to modify attributes directly should fail
         with pytest.raises(AttributeError):
             device.alive = False
-            
+
         with pytest.raises(AttributeError):
             device.host = "new.example.com"
-            
+
         with pytest.raises(AttributeError):
             device.ssh = False
-            
+
         # The device should remain unchanged
         assert device.alive
         assert device.host == "example.com"

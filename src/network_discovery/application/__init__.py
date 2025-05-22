@@ -3,12 +3,10 @@
 This package contains the application services and use cases.
 """
 
-from .interfaces import (
-    DeviceScannerService,
-    DeviceRepositoryService,
-    NotificationService,
-    ReportService,
-)
+from .interfaces import DeviceRepositoryService
+from .interfaces import DeviceScannerService
+from .interfaces import NotificationService
+from .interfaces import ReportService
 
 __all__ = [
     "DeviceScannerService",

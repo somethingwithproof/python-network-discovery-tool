@@ -4,17 +4,18 @@ Standalone script to verify scanner functionality without pytest.
 This will help isolate if the memory issue is with pytest or with the scanner.
 """
 
-import sys
+import asyncio
 import gc
+
 # import time  # Not used
 import logging
-import asyncio
+import sys
 from unittest.mock import MagicMock
 
 # Configure logging
 logging.basicConfig(
     level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger("verify_scanner")
 
@@ -42,7 +43,9 @@ class MockPortScanner:
 
     def all_hosts(self):
         """Return configured hosts."""
-        logger.debug(f"all_hosts called, returning: {list(self.hosts_data.keys())}")
+        logger.debug(
+            f"all_hosts called, returning: {list(self.hosts_data.keys())}"
+        )
         return list(self.hosts_data.keys())
 
     def __getitem__(self, key):
@@ -61,7 +64,7 @@ class MockPortScanner:
 mock_nmap.PortScanner = MockPortScanner
 
 # Install the mock as the real nmap module
-sys.modules['nmap'] = mock_nmap
+sys.modules["nmap"] = mock_nmap
 logger.info("Installed mock nmap module")
 
 # Now import the scanner-related modules
@@ -69,6 +72,7 @@ try:
     logger.info("Importing scanner modules")
     from network_discovery.domain.device import Device
     from network_discovery.infrastructure.scanner import NmapDeviceScanner
+
     logger.info("Successfully imported scanner modules")
 except Exception as e:
     logger.error(f"Error importing scanner modules: {e}")
@@ -146,6 +150,7 @@ def main():
 if __name__ == "__main__":
     # Set Python's process memory debug flags
     import resource
+
     # Set a soft memory limit (4GB)
     resource.setrlimit(resource.RLIMIT_AS, (4 * 1024 * 1024 * 1024, -1))
 
