@@ -1,0 +1,27 @@
+# Global code ownership - Thomas Vincent owns all code
+* @thomasvincent
+
+# Python-specific files
+*.py @thomasvincent
+requirements.txt @thomasvincent
+setup.py @thomasvincent
+pyproject.toml @thomasvincent
+
+# Configuration files
+.github/ @thomasvincent
+.pre-commit-config.yaml @thomasvincent
+Makefile @thomasvincent
+
+# Docker files
+Dockerfile @thomasvincent
+docker-compose.yml @thomasvincent
+.dockerignore @thomasvincent
+
+# CI/CD and automation
+.github/workflows/ @thomasvincent
+.github/dependabot.yml @thomasvincent
+
+# Documentation
+README.md @thomasvincent
+docs/ @thomasvincent
+*.md @thomasvincent
