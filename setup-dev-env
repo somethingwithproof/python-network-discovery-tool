@@ -6,10 +6,10 @@ Supports macOS, Linux, and Windows platforms.
 """
 
 import os
+from pathlib import Path
 import platform
 import subprocess
 import sys
-from pathlib import Path
 
 # ANSI colors
 GREEN = '\033[0;32m'

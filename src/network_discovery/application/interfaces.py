@@ -3,8 +3,9 @@
 This module defines the interfaces for the application services.
 """
 
-from abc import ABC, abstractmethod
-from typing import List, Any, Optional, Tuple
+from abc import ABC
+from abc import abstractmethod
+from typing import Any, List, Optional, Tuple
 
 from network_discovery.domain.device import Device
 
@@ -35,7 +36,9 @@ class DeviceScannerService(ABC):
         """
 
     @abstractmethod
-    async def is_port_open(self, device: Device, port: int) -> Tuple[bool, List[str]]:
+    async def is_port_open(
+        self, device: Device, port: int
+    ) -> Tuple[bool, List[str]]:
         """Check if a specific port on a device is open.
 
         Args:
@@ -131,7 +134,9 @@ class NotificationService(ABC):
     """Interface for notification services."""
 
     @abstractmethod
-    def send_notification(self, recipient: str, subject: str, message: str) -> None:
+    def send_notification(
+        self, recipient: str, subject: str, message: str
+    ) -> None:
         """Send a notification.
 
         Args:

@@ -5,12 +5,12 @@ Development Status Report Generator.
 Provides comprehensive project health checks and dependency status.
 """
 
+from datetime import datetime
+import json
 import os
+from pathlib import Path
 import subprocess
 import sys
-import json
-from datetime import datetime
-from pathlib import Path
 
 # ANSI colors
 GREEN = '\033[0;32m'

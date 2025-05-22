@@ -4,7 +4,8 @@ This module defines an improved DeviceManager entity, which manages a collection
 using a dictionary for faster lookups.
 """
 
-from typing import List, Dict, Optional, Iterator
+from typing import Dict, Iterator, List, Optional
+
 from network_discovery.domain.device import Device
 
 

@@ -2,11 +2,14 @@
 
 import os
 import tempfile
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock
+from unittest.mock import patch
 
 import pytest
 
-from network_discovery.interfaces.cli import parse_args, run_discovery, cli
+from network_discovery.interfaces.cli import cli
+from network_discovery.interfaces.cli import parse_args
+from network_discovery.interfaces.cli import run_discovery
 
 
 @pytest.fixture
@@ -34,17 +37,23 @@ class TestCli:
 
     def test_parse_args_custom(self):
         """Test that custom arguments are parsed correctly."""
-        args = parse_args([
-            "192.168.1.1",
-            "-o", "/tmp/output",
-            "-f", "csv",
-            "-t", "/tmp/templates",
-            "-v",
-            "--no-report",
-            "--no-notification",
-            "--no-repository",
-            "--repository-file", "/tmp/devices.json",
-        ])
+        args = parse_args(
+            [
+                "192.168.1.1",
+                "-o",
+                "/tmp/output",
+                "-f",
+                "csv",
+                "-t",
+                "/tmp/templates",
+                "-v",
+                "--no-report",
+                "--no-notification",
+                "--no-repository",
+                "--repository-file",
+                "/tmp/devices.json",
+            ]
+        )
         assert args.network == "192.168.1.1"
         assert args.output_dir == "/tmp/output"
         assert args.format == "csv"
@@ -58,41 +67,59 @@ class TestCli:
     @pytest.mark.asyncio
     async def test_run_discovery_network(self, temp_dir):
         """Test that run_discovery works with a network range."""
-        args = parse_args([
-            "192.168.1.0/24",
-            "-o", temp_dir,
-            "-t", temp_dir,
-            "--no-notification",
-            "--no-repository"
-        ])
+        args = parse_args(
+            [
+                "192.168.1.0/24",
+                "-o",
+                temp_dir,
+                "-t",
+                temp_dir,
+                "--no-notification",
+                "--no-repository",
+            ]
+        )
 
-        with patch("network_discovery.core.discovery.DeviceDiscoveryService") as mock_discovery_service:
+        with patch(
+            "network_discovery.core.discovery.DeviceDiscoveryService"
+        ) as mock_discovery_service:
             mock_instance = mock_discovery_service.return_value
             mock_instance.discover_network = AsyncMock()
             mock_instance.discover_network.return_value = []
-            mock_instance.generate_report.return_value = os.path.join(temp_dir, "devices.html")
+            mock_instance.generate_report.return_value = os.path.join(
+                temp_dir, "devices.html"
+            )
 
             await run_discovery(args)
 
-            mock_instance.discover_network.assert_called_once_with("192.168.1.0/24")
+            mock_instance.discover_network.assert_called_once_with(
+                "192.168.1.0/24"
+            )
             mock_instance.generate_report.assert_called_once_with("html")
 
     @pytest.mark.asyncio
     async def test_run_discovery_device(self, temp_dir):
         """Test that run_discovery works with a single IP address."""
-        args = parse_args([
-            "192.168.1.1",
-            "-o", temp_dir,
-            "-t", temp_dir,
-            "--no-notification",
-            "--no-repository"
-        ])
+        args = parse_args(
+            [
+                "192.168.1.1",
+                "-o",
+                temp_dir,
+                "-t",
+                temp_dir,
+                "--no-notification",
+                "--no-repository",
+            ]
+        )
 
-        with patch("network_discovery.core.discovery.DeviceDiscoveryService") as mock_discovery_service:
+        with patch(
+            "network_discovery.core.discovery.DeviceDiscoveryService"
+        ) as mock_discovery_service:
             mock_instance = mock_discovery_service.return_value
             mock_instance.discover_device = AsyncMock()
             mock_instance.discover_device.return_value = None
-            mock_instance.generate_report.return_value = os.path.join(temp_dir, "devices.html")
+            mock_instance.generate_report.return_value = os.path.join(
+                temp_dir, "devices.html"
+            )
 
             await run_discovery(args)
 
@@ -101,15 +128,21 @@ class TestCli:
 
     def test_cli(self, temp_dir):
         """Test the CLI entry point."""
-        with patch("network_discovery.interfaces.cli.parse_args") as mock_parse_args:
+        with patch(
+            "network_discovery.interfaces.cli.parse_args"
+        ) as mock_parse_args:
             with patch("asyncio.run") as mock_run:
-                mock_parse_args.return_value = parse_args([
-                    "192.168.1.0/24",
-                    "-o", temp_dir,
-                    "-t", temp_dir,
-                    "--no-notification",
-                    "--no-repository",
-                    "--no-report",
-                ])
+                mock_parse_args.return_value = parse_args(
+                    [
+                        "192.168.1.0/24",
+                        "-o",
+                        temp_dir,
+                        "-t",
+                        temp_dir,
+                        "--no-notification",
+                        "--no-repository",
+                        "--no-report",
+                    ]
+                )
                 cli(["192.168.1.0/24"])
                 mock_run.assert_called_once()

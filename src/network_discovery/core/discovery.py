@@ -10,12 +10,10 @@ import ipaddress
 import logging
 from typing import Dict, List, Optional, Union
 
-from network_discovery.application.interfaces import (
-    DeviceRepositoryService,
-    DeviceScannerService,
-    NotificationService,
-    ReportService,
-)
+from network_discovery.application.interfaces import DeviceRepositoryService
+from network_discovery.application.interfaces import DeviceScannerService
+from network_discovery.application.interfaces import NotificationService
+from network_discovery.application.interfaces import ReportService
 from network_discovery.domain.device import Device
 from network_discovery.domain.device_manager import DeviceManager
 
@@ -25,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class DeviceDiscoveryService:
     """Service for discovering and managing network devices.
-    
+
     This service coordinates the discovery of devices on a network by using
     various services to scan devices, store device information, send notifications,
     and generate reports.
@@ -66,7 +64,7 @@ class DeviceDiscoveryService:
 
         Returns:
             A list of discovered devices with scan results.
-            
+
         Raises:
             ValueError: If the network string is not a valid CIDR notation.
             Exception: If an error occurs during the discovery process.
@@ -110,7 +108,9 @@ class DeviceDiscoveryService:
 
             # Send notification if notification service is configured
             if self.notification_service:
-                alive_count = sum(1 for d in self.device_manager.devices if d.alive)
+                alive_count = sum(
+                    1 for d in self.device_manager.devices if d.alive
+                )
                 message = (
                     f"Network discovery completed for {network}.\n"
                     f"Found {len(self.device_manager.devices)} devices, "
@@ -122,7 +122,9 @@ class DeviceDiscoveryService:
 
             # Generate report if report service is configured
             if self.report_service:
-                self.report_service.generate_report(self.device_manager.devices, "html")
+                self.report_service.generate_report(
+                    self.device_manager.devices, "html"
+                )
 
             logger.info("Discovery completed on network %s", network)
             return self.device_manager.devices
@@ -145,7 +147,7 @@ class DeviceDiscoveryService:
 
         Returns:
             The discovered device with scan results.
-            
+
         Raises:
             Exception: If an error occurs during the discovery process.
         """

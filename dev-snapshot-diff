@@ -6,11 +6,11 @@ Analyzes and compares different environment snapshots.
 """
 
 import argparse
+from datetime import datetime
 import json
 import os
-import sys
-from datetime import datetime
 from pathlib import Path
+import sys
 from typing import Dict, List, Set, Tuple
 
 # ANSI colors

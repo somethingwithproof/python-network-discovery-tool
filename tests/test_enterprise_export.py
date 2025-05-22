@@ -1,17 +1,21 @@
 """Tests for enterprise export functionality."""
 
 import csv
+from datetime import datetime
 import json
 import os
 import tempfile
-from datetime import datetime
-from unittest.mock import patch, mock_open, MagicMock
+from unittest.mock import MagicMock
+from unittest.mock import mock_open
+from unittest.mock import patch
 
 import pytest
 import yaml
 
 from network_discovery.domain.device import Device
-from network_discovery.enterprise.device import EnterpriseDevice, DeviceCategory, DeviceStatus
+from network_discovery.enterprise.device import DeviceCategory
+from network_discovery.enterprise.device import DeviceStatus
+from network_discovery.enterprise.device import EnterpriseDevice
 from network_discovery.enterprise.export import EnterpriseExporter
 
 
@@ -31,7 +35,7 @@ def base_device():
         mysql_password="password123",
         uname="Linux 5.4.0-generic",
         errors=("Test error",),
-        scanned=True
+        scanned=True,
     )
 
 
@@ -51,7 +55,10 @@ def enterprise_device(base_device):
         last_scan_time=datetime(2025, 1, 1, 12, 0, 0),
         uptime=86400,  # 1 day in seconds
         tags=["production", "web-server"],
-        custom_attributes={"maintenance_contract": "MAINT-123", "critical": True}
+        custom_attributes={
+            "maintenance_contract": "MAINT-123",
+            "critical": True,
+        },
     )
     return device
 
@@ -60,7 +67,7 @@ def enterprise_device(base_device):
 def enterprise_devices(base_device):
     """Create a list of EnterpriseDevice instances."""
     devices = []
-    
+
     # Create different types of devices
     categories = [
         DeviceCategory.SERVER,
@@ -68,18 +75,18 @@ def enterprise_devices(base_device):
         DeviceCategory.STORAGE,
         DeviceCategory.SECURITY,
     ]
-    
+
     statuses = [
         DeviceStatus.ACTIVE,
         DeviceStatus.MAINTENANCE,
         DeviceStatus.PENDING_DECOMMISSION,
         DeviceStatus.DECOMMISSIONED,
     ]
-    
+
     for i in range(4):
         # Create a base device
         base = Device(
-            id=i+1,
+            id=i + 1,
             host=f"device{i+1}.example.com",
             ip=f"192.168.1.{100+i}",
             snmp_group="public" if i % 2 == 0 else "private",
@@ -91,9 +98,9 @@ def enterprise_devices(base_device):
             mysql_password="password123" if i % 4 == 0 else "",
             uname=f"Linux {i+1}" if i != 3 else "",
             errors=(f"Error {i+1}",) if i == 3 else (),
-            scanned=True
+            scanned=True,
         )
-        
+
         # Create an enterprise device
         device = EnterpriseDevice(
             device=base,
@@ -106,13 +113,15 @@ def enterprise_devices(base_device):
             firmware_version=f"Firmware {i+1}" if i != 3 else "",
             compliance=i != 3,
             last_scan_time=datetime(2025, 1, 1, 12, i, 0) if i != 3 else None,
-            uptime=86400 * (i+1) if i != 3 else None,
+            uptime=86400 * (i + 1) if i != 3 else None,
             tags=[f"tag-{i+1}", "enterprise"] if i != 3 else [],
-            custom_attributes={"key1": f"value{i+1}", "key2": i+1} if i != 3 else {}
+            custom_attributes=(
+                {"key1": f"value{i+1}", "key2": i + 1} if i != 3 else {}
+            ),
         )
-        
+
         devices.append(device)
-    
+
     return devices
 
 
@@ -136,7 +145,7 @@ class TestEnterpriseExporter:
         """Test initialization of EnterpriseExporter."""
         exporter = EnterpriseExporter(output_dir=temp_dir)
         assert exporter.output_dir == temp_dir
-        
+
         # Test directory creation
         new_dir = os.path.join(temp_dir, "exports")
         exporter = EnterpriseExporter(output_dir=new_dir)
@@ -145,17 +154,17 @@ class TestEnterpriseExporter:
     def test_export_to_json(self, exporter, enterprise_devices):
         """Test exporting devices to JSON format."""
         output_path = exporter.export_to_json(enterprise_devices)
-        
+
         # Verify the file exists
         assert os.path.exists(output_path)
         assert output_path.endswith(".json")
-        
+
         # Verify file content
         with open(output_path, "r") as f:
             data = json.load(f)
             assert isinstance(data, list)
             assert len(data) == len(enterprise_devices)
-            
+
             # Check content of first device
             first_device = data[0]
             assert first_device["id"] == 1
@@ -163,7 +172,7 @@ class TestEnterpriseExporter:
             assert first_device["category"] == "SERVER"
             assert first_device["status"] == "ACTIVE"
             assert first_device["asset_id"] == "ASSET-001"
-            
+
             # Verify that custom attributes are included
             assert "custom_attributes" in first_device
             assert "key1" in first_device["custom_attributes"]
@@ -171,17 +180,17 @@ class TestEnterpriseExporter:
     def test_export_to_yaml(self, exporter, enterprise_devices):
         """Test exporting devices to YAML format."""
         output_path = exporter.export_to_yaml(enterprise_devices)
-        
+
         # Verify the file exists
         assert os.path.exists(output_path)
         assert output_path.endswith(".yaml")
-        
+
         # Verify file content
         with open(output_path, "r") as f:
             data = yaml.safe_load(f)
             assert isinstance(data, list)
             assert len(data) == len(enterprise_devices)
-            
+
             # Check content of first device
             first_device = data[0]
             assert first_device["id"] == 1
@@ -192,27 +201,27 @@ class TestEnterpriseExporter:
     def test_export_to_csv(self, exporter, enterprise_devices):
         """Test exporting devices to CSV format."""
         output_path = exporter.export_to_csv(enterprise_devices)
-        
+
         # Verify the file exists
         assert os.path.exists(output_path)
         assert output_path.endswith(".csv")
-        
+
         # Verify file content
         with open(output_path, "r", newline="") as f:
             reader = csv.reader(f)
             headers = next(reader)  # Get the headers
-            
+
             # Verify headers
             assert "ID" in headers
             assert "Host" in headers
             assert "IP" in headers
             assert "Category" in headers
             assert "Status" in headers
-            
+
             # Verify data
             rows = list(reader)
             assert len(rows) == len(enterprise_devices)
-            
+
             # Check first row data
             first_row = rows[0]
             assert first_row[0] == "1"  # ID
@@ -225,49 +234,49 @@ class TestEnterpriseExporter:
     def test_export_to_nagios(self, exporter, enterprise_devices):
         """Test exporting devices to Nagios configuration format."""
         output_path = exporter.export_to_nagios(enterprise_devices)
-        
+
         # Verify the file exists
         assert os.path.exists(output_path)
         assert output_path.endswith(".cfg")
-        
+
         # Read file content
         with open(output_path, "r") as f:
             content = f.read()
-            
+
             # Check for Nagios host definitions
             assert "define host {" in content
             assert "    host_name              device1.example.com" in content
             assert "    address                192.168.1.100" in content
-            
+
             # Check for service definitions
             assert "define service {" in content
             assert "    service_description    SSH" in content
             assert "    service_description    SNMP" in content
-            
+
             # Verify that the decommissioned device is not included
             assert "device4.example.com" not in content
-            
+
             # Verify that tags are included as hostgroups
             assert "    hostgroups             tag-1,enterprise" in content
 
     def test_export_to_zenoss(self, exporter, enterprise_devices):
         """Test exporting devices to Zenoss JSON format."""
         output_path = exporter.export_to_zenoss(enterprise_devices)
-        
+
         # Verify the file exists
         assert os.path.exists(output_path)
         assert output_path.endswith(".json")
-        
+
         # Verify file content
         with open(output_path, "r") as f:
             data = json.load(f)
             assert "devices" in data
             assert isinstance(data["devices"], list)
-            
+
             # Only living devices should be included
             living_devices = [d for d in enterprise_devices if d.alive]
             assert len(data["devices"]) == len(living_devices)
-            
+
             # Check first device
             first_device = data["devices"][0]
             assert first_device["deviceName"] == "device1.example.com"
@@ -275,7 +284,7 @@ class TestEnterpriseExporter:
             assert first_device["deviceClass"] == "/Devices/Server"
             assert first_device["snmpMonitor"] is True
             assert first_device["sshMonitor"] is True
-            
+
             # Check for device properties
             assert "properties" in first_device
             assert first_device["properties"]["assetId"] == "ASSET-001"
@@ -287,27 +296,27 @@ class TestEnterpriseExporter:
         json_path = exporter.export(enterprise_devices, "json")
         assert os.path.exists(json_path)
         assert json_path.endswith(".json")
-        
+
         # Test YAML format
         yaml_path = exporter.export(enterprise_devices, "yaml")
         assert os.path.exists(yaml_path)
         assert yaml_path.endswith(".yaml")
-        
+
         # Test CSV format
         csv_path = exporter.export(enterprise_devices, "csv")
         assert os.path.exists(csv_path)
         assert csv_path.endswith(".csv")
-        
+
         # Test Nagios format
         nagios_path = exporter.export(enterprise_devices, "nagios")
         assert os.path.exists(nagios_path)
         assert nagios_path.endswith(".cfg")
-        
+
         # Test Zenoss format
         zenoss_path = exporter.export(enterprise_devices, "zenoss")
         assert os.path.exists(zenoss_path)
         assert zenoss_path.endswith(".json")
-        
+
         # Test invalid format
         with pytest.raises(ValueError):
             exporter.export(enterprise_devices, "invalid_format")
@@ -315,10 +324,12 @@ class TestEnterpriseExporter:
     def test_custom_filename(self, exporter, enterprise_devices):
         """Test exporting with custom filenames."""
         # Test with custom filename
-        custom_path = exporter.export_to_json(enterprise_devices, "custom_export.json")
+        custom_path = exporter.export_to_json(
+            enterprise_devices, "custom_export.json"
+        )
         assert os.path.exists(custom_path)
         assert os.path.basename(custom_path) == "custom_export.json"
-        
+
         # Test with None filename (should generate default)
         default_path = exporter.export_to_json(enterprise_devices)
         assert os.path.exists(default_path)
@@ -327,28 +338,32 @@ class TestEnterpriseExporter:
 
     @patch("builtins.open", new_callable=mock_open)
     @patch("json.dump")
-    def test_json_export_error(self, mock_json_dump, mock_file, exporter, enterprise_devices):
+    def test_json_export_error(
+        self, mock_json_dump, mock_file, exporter, enterprise_devices
+    ):
         """Test error handling during JSON export."""
         # Mock json.dump to raise an exception
         mock_json_dump.side_effect = IOError("Test IO error")
-        
+
         # Attempt to export should raise the IOError
         with pytest.raises(IOError) as exc_info:
             exporter.export_to_json(enterprise_devices)
-        
+
         assert "Test IO error" in str(exc_info.value)
 
     @patch("builtins.open", new_callable=mock_open)
     @patch("yaml.dump")
-    def test_yaml_export_error(self, mock_yaml_dump, mock_file, exporter, enterprise_devices):
+    def test_yaml_export_error(
+        self, mock_yaml_dump, mock_file, exporter, enterprise_devices
+    ):
         """Test error handling during YAML export."""
         # Mock yaml.dump to raise an exception
         mock_yaml_dump.side_effect = yaml.YAMLError("Test YAML error")
-        
+
         # Attempt to export should raise the YAMLError
         with pytest.raises(yaml.YAMLError) as exc_info:
             exporter.export_to_yaml(enterprise_devices)
-        
+
         assert "Test YAML error" in str(exc_info.value)
 
     def test_empty_device_list(self, exporter):
@@ -356,7 +371,7 @@ class TestEnterpriseExporter:
         # Export should work with empty list
         json_path = exporter.export_to_json([])
         assert os.path.exists(json_path)
-        
+
         # Verify empty list is exported
         with open(json_path, "r") as f:
             data = json.load(f)
@@ -372,11 +387,11 @@ class TestEnterpriseExportIntegration:
         test_dir = os.path.join(temp_dir, "integration_test")
         os.makedirs(test_dir, exist_ok=True)
         exporter.output_dir = test_dir
-        
+
         # Export all formats
         formats = ["json", "yaml", "csv", "nagios", "zenoss"]
         paths = {}
-        
+
 
 """Tests for the EnterpriseExporter class."""
 
@@ -388,11 +403,9 @@ import pytest
 import yaml
 
 from network_discovery.domain.device import Device
-from network_discovery.enterprise.device import (
-    EnterpriseDevice,
-    DeviceCategory,
-    DeviceStatus,
-)
+from network_discovery.enterprise.device import DeviceCategory
+from network_discovery.enterprise.device import DeviceStatus
+from network_discovery.enterprise.device import EnterpriseDevice
 from network_discovery.enterprise.export import EnterpriseExporter
 
 
@@ -535,7 +548,9 @@ class TestEnterpriseExporter:
         assert data[3]["host"] == "offline.example.com"
         assert data[3]["alive"] is False
 
-    def test_export_to_json_default_filename(self, test_output_dir, sample_devices):
+    def test_export_to_json_default_filename(
+        self, test_output_dir, sample_devices
+    ):
         """Test exporting devices to JSON format with a default filename."""
         exporter = EnterpriseExporter(output_dir=test_output_dir)
         output_path = exporter.export_to_json(sample_devices)
@@ -579,7 +594,9 @@ class TestEnterpriseExporter:
         assert data[3]["host"] == "offline.example.com"
         assert data[3]["alive"] is False
 
-    def test_export_to_yaml_default_filename(self, test_output_dir, sample_devices):
+    def test_export_to_yaml_default_filename(
+        self, test_output_dir, sample_devices
+    ):
         """Test exporting devices to YAML format with a default filename."""
         exporter = EnterpriseExporter(output_dir=test_output_dir)
         output_path = exporter.export_to_yaml(sample_devices)
@@ -614,12 +631,25 @@ class TestEnterpriseExporter:
 
         # Check data rows
         assert len(lines) == 5  # Header + 4 devices
-        assert "1,server1.example.com,192.168.1.1,True,True,True,False" in lines[1]
-        assert "2,router1.example.com,192.168.1.254,True,True,True,False" in lines[2]
-        assert "3,storage1.example.com,192.168.1.10,True,True,False,False" in lines[3]
-        assert "4,offline.example.com,192.168.1.20,False,False,False,False" in lines[4]
+        assert (
+            "1,server1.example.com,192.168.1.1,True,True,True,False" in lines[1]
+        )
+        assert (
+            "2,router1.example.com,192.168.1.254,True,True,True,False"
+            in lines[2]
+        )
+        assert (
+            "3,storage1.example.com,192.168.1.10,True,True,False,False"
+            in lines[3]
+        )
+        assert (
+            "4,offline.example.com,192.168.1.20,False,False,False,False"
+            in lines[4]
+        )
 
-    def test_export_to_csv_default_filename(self, test_output_dir, sample_devices):
+    def test_export_to_csv_default_filename(
+        self, test_output_dir, sample_devices
+    ):
         """Test exporting devices to CSV format with a default filename."""
         exporter = EnterpriseExporter(output_dir=test_output_dir)
         output_path = exporter.export_to_csv(sample_devices)
@@ -680,7 +710,9 @@ class TestEnterpriseExporter:
         assert "Location: Data Center 1" in content
         assert "Owner: IT Department" in content
 
-    def test_export_to_nagios_default_filename(self, test_output_dir, sample_devices):
+    def test_export_to_nagios_default_filename(
+        self, test_output_dir, sample_devices
+    ):
         """Test exporting devices to Nagios format with a default filename."""
         exporter = EnterpriseExporter(output_dir=test_output_dir)
         output_path = exporter.export_to_nagios(sample_devices)
@@ -721,36 +753,53 @@ class TestEnterpriseExporter:
         devices = {d["deviceName"]: d for d in data["devices"]}
 
         assert "server1.example.com" in devices.keys()
-        assert devices["server1.example.com"]["deviceClass"] == "/Devices/Server"
+        assert (
+            devices["server1.example.com"]["deviceClass"] == "/Devices/Server"
+        )
         assert devices["server1.example.com"]["manageIp"] == "192.168.1.1"
         assert devices["server1.example.com"]["snmpMonitor"] is True
         assert devices["server1.example.com"]["sshMonitor"] is True
         assert "production" in devices["server1.example.com"]["systems"]
         assert "web-server" in devices["server1.example.com"]["systems"]
         assert devices["server1.example.com"]["location"] == "Data Center 1"
-        assert devices["server1.example.com"]["properties"]["assetId"] == "ASSET001"
-        assert devices["server1.example.com"]["properties"]["owner"] == "IT Department"
         assert (
-            devices["server1.example.com"]["properties"]["osVersion"] == "Ubuntu 22.04"
+            devices["server1.example.com"]["properties"]["assetId"]
+            == "ASSET001"
         )
         assert (
-            devices["server1.example.com"]["properties"]["firmwareVersion"] == "1.2.3"
+            devices["server1.example.com"]["properties"]["owner"]
+            == "IT Department"
+        )
+        assert (
+            devices["server1.example.com"]["properties"]["osVersion"]
+            == "Ubuntu 22.04"
+        )
+        assert (
+            devices["server1.example.com"]["properties"]["firmwareVersion"]
+            == "1.2.3"
         )
         assert devices["server1.example.com"]["properties"]["rack"] == "A1"
         assert (
-            devices["server1.example.com"]["properties"]["power_supply"] == "redundant"
+            devices["server1.example.com"]["properties"]["power_supply"]
+            == "redundant"
         )
 
         assert "router1.example.com" in devices.keys()
-        assert devices["router1.example.com"]["deviceClass"] == "/Devices/Network"
+        assert (
+            devices["router1.example.com"]["deviceClass"] == "/Devices/Network"
+        )
 
         assert "storage1.example.com" in devices.keys()
-        assert devices["storage1.example.com"]["deviceClass"] == "/Devices/Storage"
+        assert (
+            devices["storage1.example.com"]["deviceClass"] == "/Devices/Storage"
+        )
 
         # Offline device should not be included
         assert "offline.example.com" not in devices
 
-    def test_export_to_zenoss_default_filename(self, test_output_dir, sample_devices):
+    def test_export_to_zenoss_default_filename(
+        self, test_output_dir, sample_devices
+    ):
         """Test exporting devices to Zenoss format with a default filename."""
         exporter = EnterpriseExporter(output_dir=test_output_dir)
         output_path = exporter.export_to_zenoss(sample_devices)
@@ -787,7 +836,9 @@ class TestEnterpriseExporter:
         assert csv_path.endswith(".csv")
 
         # Test Nagios export
-        nagios_path = exporter.export(sample_devices, "nagios", "test_generic.cfg")
+        nagios_path = exporter.export(
+            sample_devices, "nagios", "test_generic.cfg"
+        )
         assert os.path.exists(nagios_path)
         assert nagios_path.endswith(".cfg")
 

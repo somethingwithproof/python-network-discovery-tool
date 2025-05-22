@@ -15,10 +15,10 @@ Options:
 
 import argparse
 import os
+from pathlib import Path
 import re
 import subprocess
 import sys
-from pathlib import Path
 
 
 def run_command(command, dry_run=False, check=True):
@@ -50,31 +50,31 @@ def bump_version(current_version, dry_run=False):
     if not match:
         print(f"Error: Could not parse version '{current_version}'")
         sys.exit(1)
-    
+
     major, minor, patch, suffix = match.groups()
-    
+
     # Increment the minor version and add .dev0
     new_minor = int(minor) + 1
     new_version = f"{major}.{new_minor}.0.dev0"
-    
+
     # Update the version in __init__.py
     init_path = Path("src/network_discovery/__init__.py")
     with open(init_path, "r") as f:
         content = f.read()
-    
+
     new_content = re.sub(
         r'__version__\s*=\s*["\']([^"\']+)["\']',
         f'__version__ = "{new_version}"',
-        content
+        content,
     )
-    
+
     if dry_run:
         print(f"Would update {init_path} with version {new_version}")
     else:
         with open(init_path, "w") as f:
             f.write(new_content)
         print(f"Updated {init_path} with version {new_version}")
-    
+
     return new_version
 
 
@@ -83,32 +83,38 @@ def commit_changes(new_version, dry_run=False):
     if dry_run:
         print(f"Would commit version bump to {new_version}")
     else:
-        run_command(f'git add src/network_discovery/__init__.py')
-        run_command(f'git commit -m "chore: bump version to {new_version} for development"')
+        run_command(f"git add src/network_discovery/__init__.py")
+        run_command(
+            f'git commit -m "chore: bump version to {new_version} for development"'
+        )
         print(f"Committed version bump to {new_version}")
 
 
 def main():
     parser = argparse.ArgumentParser(description="Bump version for development")
-    parser.add_argument("--dry-run", action="store_true", help="Run without making changes")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Run without making changes"
+    )
     args = parser.parse_args()
-    
+
     # Get the current version
     current_version = get_current_version()
     if not current_version:
         print("Error: Could not determine current version")
         sys.exit(1)
-    
+
     print(f"Current version: {current_version}")
-    
+
     # Bump the version
     new_version = bump_version(current_version, args.dry_run)
     print(f"New version: {new_version}")
-    
+
     # Commit the changes
     commit_changes(new_version, args.dry_run)
-    
-    print(f"Version bumped from {current_version} to {new_version} {'(dry run)' if args.dry_run else ''}")
+
+    print(
+        f"Version bumped from {current_version} to {new_version} {'(dry run)' if args.dry_run else ''}"
+    )
 
 
 if __name__ == "__main__":

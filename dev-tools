@@ -7,9 +7,9 @@ Provides a command-line interface for development operations.
 
 import argparse
 import os
+from pathlib import Path
 import subprocess
 import sys
-from pathlib import Path
 
 # ANSI colors
 GREEN = '\033[0;32m'

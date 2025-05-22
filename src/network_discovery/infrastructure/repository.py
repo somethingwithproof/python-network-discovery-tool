@@ -8,11 +8,11 @@ import logging
 import os
 from typing import List, Optional
 
-import redis
 import ijson
+import redis
 
-from network_discovery.domain.device import Device
 from network_discovery.application.interfaces import DeviceRepositoryService
+from network_discovery.domain.device import Device
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -54,7 +54,8 @@ class JsonFileRepository(DeviceRepositoryService):
                     json.load(file)
             except (json.JSONDecodeError, IOError) as e:
                 logger.error(
-                    "Error reading JSON file: %s. Initializing with empty object.", e
+                    "Error reading JSON file: %s. Initializing with empty object.",
+                    e,
                 )
                 with open(self.file_path, "w", encoding="utf-8") as file:
                     file.write("{}")
@@ -82,7 +83,9 @@ class JsonFileRepository(DeviceRepositoryService):
 
             logger.debug("Device %s saved to JSON file", device.id)
         except (json.JSONDecodeError, IOError) as e:
-            logger.error("Error saving device %s to JSON file: %s", device.id, e)
+            logger.error(
+                "Error saving device %s to JSON file: %s", device.id, e
+            )
             raise
 
     def get(self, device_id: int) -> Optional[Device]:
@@ -121,7 +124,9 @@ class JsonFileRepository(DeviceRepositoryService):
             # Device not found
             return None
         except (ijson.JSONError, IOError) as e:
-            logger.error("Error retrieving device %s from JSON file: %s", device_id, e)
+            logger.error(
+                "Error retrieving device %s from JSON file: %s", device_id, e
+            )
             # Fall back to loading the entire file
             return self._get_fallback(device_id)
 
@@ -145,7 +150,9 @@ class JsonFileRepository(DeviceRepositoryService):
                 return Device.from_dict(device_data)
             return None
         except (json.JSONDecodeError, IOError) as e:
-            logger.error("Error in fallback retrieval of device %s: %s", device_id, e)
+            logger.error(
+                "Error in fallback retrieval of device %s: %s", device_id, e
+            )
             return None
 
     def get_all(self) -> List[Device]:
@@ -225,7 +232,9 @@ class JsonFileRepository(DeviceRepositoryService):
 
                 logger.debug("Device %s deleted from JSON file", device_id)
         except (json.JSONDecodeError, IOError) as e:
-            logger.error("Error deleting device %s from JSON file: %s", device_id, e)
+            logger.error(
+                "Error deleting device %s from JSON file: %s", device_id, e
+            )
             raise
 
     def clear_all(self) -> None:
@@ -251,7 +260,9 @@ class RedisRepository(DeviceRepositoryService):
     which can be problematic in production environments with large datasets.
     """
 
-    def __init__(self, host: str = "localhost", port: int = 6379, db: int = 0) -> None:
+    def __init__(
+        self, host: str = "localhost", port: int = 6379, db: int = 0
+    ) -> None:
         """Initialize a new RedisRepository.
 
         Args:
@@ -259,8 +270,12 @@ class RedisRepository(DeviceRepositoryService):
             port: The Redis port.
             db: The Redis database number.
         """
-        self.redis = redis.Redis(host=host, port=port, db=db, decode_responses=True)
-        self.device_set_key = "devices:all"  # Key for the set containing all device IDs
+        self.redis = redis.Redis(
+            host=host, port=port, db=db, decode_responses=True
+        )
+        self.device_set_key = (
+            "devices:all"  # Key for the set containing all device IDs
+        )
 
     def save(self, device: Device) -> None:
         """Save a device to the repository.
@@ -295,7 +310,9 @@ class RedisRepository(DeviceRepositoryService):
                 return Device.from_dict(json.loads(device_data))
             return None
         except redis.RedisError as e:
-            logger.error("Error retrieving device %s from Redis: %s", device_id, e)
+            logger.error(
+                "Error retrieving device %s from Redis: %s", device_id, e
+            )
             raise
         except json.JSONDecodeError as e:
             logger.error("Error decoding device %s data: %s", device_id, e)
@@ -337,7 +354,9 @@ class RedisRepository(DeviceRepositoryService):
             self.redis.srem(self.device_set_key, device_id)
             logger.debug("Device %s deleted from Redis", device_id)
         except redis.RedisError as e:
-            logger.error("Error deleting device %s from Redis: %s", device_id, e)
+            logger.error(
+                "Error deleting device %s from Redis: %s", device_id, e
+            )
             raise
 
     def clear_all(self) -> None:

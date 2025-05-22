@@ -4,9 +4,9 @@ This module provides export functionality for enterprise devices in various form
 """
 
 import csv
+from datetime import datetime
 import json
 import os
-from datetime import datetime
 from typing import List, Optional
 
 import yaml
@@ -70,7 +70,9 @@ class EnterpriseExporter:
         devices_data = [device.to_dict() for device in devices]
 
         with open(output_path, "w", encoding="utf-8") as f:
-            yaml.dump(devices_data, f, default_flow_style=False, sort_keys=False)
+            yaml.dump(
+                devices_data, f, default_flow_style=False, sort_keys=False
+            )
 
         return output_path
 
@@ -185,7 +187,9 @@ class EnterpriseExporter:
 
                 # Add tags as hostgroups
                 if device.tags:
-                    f.write(f"    hostgroups             {','.join(device.tags)}\n")
+                    f.write(
+                        f"    hostgroups             {','.join(device.tags)}\n"
+                    )
 
                 # Add notes based on device information
                 notes = []
@@ -286,7 +290,9 @@ class EnterpriseExporter:
                 "groups": [],
                 "location": device.location,
                 "zProperties": {
-                    "zCommandUsername": base_device.mysql_user if device.mysql else "",
+                    "zCommandUsername": (
+                        base_device.mysql_user if device.mysql else ""
+                    ),
                     "zCommandPassword": (
                         base_device.mysql_password if device.mysql else ""
                     ),

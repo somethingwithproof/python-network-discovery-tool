@@ -19,10 +19,12 @@ try:
     # Import device module
     log("Importing Device class...")
     from network_discovery.domain.device import Device
+
     log("Device class imported successfully")
     # Import scanner module
     log("Importing NmapDeviceScanner class...")
     from network_discovery.infrastructure.scanner import NmapDeviceScanner
+
     log("NmapDeviceScanner class imported successfully")
     # Create bare objects
     log("Creating test objects...")

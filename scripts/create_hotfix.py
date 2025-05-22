@@ -13,10 +13,10 @@ Arguments:
 """
 
 import argparse
+from pathlib import Path
 import re
 import subprocess
 import sys
-from pathlib import Path
 
 
 def run_command(command, check=True):
@@ -40,7 +40,9 @@ def check_git_status():
     """Check if the git working directory is clean."""
     status = run_command("git status --porcelain")
     if status:
-        print("Error: Working directory is not clean. Please commit or stash your changes.")
+        print(
+            "Error: Working directory is not clean. Please commit or stash your changes."
+        )
         sys.exit(1)
 
 
@@ -49,20 +51,20 @@ def update_version_in_branch(version):
     init_path = Path("src/network_discovery/__init__.py")
     with open(init_path, "r") as f:
         content = f.read()
-    
+
     new_content = re.sub(
         r'__version__\s*=\s*["\']([^"\']+)["\']',
         f'__version__ = "{version}"',
-        content
+        content,
     )
-    
+
     with open(init_path, "w") as f:
         f.write(new_content)
-    
+
     print(f"Updated {init_path} with version {version}")
-    
+
     # Commit the change
-    run_command(f'git add {init_path}')
+    run_command(f"git add {init_path}")
     run_command(f'git commit -m "chore: bump version to {version}"')
 
 
@@ -76,19 +78,19 @@ def create_hotfix_branch(version):
         if confirm.lower() != "y":
             print("Aborting.")
             sys.exit(0)
-    
+
     # Create the hotfix branch
     branch_name = f"hotfix/{version}"
     run_command(f"git checkout -b {branch_name}")
     print(f"Created branch {branch_name}")
-    
+
     # Update the version in the hotfix branch
     update_version_in_branch(version)
-    
+
     # Push the branch
     run_command(f"git push -u origin {branch_name}")
     print(f"Pushed branch {branch_name} to origin")
-    
+
     print(f"\nHotfix branch {branch_name} has been created and pushed.")
     print("\nNext steps:")
     print(f"1. Fix the critical bug in the {branch_name} branch")
@@ -96,7 +98,7 @@ def create_hotfix_branch(version):
     print("3. When ready, merge the hotfix branch into main:")
     print(f"   git checkout main && git merge --no-ff {branch_name}")
     print("4. Create a tag for the hotfix:")
-    print(f"   git tag -a v{version} -m \"Hotfix {version}\"")
+    print(f'   git tag -a v{version} -m "Hotfix {version}"')
     print(f"   git push origin v{version}")
     print("5. Then merge the hotfix branch back into develop:")
     print(f"   git checkout develop && git merge --no-ff {branch_name}")
@@ -109,19 +111,19 @@ def main():
     parser = argparse.ArgumentParser(description="Create a hotfix branch")
     parser.add_argument("version", help="The version to release (e.g., 0.3.1)")
     args = parser.parse_args()
-    
+
     # Validate the version
     version = validate_version(args.version)
-    
+
     # Check if the working directory is clean
     check_git_status()
-    
+
     # Confirm with the user
     confirm = input(f"Create hotfix branch for version {version}? [y/N] ")
     if confirm.lower() != "y":
         print("Aborting.")
         sys.exit(0)
-    
+
     # Create the hotfix branch
     create_hotfix_branch(version)
 

@@ -80,8 +80,12 @@ class TestDeviceManager:
         manager.add_device(device2)
         dict_list = manager.to_dict()
         assert len(dict_list) == 2
-        assert any(d["id"] == 1 and d["host"] == "example1.com" for d in dict_list)
-        assert any(d["id"] == 2 and d["host"] == "example2.com" for d in dict_list)
+        assert any(
+            d["id"] == 1 and d["host"] == "example1.com" for d in dict_list
+        )
+        assert any(
+            d["id"] == 2 and d["host"] == "example2.com" for d in dict_list
+        )
 
     def test_from_dict(self):
         """Test creating from a list of dictionaries."""

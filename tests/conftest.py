@@ -4,7 +4,7 @@
 
 import os
 import tempfile
-from typing import Generator, Dict, Any
+from typing import Any, Dict, Generator
 
 import pytest
 

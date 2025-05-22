@@ -1,9 +1,11 @@
 """Tests for the RedisRepository class."""
 
 import json
+from unittest.mock import MagicMock
+from unittest.mock import patch
+
 import pytest
 import redis
-from unittest.mock import MagicMock, patch
 
 from network_discovery.domain.device import Device
 from network_discovery.infrastructure.repository import RedisRepository
