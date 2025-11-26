@@ -26,35 +26,35 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
-      # ========================================================
-      #
-      # Step 1: Build your artifacts.
-      #
-      # ========================================================
-      - name: Build artifacts
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build dependencies
         run: |
-            # These are some amazing artifacts.
-            echo "artifact1" > artifact1
-            echo "artifact2" > artifact2
+          python -m pip install --upgrade pip
+          pip install build
 
-      # ========================================================
-      #
-      # Step 2: Add a step to generate the provenance subjects
-      #         as shown below. Update the sha256 sum arguments
-      #         to include all binaries that you generate
-      #         provenance for.
-      #
-      # ========================================================
+      - name: Build Python package
+        run: |
+          python -m build
+
+      - name: Upload built artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
       - name: Generate subject for provenance
         id: hash
         run: |
           set -euo pipefail
-
-          # List the artifacts the provenance will refer to.
-          files=$(ls artifact*)
-          # Generate the subjects (base64 encoded).
-          echo "hashes=$(sha256sum $files | base64 -w0)" >> "${GITHUB_OUTPUT}"
+          cd dist/
+          echo "hashes=$(sha256sum * | base64 -w0)" >> "${GITHUB_OUTPUT}"
 
   provenance:
     needs: [build]
@@ -62,7 +62,8 @@ jobs:
       actions: read   # To read the workflow path.
       id-token: write # To sign the provenance.
       contents: write # To add assets to a release.
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
     with:
       base64-subjects: "${{ needs.build.outputs.digests }}"
-      upload-assets: true # Optional: Upload to a new release
+      upload-assets: true # Upload to release
+      provenance-name: python-network-discovery-tool.intoto.jsonl
