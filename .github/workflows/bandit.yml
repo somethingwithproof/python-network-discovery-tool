@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -45,7 +45,7 @@ jobs:
           bandit -r . -f sarif -o bandit-results.sarif --exit-zero
 
       - name: Upload Bandit Results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: bandit-results.sarif
 
