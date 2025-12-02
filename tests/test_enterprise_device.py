@@ -13,7 +13,7 @@ class TestEnterpriseDevice:
     """Tests for the EnterpriseDevice class."""
 
     def test_init(self):
-        """Test that an EnterpriseDevice can be initialized with the required parameters."""
+        """Test EnterpriseDevice initialization with required params."""
         base_device = Device(id=1, host="example.com", ip="192.168.1.1")
         device = EnterpriseDevice(device=base_device)
         assert device.id == 1
