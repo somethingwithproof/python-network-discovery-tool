@@ -5,7 +5,6 @@ from datetime import datetime
 import json
 import os
 import tempfile
-from unittest.mock import MagicMock
 from unittest.mock import mock_open
 from unittest.mock import patch
 
@@ -389,5 +388,6 @@ class TestEnterpriseExportIntegration:
         exporter.output_dir = test_dir
 
         # Export all formats
-        formats = ["json", "yaml", "csv", "nagios", "zenoss"]
-        paths = {}
+        _formats = ["json", "yaml", "csv", "nagios", "zenoss"]
+        _paths = {}
+        assert exporter.output_dir == test_dir
