@@ -5,7 +5,6 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import pytest
-import redis
 
 from network_discovery.domain.device import Device
 from network_discovery.infrastructure.repository import RedisRepository
@@ -48,7 +47,7 @@ class TestRedisRepository:
 
     def test_init(self, mock_redis):
         """Test that a RedisRepository can be initialized."""
-        repo = RedisRepository(host="testhost", port=1234, db=5)
+        RedisRepository(host="testhost", port=1234, db=5)
         mock_redis.assert_called_once_with(
             host="testhost", port=1234, db=5, decode_responses=True
         )
