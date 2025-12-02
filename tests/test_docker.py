@@ -5,8 +5,6 @@ import subprocess
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
-import pytest
-
 
 class TestDocker:
     """Tests for Docker functionality."""
@@ -109,7 +107,7 @@ class TestDocker:
         mock_run.return_value = MagicMock(returncode=0)
 
         # Run the docker build command
-        result = subprocess.run(
+        subprocess.run(
             ["docker", "build", "-t", "network-discovery:test", "."],
             cwd=os.path.dirname(os.path.dirname(__file__)),
             capture_output=True,
@@ -127,7 +125,7 @@ class TestDocker:
         mock_run.return_value = MagicMock(returncode=0)
 
         # Run the docker-compose config command
-        result = subprocess.run(
+        subprocess.run(
             ["docker-compose", "config"],
             cwd=os.path.dirname(os.path.dirname(__file__)),
             capture_output=True,
