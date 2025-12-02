@@ -1,8 +1,6 @@
 """Tests for notification service implementations."""
 
-import logging
 import smtplib
-from unittest.mock import call
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
