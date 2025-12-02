@@ -8,7 +8,6 @@ from unittest.mock import mock_open
 from unittest.mock import patch
 
 import pytest
-import redis
 from redis.exceptions import RedisError
 
 from network_discovery.domain.device import Device
@@ -76,7 +75,7 @@ class TestJsonFileRepository:
         """Test initializing with a new file path."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             file_path = os.path.join(tmp_dir, "nonexistent", "test.json")
-            repository = JsonFileRepository(file_path)
+            JsonFileRepository(file_path)
 
             # Check if the directory was created
             assert os.path.exists(os.path.dirname(file_path))
@@ -93,7 +92,7 @@ class TestJsonFileRepository:
             tmp_file.flush()
 
             # Initialize repository, which should fix the invalid file
-            repository = JsonFileRepository(tmp_file.name)
+            JsonFileRepository(tmp_file.name)
 
             # Check if the file was rewritten with empty JSON object
             with open(tmp_file.name, "r") as f:
@@ -193,7 +192,8 @@ class TestJsonFileRepository:
 
         # Patch the open function to raise an error
         with patch("builtins.open", side_effect=IOError("Test IO Error")):
-            # Should return None when encountering an error in both primary and fallback methods
+            # Should return None when encountering an error
+            # in both primary and fallback methods
             with patch.object(
                 json_repository,
                 "_get_fallback",
@@ -225,7 +225,7 @@ class TestRedisRepository:
 
     def test_init(self, mock_redis):
         """Test initializing the repository."""
-        repository = RedisRepository(host="testhost", port=1234, db=2)
+        RedisRepository(host="testhost", port=1234, db=2)
         # Verify Redis client was initialized with correct parameters
         from redis import Redis
 
