@@ -125,7 +125,8 @@ class TestEmailNotificationService:
             message="Line 1\nLine 2\n<b>Bold Text</b>",
         )
 
-        # Verify MIME message was created correctly (should still be treated as plain text)
+        # Verify MIME message was created correctly
+        # (should still be treated as plain text)
         call_args = mock_smtp_instance.sendmail.call_args[0]
         mime_msg = call_args[2]  # The MIME message as string
         assert "Content-Type: text/plain" in mime_msg
@@ -174,7 +175,7 @@ class TestEmailNotificationService:
             )
 
     def test_format_message(self, email_notification_service, devices):
-        """Test that a message can be formatted properly with the improved validation."""
+        """Test message formatting with improved validation."""
         # Format the message
         if hasattr(email_notification_service, "_format_message"):
             message = email_notification_service._format_message(devices)
