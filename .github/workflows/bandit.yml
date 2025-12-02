@@ -42,10 +42,5 @@ jobs:
 
       - name: Run Bandit Scan
         run: |
-          bandit -r . -f sarif -o bandit-results.sarif --exit-zero
-
-      - name: Upload Bandit Results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: bandit-results.sarif
+          bandit -r . -ll --exclude ./tests,./venv,./.venv,./build,./dist
 
