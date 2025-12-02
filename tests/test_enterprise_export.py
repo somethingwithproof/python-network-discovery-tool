@@ -387,7 +387,5 @@ class TestEnterpriseExportIntegration:
         os.makedirs(test_dir, exist_ok=True)
         exporter.output_dir = test_dir
 
-        # Export all formats
-        _formats = ["json", "yaml", "csv", "nagios", "zenoss"]
-        _paths = {}
+        # Verify export directory is set correctly
         assert exporter.output_dir == test_dir
