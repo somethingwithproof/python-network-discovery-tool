@@ -1,4 +1,4 @@
-FROM python:3.14.1-slim
+FROM python:3.14.2-slim
 
 # Install system dependencies including nmap
 RUN apt-get update && apt-get install -y \
