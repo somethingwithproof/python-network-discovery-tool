@@ -1,36 +1,223 @@
+# Dependabot configuration for Mantl Platform
+# Comprehensive dependency tracking across all ecosystems
+# - GitHub Actions: Grouped updates to reduce PR noise
+# - Python (pip): Weekly security and feature updates
+# - Docker: Base image updates for containers
+# - Terraform: Provider and module updates across all blueprints
 version: 2
 updates:
+  # ========================================
   # GitHub Actions
+  # ========================================
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "09:00"
+      timezone: "America/New_York"
     open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
     groups:
-      actions:
+      github-actions:
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
-  # pip
+  # ========================================
+  # Python (pip)
+  # ========================================
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "09:00"
-    open-pull-requests-limit: 10
+      timezone: "America/New_York"
+    open-pull-requests-limit: 15
+    labels:
+      - "dependencies"
+      - "python"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
     allow:
       - dependency-type: "all"
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
+  # ========================================
   # Docker
+  # ========================================
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "09:00"
+      timezone: "America/New_York"
     open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "docker"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
     allow:
       - dependency-type: "all"
+
+  # ========================================
+  # Terraform - Root
+  # ========================================
+  - package-ecosystem: "terraform"
+    directory: "/terraform"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # ========================================
+  # Terraform - AWS Blueprint
+  # ========================================
+  - package-ecosystem: "terraform"
+    directory: "/terraform/blueprints/aws"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:30"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "aws"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # ========================================
+  # Terraform - GCP Blueprint
+  # ========================================
+  - package-ecosystem: "terraform"
+    directory: "/terraform/blueprints/gcp"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:30"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "gcp"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # ========================================
+  # Terraform - Azure Blueprint
+  # ========================================
+  - package-ecosystem: "terraform"
+    directory: "/terraform/blueprints/azure"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:30"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "azure"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # ========================================
+  # Terraform - Oracle Cloud Blueprint
+  # ========================================
+  - package-ecosystem: "terraform"
+    directory: "/terraform/blueprints/oci"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:30"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "oci"
+      - "oracle-cloud"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # ========================================
+  # Terraform - DigitalOcean Blueprint
+  # ========================================
+  - package-ecosystem: "terraform"
+    directory: "/terraform/blueprints/digitalocean"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:30"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "digitalocean"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # ========================================
+  # Terraform - Linode Blueprint
+  # ========================================
+  - package-ecosystem: "terraform"
+    directory: "/terraform/blueprints/linode"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:30"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "linode"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
