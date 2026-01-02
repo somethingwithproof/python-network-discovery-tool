@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "netscan"
+name = "netprobe"
 version = "2.0.0"
 description = "Modern network scanner for discovering SSH, SNMP, and MySQL services"
 readme = "README.md"
@@ -42,7 +42,7 @@ dev = [
 ]
 
 [project.scripts]
-netscan = "netscan:app"
+netprobe = "netprobe:app"
 
 [project.urls]
 Homepage = "https://github.com/thomasvincent/python-network-discovery-tool"

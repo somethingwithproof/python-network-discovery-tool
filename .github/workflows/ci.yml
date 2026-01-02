@@ -32,8 +32,8 @@ jobs:
           uv run ruff check .
           uv run ruff format --check .
 
-  test:
-    name: Test on Python ${{ matrix.python-version }}
+  test-unit:
+    name: Unit Tests - Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -65,8 +65,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev
 
-      - name: Run tests
-        run: uv run pytest -v --cov=. --cov-report=xml
+      - name: Run unit tests
+        run: uv run pytest test_netprobe.py -v --cov=. --cov-report=xml
 
       - name: Upload coverage
         if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
@@ -74,6 +74,49 @@ jobs:
         with:
           file: ./coverage.xml
           fail_ci_if_error: false
+
+  test-e2e:
+    name: E2E Tests - Docker
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install nmap
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nmap
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Start Docker test environment
+        run: |
+          docker-compose -f docker-compose.test.yml up -d
+          echo "⏳ Waiting for services to start..."
+          sleep 20
+
+      - name: Show running containers
+        run: docker ps --filter name=test-
+
+      - name: Run E2E tests
+        run: uv run pytest test_e2e.py -v -m e2e --maxfail=3
+
+      - name: Show Docker logs on failure
+        if: failure()
+        run: docker-compose -f docker-compose.test.yml logs
+
+      - name: Cleanup Docker environment
+        if: always()
+        run: docker-compose -f docker-compose.test.yml down
 
   type-check:
     name: Type Check with mypy
@@ -95,4 +138,4 @@ jobs:
           uv pip install mypy types-all
 
       - name: Type check
-        run: uv run mypy netscan.py --ignore-missing-imports || true
+        run: uv run mypy netprobe.py --ignore-missing-imports || true

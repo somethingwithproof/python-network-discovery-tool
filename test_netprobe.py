@@ -1,9 +1,9 @@
-"""Tests for netscan - Modern network scanner."""
+"""Tests for netprobe - Modern network scanner."""
 
 import asyncio
 from pathlib import Path
 import pytest
-from netscan import Device, NetworkScanner, save_json, save_csv
+from netprobe import Device, NetworkScanner, save_json, save_csv
 
 
 def test_device_creation():
