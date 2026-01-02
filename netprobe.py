@@ -35,7 +35,7 @@ console = Console()
 
 # Typer app for modern CLI
 app = typer.Typer(
-    name="netscan",
+    name="netprobe",
     help="🔍 Modern network scanner for SSH/SNMP/MySQL discovery",
     add_completion=False,
 )
@@ -285,16 +285,16 @@ def scan(
     Examples:
 
         # Scan entire network
-        netscan scan 192.168.1.0/24
+        netprobe scan 192.168.1.0/24
 
         # Scan single host with JSON output
-        netscan scan 192.168.1.1 -o results.json
+        netprobe scan 192.168.1.1 -o results.json
 
         # Scan and save to CSV
-        netscan scan 10.0.0.0/24 --output report.csv
+        netprobe scan 10.0.0.0/24 --output report.csv
 
         # Quiet mode (no table, only file output)
-        netscan scan 192.168.1.0/24 -o results.json --quiet
+        netprobe scan 192.168.1.0/24 -o results.json --quiet
     """
     # Set logging level
     if verbose:
@@ -340,7 +340,7 @@ def scan(
 @app.command()
 def version():
     """Show version information."""
-    rprint("[bold cyan]netscan[/bold cyan] [green]v2.0.0[/green]")
+    rprint("[bold cyan]netprobe[/bold cyan] [green]v2.0.0[/green]")
     rprint("Modern network scanner built with Python 3.12+")
 
 

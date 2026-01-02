@@ -1,0 +1,91 @@
+services:
+  # SSH Server - OpenSSH on Alpine
+  ssh-server:
+    image: linuxserver/openssh-server:latest
+    container_name: test-ssh-server
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+      - PASSWORD_ACCESS=true
+      - USER_PASSWORD=testpass
+      - USER_NAME=testuser
+    ports:
+      - "2222:2222"
+    networks:
+      test-network:
+        ipv4_address: 172.20.0.10
+
+  # MySQL Server
+  mysql-server:
+    image: mysql:8.0
+    container_name: test-mysql-server
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpass
+      - MYSQL_DATABASE=testdb
+      - MYSQL_USER=testuser
+      - MYSQL_PASSWORD=testpass
+    ports:
+      - "3306:3306"
+    networks:
+      test-network:
+        ipv4_address: 172.20.0.11
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # SNMP Server (Net-SNMP)
+  snmp-server:
+    image: polinux/snmpd:latest
+    container_name: test-snmp-server
+    ports:
+      - "161:161/udp"
+    networks:
+      test-network:
+        ipv4_address: 172.20.0.12
+    environment:
+      - SNMP_COMMUNITY=public
+
+  # Combined Server (all services)
+  combined-server:
+    image: ubuntu:22.04
+    container_name: test-combined-server
+    command: >
+      bash -c "
+      apt-get update &&
+      DEBIAN_FRONTEND=noninteractive apt-get install -y openssh-server mysql-server snmpd &&
+      echo 'testuser:testpass' | chpasswd &&
+      useradd -m -s /bin/bash testuser &&
+      echo 'testuser:testpass' | chpasswd &&
+      service ssh start &&
+      service mysql start &&
+      mysql -e \"CREATE USER 'testuser'@'%' IDENTIFIED BY 'testpass';\" &&
+      mysql -e \"GRANT ALL PRIVILEGES ON *.* TO 'testuser'@'%';\" &&
+      mysql -e \"FLUSH PRIVILEGES;\" &&
+      service snmpd start &&
+      tail -f /dev/null
+      "
+    ports:
+      - "2223:22"
+      - "3307:3306"
+      - "162:161/udp"
+    networks:
+      test-network:
+        ipv4_address: 172.20.0.13
+
+  # Host without any services (for negative tests)
+  empty-server:
+    image: alpine:latest
+    container_name: test-empty-server
+    command: sleep infinity
+    networks:
+      test-network:
+        ipv4_address: 172.20.0.14
+
+networks:
+  test-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

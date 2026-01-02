@@ -1,17 +1,17 @@
-# 🔍 netscan - Modern Network Scanner
+# 🔍 netprobe - Modern Network Scanner
 
 A fast, beautiful network discovery tool for identifying SSH, SNMP, and MySQL services.
 Built with modern Python (3.12+) and designed for the 2026 era.
 
 ```bash
 # Quick scan
-netscan scan 192.168.1.0/24
+netprobe scan 192.168.1.0/24
 
 # Save results
-netscan scan 10.0.0.0/24 -o report.json
+netprobe scan 10.0.0.0/24 -o report.json
 
 # Scan single host
-netscan scan 192.168.1.1 --verbose
+netprobe scan 192.168.1.1 --verbose
 ```
 
 ## ✨ Features
@@ -29,11 +29,11 @@ netscan scan 192.168.1.1 --verbose
 # Install uv if you don't have it
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install netscan
+# Install netprobe
 uv tool install .
 
 # Or run directly
-uv run netscan scan 192.168.1.0/24
+uv run netprobe scan 192.168.1.0/24
 ```
 
 ### Using pip
@@ -62,34 +62,34 @@ sudo dnf install nmap
 ### Basic Scan
 ```bash
 # Scan network
-netscan scan 192.168.1.0/24
+netprobe scan 192.168.1.0/24
 
 # Scan single host
-netscan scan 192.168.1.1
+netprobe scan 192.168.1.1
 ```
 
 ### Output Options
 ```bash
 # Save as JSON
-netscan scan 192.168.1.0/24 -o results.json
+netprobe scan 192.168.1.0/24 -o results.json
 
 # Save as CSV
-netscan scan 192.168.1.0/24 -o results.csv
+netprobe scan 192.168.1.0/24 -o results.csv
 
 # Specify format explicitly
-netscan scan 192.168.1.0/24 -o output.txt --format json
+netprobe scan 192.168.1.0/24 -o output.txt --format json
 ```
 
 ### Advanced Options
 ```bash
 # Verbose logging
-netscan scan 192.168.1.0/24 --verbose
+netprobe scan 192.168.1.0/24 --verbose
 
 # Quiet mode (no table, only file output)
-netscan scan 192.168.1.0/24 -o results.json --quiet
+netprobe scan 192.168.1.0/24 -o results.json --quiet
 
 # Show version
-netscan version
+netprobe version
 ```
 
 ## 🎨 Example Output
@@ -131,7 +131,7 @@ The original version was over-engineered with:
 - Clean, maintainable, modern Python
 
 ```
-netscan.py           # Everything in one beautiful file
+netprobe.py           # Everything in one beautiful file
 pyproject.toml       # Modern dependency management
 README.md            # You are here
 ```
