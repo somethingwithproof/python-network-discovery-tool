@@ -21,6 +21,11 @@ on:
     - cron: '45 9 * * 2'
   workflow_dispatch:
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 jobs:
   bandit:
     permissions:
