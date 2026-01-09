@@ -4,7 +4,11 @@ SQLite database storage module for network device management.
 This module provides persistent storage for network device data using SQLite,
 with support for import/export in various formats (CSV, Excel, HTML).
 
-Requires Python 3.14+
+Security Note:
+    Credentials (MySQL passwords, SNMP communities) are NOT persisted to the
+    database. They are read from the input Excel file at scan time only.
+
+Requires Python 3.12+
 """
 
 from __future__ import annotations
@@ -205,7 +209,10 @@ class Database:
             return None
 
     def insert_device(self, device: Device) -> int:
-        """Insert a new device and return its ID."""
+        """Insert a new device and return its ID.
+
+        Note: Credentials are NOT stored for security reasons.
+        """
         with self._connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -218,14 +225,14 @@ class Database:
                 (
                     device.host,
                     device.ip,
-                    device.snmp_community,
+                    '',  # snmp_community not stored for security
                     int(device.alive),
                     int(device.snmp),
                     int(device.ssh),
                     int(device.mysql),
                     ', '.join(device.errors),
                     device.mysql_user,
-                    device.mysql_password,
+                    '',  # mysql_password not stored for security
                     device.uname,
                     int(device.scanned),
                 ),
@@ -233,7 +240,10 @@ class Database:
             return cursor.lastrowid or 0
 
     def insert_devices(self, devices: Sequence[Device]) -> int:
-        """Bulk insert devices and return count of inserted rows."""
+        """Bulk insert devices and return count of inserted rows.
+
+        Note: Credentials are NOT stored for security reasons.
+        """
         if not devices:
             return 0
 
@@ -248,9 +258,9 @@ class Database:
                 """,
                 [
                     (
-                        d.host, d.ip, d.snmp_community,
+                        d.host, d.ip, '',  # snmp_community not stored
                         int(d.alive), int(d.snmp), int(d.ssh), int(d.mysql),
-                        ', '.join(d.errors), d.mysql_user, d.mysql_password,
+                        ', '.join(d.errors), d.mysql_user, '',  # password not stored
                         d.uname, int(d.scanned),
                     )
                     for d in devices
@@ -259,7 +269,10 @@ class Database:
             return cursor.rowcount
 
     def update_device(self, device: Device) -> bool:
-        """Update an existing device. Returns True if updated."""
+        """Update an existing device. Returns True if updated.
+
+        Note: Credentials are NOT stored for security reasons.
+        """
         with self._connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -273,9 +286,9 @@ class Database:
                 WHERE id = ?
                 """,
                 (
-                    device.host, device.ip, device.snmp_community,
+                    device.host, device.ip, '',  # snmp_community not stored
                     int(device.alive), int(device.snmp), int(device.ssh), int(device.mysql),
-                    ', '.join(device.errors), device.mysql_user, device.mysql_password,
+                    ', '.join(device.errors), device.mysql_user, '',  # password not stored
                     device.uname, int(device.scanned),
                     device.id,
                 ),

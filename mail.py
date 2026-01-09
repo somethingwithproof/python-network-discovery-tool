@@ -4,7 +4,7 @@ Email sending module for network discovery reports.
 This module provides functionality for sending scan results via email
 with file attachments.
 
-Requires Python 3.14+
+Requires Python 3.12+
 """
 
 from __future__ import annotations

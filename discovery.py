@@ -5,7 +5,7 @@ Network device discovery orchestrator.
 This script coordinates the scanning of network devices imported from an Excel file,
 stores results in a SQLite database, and exports the results.
 
-Requires Python 3.14+
+Requires Python 3.12+
 """
 
 from __future__ import annotations
@@ -85,11 +85,12 @@ Examples:
   %(prog)s devices.xlsx
   %(prog)s devices.xlsx -o results.xlsx -w 20
   %(prog)s devices.xlsx --no-ssh-strict -v
+  %(prog)s devices.xlsx --no-ping-gate --keep-db
 
 Environment Variables:
-  SSH_USER              SSH username (default: root)
-  SSH_KEY_FILE          Path to SSH known_hosts file
-  SSH_STRICT_HOST_KEY   Enable strict host key checking (default: true)
+  SSH_USER                SSH username (default: root)
+  SSH_KNOWN_HOSTS_FILE    Path to SSH known_hosts file
+  SSH_STRICT_HOST_KEY     Enable strict host key checking (default: true)
         """,
     )
 
@@ -125,6 +126,16 @@ Environment Variables:
         '--no-ssh-strict',
         action='store_true',
         help='Disable strict SSH host key checking (less secure)',
+    )
+    parser.add_argument(
+        '--no-ping-gate',
+        action='store_true',
+        help='Scan SSH/SNMP/MySQL even if ping fails (recommended for firewalled networks)',
+    )
+    parser.add_argument(
+        '--keep-db',
+        action='store_true',
+        help='Preserve existing database instead of recreating it',
     )
     parser.add_argument(
         '--version',
@@ -228,13 +239,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         logger.warning("Input file may not be an Excel file: %s", input_path)
 
     # Create configuration
-    config = ScanConfig(ssh_strict_host_key=not args.no_ssh_strict)
+    config = ScanConfig(
+        ssh_strict_host_key=not args.no_ssh_strict,
+        skip_ping_gate=args.no_ping_gate,
+    )
 
     # Initialize database
     db_path: Path = args.database
     logger.info("Initializing database: %s", db_path)
     db = database.Database(db_path)
-    db.create_table(drop_existing=True)
+    db.create_table(drop_existing=not args.keep_db)
 
     # Import devices from Excel
     logger.info("Importing devices from: %s", input_path)

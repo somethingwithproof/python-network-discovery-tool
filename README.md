@@ -1,6 +1,6 @@
 # Network Device Discovery Tool
 
-[![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)](https://opensource.org/licenses/Apache-2.0)
 
 A command-line tool for scanning network devices to check SSH, SNMP, MySQL, and ICMP (ping) connectivity. Import device lists from Excel spreadsheets and export scan results.
@@ -23,12 +23,12 @@ A command-line tool for scanning network devices to check SSH, SNMP, MySQL, and 
 - **Multi-protocol scanning** — Check ping, SSH, SNMP, and MySQL connectivity
 - **Excel integration** — Import device lists and export scan results to `.xlsx` files
 - **Concurrent execution** — Parallel scanning with configurable worker threads
-- **Persistent storage** — SQLite database for device records and scan history
+- **Persistent storage** — SQLite database for device records
 - **Security-focused** — Strict SSH host key checking enabled by default
 
 ## Requirements
 
-- Python 3.14 or later
+- Python 3.12 or later
 - System libraries:
   - `net-snmp` for SNMP scanning
   - `libmysqlclient` for MySQL scanning
@@ -140,7 +140,7 @@ Configure SSH connection settings:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `SSH_USER` | Username for SSH connections | `root` |
-| `SSH_KEY_FILE` | Path to SSH known_hosts file | `~/.ssh/known_hosts` |
+| `SSH_KNOWN_HOSTS_FILE` | Path to SSH known_hosts file | `~/.ssh/known_hosts` |
 | `SSH_STRICT_HOST_KEY` | Enable strict host key checking | `true` |
 
 Configure email notifications (optional):
@@ -171,7 +171,9 @@ The tool generates an Excel file (`YYYY-MM-DD_check.xlsx`) with the following co
 
 ### SQLite Database
 
-Device records are stored in `devices.db` for querying and historical tracking.
+Device records are stored in `devices.db` for querying.
+
+> **Note:** By default, the database is recreated on each run. Use `--keep-db` to preserve existing data.
 
 ## Documentation
 

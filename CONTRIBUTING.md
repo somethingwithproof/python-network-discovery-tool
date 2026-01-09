@@ -6,7 +6,7 @@ Contributions are welcome! This guide explains how to contribute to the Network 
 
 ### Prerequisites
 
-- Python 3.14 or later
+- Python 3.12 or later
 - Git
 - System dependencies for SNMP and MySQL (see [Getting Started](docs/getting-started.md))
 

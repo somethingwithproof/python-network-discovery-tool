@@ -4,7 +4,7 @@ Excel spreadsheet import/export module for network device management.
 This module provides functionality for importing device data from Excel files
 and exporting scan results back to Excel format.
 
-Requires Python 3.14+
+Requires Python 3.12+
 """
 
 from __future__ import annotations

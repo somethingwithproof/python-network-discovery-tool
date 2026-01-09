@@ -1,14 +1,11 @@
 # Network Discovery and Device Management Dependencies
-# Requires Python 3.14+
+# Requires Python 3.12+
 
 # SSH connectivity
 paramiko>=3.5.0
 
 # SNMP support
 snimpy>=1.1.0
-
-# Network scanning
-python-libnmap>=0.7.4
 
 # MySQL database connectivity
 mysqlclient>=2.2.0

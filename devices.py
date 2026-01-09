@@ -4,7 +4,7 @@ Network device discovery and scanning module.
 This module provides functionality for discovering network devices and checking
 their availability for various services (ping, SSH, SNMP, MySQL).
 
-Requires Python 3.14+
+Requires Python 3.12+
 """
 
 from __future__ import annotations
@@ -126,9 +126,9 @@ class ScanConfig:
     """Configuration for network scanning operations."""
 
     ssh_user: str = field(default_factory=lambda: os.environ.get('SSH_USER', 'root'))
-    ssh_key_file: Path = field(
+    ssh_known_hosts_file: Path = field(
         default_factory=lambda: Path(
-            os.environ.get('SSH_KEY_FILE', Path.home() / '.ssh' / 'known_hosts')
+            os.environ.get('SSH_KNOWN_HOSTS_FILE', Path.home() / '.ssh' / 'known_hosts')
         )
     )
     ssh_timeout: int = 3
@@ -143,6 +143,9 @@ class ScanConfig:
     ssh_strict_host_key: bool = field(
         default_factory=lambda: os.environ.get('SSH_STRICT_HOST_KEY', 'true').lower() == 'true'
     )
+
+    # Scan behavior - skip ping gating for firewalled networks
+    skip_ping_gate: bool = False
 
     @cached_property
     def ssh_policy(self) -> paramiko.MissingHostKeyPolicy:
@@ -290,8 +293,8 @@ class Device:
             validated_host = validate_host(self.host)
 
             # Load known hosts if file exists
-            if config.ssh_key_file.exists():
-                ssh_client.load_host_keys(str(config.ssh_key_file))
+            if config.ssh_known_hosts_file.exists():
+                ssh_client.load_host_keys(str(config.ssh_known_hosts_file))
 
             ssh_client.set_missing_host_key_policy(config.ssh_policy)
 
@@ -429,7 +432,8 @@ class Device:
 
         results.append(self.scan_ping(config))
 
-        if self.alive:
+        # Run other scans if alive OR if ping-gating is disabled
+        if self.alive or config.skip_ping_gate:
             results.append(self.scan_snmp(config))
             results.append(self.scan_ssh(config))
 

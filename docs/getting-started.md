@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Python 3.14 or later
+- Python 3.12 or later
 - SNMP libraries (net-snmp) for SNMP scanning
 - MySQL client libraries for MySQL scanning
 

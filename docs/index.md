@@ -1,6 +1,6 @@
 # Network Device Discovery Tool
 
-[![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)](https://opensource.org/licenses/Apache-2.0)
 
 A command-line tool for scanning network devices to check SSH, SNMP, MySQL, and ICMP (ping) connectivity.
@@ -12,7 +12,7 @@ A command-line tool for scanning network devices to check SSH, SNMP, MySQL, and 
 | Multi-protocol scanning | Check ping, SSH, SNMP, and MySQL connectivity |
 | Excel integration | Import device lists and export scan results to `.xlsx` files |
 | Concurrent execution | Parallel scanning with configurable worker threads |
-| Persistent storage | SQLite database for device records and scan history |
+| Persistent storage | SQLite database for device records |
 | Security-focused | Strict SSH host key checking enabled by default |
 
 ## Quick Start
@@ -37,7 +37,7 @@ network-discover devices.xlsx
 
 ## Requirements
 
-- Python 3.14 or later
+- Python 3.12 or later
 - System SNMP libraries (`net-snmp`)
 - MySQL client libraries (`libmysqlclient`)
 
