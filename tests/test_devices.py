@@ -5,12 +5,12 @@ Tests for the devices module.
 from __future__ import annotations
 
 import subprocess
-from unittest.mock import MagicMock, patch
+import sys
+from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
-import sys
-from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from devices import (
@@ -101,6 +101,7 @@ class TestScanConfig:
     def test_ssh_policy_strict(self):
         """Test that strict host key policy returns RejectPolicy."""
         import paramiko
+
         config = ScanConfig(ssh_strict_host_key=True)
         policy = config.ssh_policy
         assert isinstance(policy, paramiko.RejectPolicy)
@@ -108,6 +109,7 @@ class TestScanConfig:
     def test_ssh_policy_non_strict(self):
         """Test that non-strict host key policy returns WarningPolicy."""
         import paramiko
+
         config = ScanConfig(ssh_strict_host_key=False)
         policy = config.ssh_policy
         assert isinstance(policy, paramiko.WarningPolicy)
@@ -225,7 +227,7 @@ class TestDeviceScanPing:
 
     def test_scan_ping_timeout(self, sample_device: Device):
         """Test ping scan timeout."""
-        with patch('subprocess.run') as mock_run:
+        with patch("subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired(cmd="ping", timeout=1)
             result = sample_device.scan_ping()
             assert result.success is False

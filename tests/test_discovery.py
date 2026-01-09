@@ -4,16 +4,16 @@ Tests for the discovery module (main orchestrator).
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from discovery import parse_args, scan_device, scan_devices, main
 from devices import Device, ScanConfig
+from discovery import main, parse_args, scan_device, scan_devices
 
 
 class TestParseArgs:
@@ -21,38 +21,61 @@ class TestParseArgs:
 
     def test_parse_args_minimal(self):
         """Test parsing minimal arguments."""
-        with patch('sys.argv', ['discovery', 'input.xlsx']):
+        with patch("sys.argv", ["discovery", "input.xlsx"]):
             args = parse_args()
-            assert args.inputfile == Path('input.xlsx')
+            assert args.inputfile == Path("input.xlsx")
             assert args.output is None
             assert args.workers == 10
-            assert args.database == Path('devices.db')
+            assert args.database == Path("devices.db")
             assert args.verbose is False
 
     def test_parse_args_full(self):
         """Test parsing all arguments."""
-        with patch('sys.argv', [
-            'discovery',
-            'input.xlsx',
-            '-o', 'output.xlsx',
-            '-w', '20',
-            '-d', 'custom.db',
-            '-v',
-            '--no-ssh-strict',
-        ]):
+        with patch(
+            "sys.argv",
+            [
+                "discovery",
+                "input.xlsx",
+                "-o",
+                "output.xlsx",
+                "-w",
+                "20",
+                "-d",
+                "custom.db",
+                "-v",
+                "--no-ssh-strict",
+            ],
+        ):
             args = parse_args()
-            assert args.inputfile == Path('input.xlsx')
-            assert args.output == Path('output.xlsx')
+            assert args.inputfile == Path("input.xlsx")
+            assert args.output == Path("output.xlsx")
             assert args.workers == 20
-            assert args.database == Path('custom.db')
+            assert args.database == Path("custom.db")
             assert args.verbose is True
             assert args.no_ssh_strict is True
 
     def test_parse_args_missing_input(self):
         """Test that missing input file raises error."""
-        with patch('sys.argv', ['discovery']):
-            with pytest.raises(SystemExit):
-                parse_args()
+        with patch("sys.argv", ["discovery"]), pytest.raises(SystemExit):
+            parse_args()
+
+    def test_parse_args_with_timeout(self):
+        """Test parsing with timeout argument."""
+        with patch("sys.argv", ["discovery", "input.xlsx", "--timeout", "5"]):
+            args = parse_args()
+            assert args.timeout == 5
+
+    def test_parse_args_with_no_ping_gate(self):
+        """Test parsing with no-ping-gate argument."""
+        with patch("sys.argv", ["discovery", "input.xlsx", "--no-ping-gate"]):
+            args = parse_args()
+            assert args.no_ping_gate is True
+
+    def test_parse_args_with_keep_db(self):
+        """Test parsing with keep-db argument."""
+        with patch("sys.argv", ["discovery", "input.xlsx", "--keep-db"]):
+            args = parse_args()
+            assert args.keep_db is True
 
 
 class TestScanDevice:
@@ -88,7 +111,7 @@ class TestScanDevice:
         scan_config: ScanConfig,
     ):
         """Test device scan handles exceptions."""
-        with patch.object(sample_device, 'scan_all', side_effect=Exception("Test error")):
+        with patch.object(sample_device, "scan_all", side_effect=Exception("Test error")):
             result = scan_device(sample_device, scan_config)
             assert "Test error" in str(result.errors)
 
@@ -145,12 +168,12 @@ class TestMain:
 
     def test_main_file_not_found(self, temp_dir: Path):
         """Test main with non-existent input file."""
-        with patch('sys.argv', ['discovery', str(temp_dir / 'nonexistent.xlsx')]):
+        with patch("sys.argv", ["discovery", str(temp_dir / "nonexistent.xlsx")]):
             result = main()
             assert result == 3  # ExitCode.INPUT_ERROR
 
-    @patch('discovery.spreadsheet')
-    @patch('discovery.database')
+    @patch("discovery.spreadsheet")
+    @patch("discovery.database")
     def test_main_empty_file(
         self,
         mock_database,
@@ -159,19 +182,19 @@ class TestMain:
     ):
         """Test main with empty input file."""
         # Create empty input file
-        input_file = temp_dir / 'empty.xlsx'
+        input_file = temp_dir / "empty.xlsx"
         input_file.touch()
 
         mock_spreadsheet.import_from_excel.return_value = []
         mock_db_instance = MagicMock()
         mock_database.Database.return_value = mock_db_instance
 
-        with patch('sys.argv', ['discovery', str(input_file)]):
+        with patch("sys.argv", ["discovery", str(input_file)]):
             result = main()
             assert result == 0
 
-    @patch('discovery.spreadsheet')
-    @patch('discovery.database')
+    @patch("discovery.spreadsheet")
+    @patch("discovery.database")
     def test_main_success(
         self,
         mock_database,
@@ -184,15 +207,15 @@ class TestMain:
     ):
         """Test successful main execution."""
         # Create input file
-        input_file = temp_dir / 'input.xlsx'
+        input_file = temp_dir / "input.xlsx"
         input_file.touch()
 
         mock_spreadsheet.import_from_excel.return_value = sample_devices
-        mock_spreadsheet.export_to_excel.return_value = temp_dir / 'output.xlsx'
+        mock_spreadsheet.export_to_excel.return_value = temp_dir / "output.xlsx"
         mock_db_instance = MagicMock()
         mock_database.Database.return_value = mock_db_instance
 
-        with patch('sys.argv', ['discovery', str(input_file), '-w', '2']):
+        with patch("sys.argv", ["discovery", str(input_file), "-w", "2"]):
             result = main()
             assert result == 0
 
@@ -201,8 +224,8 @@ class TestMain:
         mock_db_instance.insert_devices.assert_called_once()
         assert mock_db_instance.update_device.call_count == len(sample_devices)
 
-    @patch('discovery.spreadsheet')
-    @patch('discovery.database')
+    @patch("discovery.spreadsheet")
+    @patch("discovery.database")
     def test_main_import_error(
         self,
         mock_database,
@@ -210,17 +233,17 @@ class TestMain:
         temp_dir: Path,
     ):
         """Test main handles import errors."""
-        input_file = temp_dir / 'input.xlsx'
+        input_file = temp_dir / "input.xlsx"
         input_file.touch()
 
         mock_spreadsheet.import_from_excel.side_effect = Exception("Import error")
 
-        with patch('sys.argv', ['discovery', str(input_file)]):
+        with patch("sys.argv", ["discovery", str(input_file)]):
             result = main()
             assert result == 3  # ExitCode.INPUT_ERROR
 
-    @patch('discovery.spreadsheet')
-    @patch('discovery.database')
+    @patch("discovery.spreadsheet")
+    @patch("discovery.database")
     def test_main_verbose_mode(
         self,
         mock_database,
@@ -230,14 +253,68 @@ class TestMain:
         """Test main with verbose logging."""
         import logging
 
-        input_file = temp_dir / 'input.xlsx'
+        input_file = temp_dir / "input.xlsx"
         input_file.touch()
 
         mock_spreadsheet.import_from_excel.return_value = []
         mock_db_instance = MagicMock()
         mock_database.Database.return_value = mock_db_instance
 
-        with patch('sys.argv', ['discovery', str(input_file), '-v']):
-            with patch.object(logging.getLogger(), 'setLevel') as mock_set_level:
-                main()
-                mock_set_level.assert_called_with(logging.DEBUG)
+        with (
+            patch("sys.argv", ["discovery", str(input_file), "-v"]),
+            patch.object(logging.getLogger(), "setLevel") as mock_set_level,
+        ):
+            main()
+            mock_set_level.assert_called_with(logging.DEBUG)
+
+    @patch("discovery.spreadsheet")
+    @patch("discovery.database")
+    @patch("discovery.ScanConfig")
+    def test_main_with_timeout(
+        self,
+        mock_scan_config,
+        mock_database,
+        mock_spreadsheet,
+        temp_dir: Path,
+    ):
+        """Test main with custom timeout applies to all scan operations."""
+        input_file = temp_dir / "input.xlsx"
+        input_file.touch()
+
+        mock_spreadsheet.import_from_excel.return_value = []
+        mock_db_instance = MagicMock()
+        mock_database.Database.return_value = mock_db_instance
+
+        with patch("sys.argv", ["discovery", str(input_file), "--timeout", "10"]):
+            main()
+            # Verify ScanConfig was called with timeout values
+            call_kwargs = mock_scan_config.call_args[1]
+            assert call_kwargs["ssh_timeout"] == 10
+            assert call_kwargs["ping_timeout"] == 10
+            assert call_kwargs["snmp_timeout"] == 10
+            assert call_kwargs["mysql_timeout"] == 10
+
+    @patch("discovery.spreadsheet")
+    @patch("discovery.database")
+    def test_main_with_no_ping_gate(
+        self,
+        mock_database,
+        mock_spreadsheet,
+        sample_devices: list[Device],
+        temp_dir: Path,
+        mock_subprocess_ping_failure,
+        mock_paramiko_success,
+        mock_snmp_success,
+    ):
+        """Test main with --no-ping-gate still scans services even when ping fails."""
+        input_file = temp_dir / "input.xlsx"
+        input_file.touch()
+
+        mock_spreadsheet.import_from_excel.return_value = sample_devices
+        mock_spreadsheet.export_to_excel.return_value = temp_dir / "output.xlsx"
+        mock_db_instance = MagicMock()
+        mock_database.Database.return_value = mock_db_instance
+
+        with patch("sys.argv", ["discovery", str(input_file), "--no-ping-gate", "-w", "1"]):
+            result = main()
+            assert result == 0

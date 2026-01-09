@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 class SpreadsheetError(Exception):
     """Raised when spreadsheet operations fail."""
 
-    __slots__ = ('file_path', 'row')
+    __slots__ = ("file_path", "row")
 
     def __init__(
         self,
@@ -48,11 +48,11 @@ class SpreadsheetError(Exception):
 class ColumnConfig:
     """Configuration for spreadsheet column mappings."""
 
-    host: str = 'A'
-    ip: str = 'C'
-    snmp_community: str = 'D'
-    mysql_user: str = 'I'
-    mysql_password: str = 'J'
+    host: str = "A"
+    ip: str = "C"
+    snmp_community: str = "D"
+    mysql_user: str = "I"
+    mysql_password: str = "J"
     header_row: int = 1
     data_start_row: int = 2
 
@@ -122,23 +122,17 @@ class SpreadsheetImporter:
                 return None
 
             ip = self._get_cell_value(sheet, self.column_config.ip, row_num)
-            snmp_community = self._get_cell_value(
-                sheet, self.column_config.snmp_community, row_num
-            )
-            mysql_user = self._get_cell_value(
-                sheet, self.column_config.mysql_user, row_num
-            )
-            mysql_password = self._get_cell_value(
-                sheet, self.column_config.mysql_password, row_num
-            )
+            snmp_community = self._get_cell_value(sheet, self.column_config.snmp_community, row_num)
+            mysql_user = self._get_cell_value(sheet, self.column_config.mysql_user, row_num)
+            mysql_password = self._get_cell_value(sheet, self.column_config.mysql_password, row_num)
 
             return Device(
                 id=device_id,
                 host=str(host).strip(),
                 ip=str(ip).strip() if ip else str(host).strip(),
-                snmp_community=str(snmp_community).strip() if snmp_community else 'public',
-                mysql_user=str(mysql_user).strip() if mysql_user else '',
-                _mysql_password=str(mysql_password) if mysql_password else '',
+                snmp_community=str(snmp_community).strip() if snmp_community else "public",
+                mysql_user=str(mysql_user).strip() if mysql_user else "",
+                _mysql_password=str(mysql_password) if mysql_password else "",
             )
 
         except ValidationError as e:
@@ -155,7 +149,7 @@ class SpreadsheetImporter:
         row: int,
     ) -> CellValue:
         """Get the value from a cell."""
-        return sheet[f'{column}{row}'].value
+        return sheet[f"{column}{row}"].value
 
 
 @dataclass(slots=True)
@@ -182,7 +176,7 @@ class SpreadsheetExporter:
             Path to the output file
         """
         today = date.today().isoformat()
-        sheet_name = f'{today}_check'
+        sheet_name = f"{today}_check"
 
         if output_path is not None:
             filepath = Path(output_path)
@@ -197,7 +191,7 @@ class SpreadsheetExporter:
             wb = openpyxl.Workbook()
             sheet = wb.active
             sheet.title = sheet_name
-            filepath = Path(f'{today}_check.xlsx')
+            filepath = Path(f"{today}_check.xlsx")
 
         self._write_header(sheet)
         self._write_devices(sheet)
@@ -216,7 +210,7 @@ class SpreadsheetExporter:
         if not self.export_config.include_header:
             return
 
-        headers = ['name', 'managementip', 'state', 'snmp', 'ssh', 'mysql', 'errors']
+        headers = ["name", "managementip", "state", "snmp", "ssh", "mysql", "errors"]
         for col, header in enumerate(headers, start=1):
             sheet.cell(row=1, column=col, value=header)
 
@@ -231,7 +225,7 @@ class SpreadsheetExporter:
             sheet.cell(row=row_num, column=4, value=_format_status(device.snmp))
             sheet.cell(row=row_num, column=5, value=_format_status(device.ssh))
             sheet.cell(row=row_num, column=6, value=_format_status(device.mysql))
-            sheet.cell(row=row_num, column=7, value='; '.join(device.errors))
+            sheet.cell(row=row_num, column=7, value="; ".join(device.errors))
 
     def _auto_adjust_columns(self, sheet: Worksheet) -> None:
         """Auto-adjust column widths based on content."""
@@ -252,12 +246,12 @@ class SpreadsheetExporter:
 
 def _format_status(value: bool) -> str:
     """Format boolean status as 'open' or 'closed'."""
-    return 'open' if value else 'closed'
+    return "open" if value else "closed"
 
 
 def _format_alive(value: bool) -> str:
     """Format alive status as 'up' or 'down'."""
-    return 'up' if value else 'down'
+    return "up" if value else "down"
 
 
 # Convenience functions for backward compatibility
@@ -303,6 +297,7 @@ def export_to_excel(
     if send_email:
         try:
             import mail
+
             mail.send(output_path)
         except Exception as e:
             logger.error("Failed to send email: %s", e)
@@ -310,7 +305,7 @@ def export_to_excel(
     return output_path
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import sys
 
     print("Spreadsheet import/export module")
@@ -325,7 +320,7 @@ if __name__ == '__main__':
         filepath = sys.argv[2]
 
         match command:
-            case 'import':
+            case "import":
                 try:
                     imported_devices = import_from_excel(filepath)
                     print(f"Imported {len(imported_devices)} devices:")

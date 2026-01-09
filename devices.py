@@ -20,8 +20,8 @@ from functools import cached_property
 from pathlib import Path
 from typing import Self
 
-import paramiko
 import MySQLdb
+import paramiko
 from snimpy.manager import Manager as SnmpManager
 from snimpy.manager import load as load_mib
 
@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 class ScanType(StrEnum):
     """Types of network scans that can be performed."""
+
     PING = auto()
     SNMP = auto()
     SSH = auto()
@@ -44,6 +45,7 @@ class ScanType(StrEnum):
 
 class DeviceStatus(StrEnum):
     """Device connectivity status."""
+
     UNKNOWN = auto()
     UP = auto()
     DOWN = auto()
@@ -52,7 +54,8 @@ class DeviceStatus(StrEnum):
 
 class ValidationError(Exception):
     """Raised when input validation fails."""
-    __slots__ = ('value', 'reason')
+
+    __slots__ = ("reason", "value")
 
     def __init__(self, message: str, value: str | None = None, reason: str | None = None) -> None:
         super().__init__(message)
@@ -62,11 +65,11 @@ class ValidationError(Exception):
 
 # Validation pattern - compiled once at module load
 _HOSTNAME_PATTERN: re.Pattern[str] = re.compile(
-    r'^(?=.{1,253}$)(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63})*$'
+    r"^(?=.{1,253}$)(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63})*$"
 )
 
 # Dangerous shell characters for defense-in-depth validation
-_DANGEROUS_CHARS: frozenset[str] = frozenset(';|&$`\\"\'\n\r\t<>()')
+_DANGEROUS_CHARS: frozenset[str] = frozenset(";|&$`\\\"'\n\r\t<>()")
 
 
 def validate_host(value: str | None) -> HostStr:
@@ -92,9 +95,7 @@ def validate_host(value: str | None) -> HostStr:
             raise ValidationError("Host cannot be empty", value=s, reason="empty_value")
         case str() as s if any(c in s for c in _DANGEROUS_CHARS):
             raise ValidationError(
-                f"Host contains invalid characters: {s}",
-                value=s,
-                reason="dangerous_chars"
+                f"Host contains invalid characters: {s}", value=s, reason="dangerous_chars"
             )
         case str() as s:
             stripped = s.strip()
@@ -111,13 +112,13 @@ def validate_host(value: str | None) -> HostStr:
             raise ValidationError(
                 f"Invalid hostname or IP address: {stripped}",
                 value=stripped,
-                reason="invalid_format"
+                reason="invalid_format",
             )
         case _:
             raise ValidationError(
                 f"Host must be a string, got {type(value).__name__}",
                 value=str(value),
-                reason="invalid_type"
+                reason="invalid_type",
             )
 
 
@@ -125,10 +126,10 @@ def validate_host(value: str | None) -> HostStr:
 class ScanConfig:
     """Configuration for network scanning operations."""
 
-    ssh_user: str = field(default_factory=lambda: os.environ.get('SSH_USER', 'root'))
+    ssh_user: str = field(default_factory=lambda: os.environ.get("SSH_USER", "root"))
     ssh_known_hosts_file: Path = field(
         default_factory=lambda: Path(
-            os.environ.get('SSH_KNOWN_HOSTS_FILE', Path.home() / '.ssh' / 'known_hosts')
+            os.environ.get("SSH_KNOWN_HOSTS_FILE", Path.home() / ".ssh" / "known_hosts")
         )
     )
     ssh_timeout: int = 3
@@ -141,7 +142,7 @@ class ScanConfig:
 
     # Security settings - strict by default
     ssh_strict_host_key: bool = field(
-        default_factory=lambda: os.environ.get('SSH_STRICT_HOST_KEY', 'true').lower() == 'true'
+        default_factory=lambda: os.environ.get("SSH_STRICT_HOST_KEY", "true").lower() == "true"
     )
 
     # Scan behavior - skip ping gating for firewalled networks
@@ -252,7 +253,14 @@ class Device:
         try:
             validated_host = validate_host(self.host)
             result = subprocess.run(
-                ["ping", "-c", str(config.ping_count), "-W", str(config.ping_timeout), validated_host],
+                [
+                    "ping",
+                    "-c",
+                    str(config.ping_count),
+                    "-W",
+                    str(config.ping_timeout),
+                    validated_host,
+                ],
                 capture_output=True,
                 timeout=config.ping_timeout + 5,
                 check=False,
@@ -265,7 +273,7 @@ class Device:
             return ScanResult(
                 scan_type=ScanType.PING,
                 success=self.alive,
-                data={"output": result.stdout.decode(errors='replace')},
+                data={"output": result.stdout.decode(errors="replace")},
             )
 
         except subprocess.TimeoutExpired:
@@ -306,8 +314,8 @@ class Device:
                 allow_agent=True,
             )
 
-            _, stdout, _ = ssh_client.exec_command('uname -a')
-            self.uname = stdout.read().decode(errors='replace').strip()
+            _, stdout, _ = ssh_client.exec_command("uname -a")
+            self.uname = stdout.read().decode(errors="replace").strip()
             self.ssh = True
 
             return ScanResult(
@@ -463,7 +471,9 @@ class Device:
         }
 
     def __repr__(self) -> str:
-        return f"Device(id={self.id}, host={self.host!r}, ip={self.ip!r}, status={self.status.value})"
+        return (
+            f"Device(id={self.id}, host={self.host!r}, ip={self.ip!r}, status={self.status.value})"
+        )
 
     def __str__(self) -> str:
         parts = [f"{self.host} ({self.ip})"]
@@ -486,17 +496,17 @@ class Device:
     def from_dict(cls, data: ScanData) -> Self:
         """Create a Device instance from a dictionary."""
         return cls(
-            id=int(data.get('id', 0)),
-            host=str(data.get('host', '')),
-            ip=str(data.get('ip', data.get('host', ''))),
-            snmp_community=str(data.get('snmp_community', data.get('snmp_group', 'public'))),
-            alive=bool(data.get('alive', False)),
-            snmp=bool(data.get('snmp', False)),
-            ssh=bool(data.get('ssh', False)),
-            mysql=bool(data.get('mysql', False)),
-            errors=list(data.get('errors', [])),
-            mysql_user=str(data.get('mysql_user', '')),
-            _mysql_password=str(data.get('mysql_password', '')),
-            uname=str(data.get('uname', '')),
-            scanned=bool(data.get('scanned', False)),
+            id=int(data.get("id", 0)),
+            host=str(data.get("host", "")),
+            ip=str(data.get("ip", data.get("host", ""))),
+            snmp_community=str(data.get("snmp_community", data.get("snmp_group", "public"))),
+            alive=bool(data.get("alive", False)),
+            snmp=bool(data.get("snmp", False)),
+            ssh=bool(data.get("ssh", False)),
+            mysql=bool(data.get("mysql", False)),
+            errors=list(data.get("errors", [])),
+            mysql_user=str(data.get("mysql_user", "")),
+            _mysql_password=str(data.get("mysql_password", "")),
+            uname=str(data.get("uname", "")),
+            scanned=bool(data.get("scanned", False)),
         )

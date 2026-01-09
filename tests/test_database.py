@@ -4,15 +4,14 @@ Tests for the database module.
 
 from __future__ import annotations
 
-import tempfile
+import sys
 from pathlib import Path
 
 import pytest
 
-import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from database import Database, Exporter, Importer, DatabaseError
+from database import Database, Exporter, Importer
 from devices import Device
 
 
@@ -181,6 +180,7 @@ class TestConvenienceFunctions:
     def test_create(self, temp_dir: Path):
         """Test create convenience function."""
         from database import create
+
         db_path = temp_dir / "test.db"
         db = create(db_path)
 
@@ -200,7 +200,8 @@ class TestConvenienceFunctions:
 
     def test_update_device(self, temp_dir: Path, sample_device: Device):
         """Test update_device convenience function."""
-        from database import create, update_device as db_update
+        from database import create
+        from database import update_device as db_update
 
         db_path = temp_dir / "test.db"
         db = create(db_path)

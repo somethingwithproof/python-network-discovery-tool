@@ -14,6 +14,8 @@ A command-line tool for scanning network devices to check SSH, SNMP, MySQL, and 
 - [Usage](#usage)
 - [Configuration](#configuration)
 - [Output](#output)
+- [Troubleshooting](#troubleshooting)
+- [Security](#security)
 - [Documentation](#documentation)
 - [Contributing](#contributing)
 - [License](#license)
@@ -101,6 +103,9 @@ network-discover [OPTIONS] INPUTFILE
 | `-d, --database PATH` | SQLite database file path | `devices.db` |
 | `-v, --verbose` | Enable debug logging | Disabled |
 | `--no-ssh-strict` | Disable SSH host key verification | Enabled |
+| `--no-ping-gate` | Scan SSH/SNMP/MySQL even if ping fails | Disabled |
+| `--keep-db` | Preserve existing database instead of recreating | Disabled |
+| `--timeout SECONDS` | Override timeout for all scan operations | Protocol defaults |
 | `--version` | Show version and exit | — |
 | `--help` | Show help message and exit | — |
 
@@ -115,6 +120,15 @@ network-discover devices.xlsx -o results.xlsx -w 20
 
 # Verbose mode with relaxed SSH checking
 network-discover devices.xlsx -v --no-ssh-strict
+
+# Scan firewalled networks (don't skip services if ping fails)
+network-discover devices.xlsx --no-ping-gate
+
+# Fast scan with 5-second timeout and 50 workers
+network-discover devices.xlsx --timeout 5 -w 50
+
+# Preserve database between runs
+network-discover devices.xlsx --keep-db
 ```
 
 ## Configuration
@@ -174,6 +188,68 @@ The tool generates an Excel file (`YYYY-MM-DD_check.xlsx`) with the following co
 Device records are stored in `devices.db` for querying.
 
 > **Note:** By default, the database is recreated on each run. Use `--keep-db` to preserve existing data.
+
+## Troubleshooting
+
+### Common Issues
+
+**"No devices found in input file"**
+- Ensure your Excel file has data starting from row 2 (row 1 is treated as header)
+- Check that column A contains hostnames or IP addresses
+
+**SSH scans failing with "Host key verification failed"**
+- Add the target hosts to your `~/.ssh/known_hosts` file first
+- Or use `--no-ssh-strict` (less secure, not recommended for production)
+
+**SNMP scans timing out**
+- Verify the SNMP community string is correct
+- Check that SNMP is enabled on the target device
+- Ensure UDP port 161 is not blocked by firewalls
+
+**Scans taking too long**
+- Increase worker count with `-w 50` for faster parallel scanning
+- Use `--timeout 5` to reduce individual scan timeouts
+- For large networks, consider scanning in smaller batches
+
+**All services showing "closed" even though they're running**
+- Use `--no-ping-gate` if your network blocks ICMP ping
+- Check that the services are listening on standard ports
+
+### Debug Mode
+
+For detailed troubleshooting, enable verbose logging:
+
+```bash
+network-discover devices.xlsx -v 2>&1 | tee scan.log
+```
+
+## Security
+
+### Best Practices
+
+1. **SSH Host Key Verification**: Keep strict host key checking enabled (default) to prevent MITM attacks. Only use `--no-ssh-strict` in controlled test environments.
+
+2. **Credential Protection**:
+   - MySQL passwords and SNMP community strings are read from the input Excel file
+   - These credentials are NOT stored in the database for security
+   - Keep your input Excel files in a secure location with appropriate permissions
+
+3. **Network Considerations**:
+   - Only scan networks you own or have explicit authorization to test
+   - Be aware that aggressive scanning may trigger security alerts
+   - Consider using `--timeout` and `-w` settings appropriate for your network
+
+4. **File Permissions**: Secure your configuration files:
+   ```bash
+   chmod 600 devices.xlsx  # Restrict access to input file with credentials
+   ```
+
+### Environment Variable Security
+
+When using environment variables for email configuration:
+- Avoid storing passwords in shell history
+- Use a `.env` file with restricted permissions
+- Consider using a secrets manager for production deployments
 
 ## Documentation
 

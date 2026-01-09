@@ -20,6 +20,7 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
+
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from devices import Device, ValidationError
@@ -33,7 +34,7 @@ logger = logging.getLogger(__name__)
 class DatabaseError(Exception):
     """Raised when a database operation fails."""
 
-    __slots__ = ('operation', 'details')
+    __slots__ = ("details", "operation")
 
     def __init__(
         self,
@@ -66,7 +67,7 @@ class Database:
     Supports connection pooling and WAL mode for better concurrency.
     """
 
-    __slots__ = ('_path', '_config')
+    __slots__ = ("_config", "_path")
 
     # SQL statements as class constants for clarity
     _CREATE_TABLE_SQL = """
@@ -151,26 +152,26 @@ class Database:
         """Convert a database row to a Device object."""
         try:
             return Device(
-                id=row['id'],
-                host=row['host'],
-                ip=row['ip'] or row['host'],
-                snmp_community=row['snmp_community'] or 'public',
-                alive=bool(row['alive']),
-                snmp=bool(row['snmp']),
-                ssh=bool(row['ssh']),
-                mysql=bool(row['mysql']),
-                errors=row['errors'].split(', ') if row['errors'] else [],
-                mysql_user=row['mysql_user'] or '',
-                _mysql_password=row['mysql_password'] or '',
-                uname=row['uname'] or '',
-                scanned=bool(row['scanned']),
+                id=row["id"],
+                host=row["host"],
+                ip=row["ip"] or row["host"],
+                snmp_community=row["snmp_community"] or "public",
+                alive=bool(row["alive"]),
+                snmp=bool(row["snmp"]),
+                ssh=bool(row["ssh"]),
+                mysql=bool(row["mysql"]),
+                errors=row["errors"].split(", ") if row["errors"] else [],
+                mysql_user=row["mysql_user"] or "",
+                _mysql_password=row["mysql_password"] or "",
+                uname=row["uname"] or "",
+                scanned=bool(row["scanned"]),
             )
         except ValidationError as e:
-            logger.error("Invalid device data in row %s: %s", row['id'], e)
+            logger.error("Invalid device data in row %s: %s", row["id"], e)
             raise DatabaseError(
                 f"Invalid device data: {e}",
                 operation="row_to_device",
-                details=str(row['id']),
+                details=str(row["id"]),
             ) from e
 
     def get_all_devices(self) -> DeviceList:
@@ -225,14 +226,14 @@ class Database:
                 (
                     device.host,
                     device.ip,
-                    '',  # snmp_community not stored for security
+                    "",  # snmp_community not stored for security
                     int(device.alive),
                     int(device.snmp),
                     int(device.ssh),
                     int(device.mysql),
-                    ', '.join(device.errors),
+                    ", ".join(device.errors),
                     device.mysql_user,
-                    '',  # mysql_password not stored for security
+                    "",  # mysql_password not stored for security
                     device.uname,
                     int(device.scanned),
                 ),
@@ -258,10 +259,18 @@ class Database:
                 """,
                 [
                     (
-                        d.host, d.ip, '',  # snmp_community not stored
-                        int(d.alive), int(d.snmp), int(d.ssh), int(d.mysql),
-                        ', '.join(d.errors), d.mysql_user, '',  # password not stored
-                        d.uname, int(d.scanned),
+                        d.host,
+                        d.ip,
+                        "",  # snmp_community not stored
+                        int(d.alive),
+                        int(d.snmp),
+                        int(d.ssh),
+                        int(d.mysql),
+                        ", ".join(d.errors),
+                        d.mysql_user,
+                        "",  # password not stored
+                        d.uname,
+                        int(d.scanned),
                     )
                     for d in devices
                 ],
@@ -286,10 +295,18 @@ class Database:
                 WHERE id = ?
                 """,
                 (
-                    device.host, device.ip, '',  # snmp_community not stored
-                    int(device.alive), int(device.snmp), int(device.ssh), int(device.mysql),
-                    ', '.join(device.errors), device.mysql_user, '',  # password not stored
-                    device.uname, int(device.scanned),
+                    device.host,
+                    device.ip,
+                    "",  # snmp_community not stored
+                    int(device.alive),
+                    int(device.snmp),
+                    int(device.ssh),
+                    int(device.mysql),
+                    ", ".join(device.errors),
+                    device.mysql_user,
+                    "",  # password not stored
+                    device.uname,
+                    int(device.scanned),
                     device.id,
                 ),
             )
@@ -321,19 +338,41 @@ class Exporter:
         """Export devices to CSV format."""
         filepath = Path(filename)
 
-        with filepath.open('w', newline='', encoding='utf-8') as csvfile:
+        with filepath.open("w", newline="", encoding="utf-8") as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerow([
-                'id', 'host', 'ip', 'snmp_community', 'alive',
-                'snmp', 'ssh', 'mysql', 'uname', 'errors', 'scanned', 'status',
-            ])
+            writer.writerow(
+                [
+                    "id",
+                    "host",
+                    "ip",
+                    "snmp_community",
+                    "alive",
+                    "snmp",
+                    "ssh",
+                    "mysql",
+                    "uname",
+                    "errors",
+                    "scanned",
+                    "status",
+                ]
+            )
             for device in self.devices:
-                writer.writerow([
-                    device.id, device.host, device.ip, device.snmp_community,
-                    device.alive, device.snmp, device.ssh, device.mysql,
-                    device.uname, '; '.join(device.errors), device.scanned,
-                    device.status.value,
-                ])
+                writer.writerow(
+                    [
+                        device.id,
+                        device.host,
+                        device.ip,
+                        device.snmp_community,
+                        device.alive,
+                        device.snmp,
+                        device.ssh,
+                        device.mysql,
+                        device.uname,
+                        "; ".join(device.errors),
+                        device.scanned,
+                        device.status.value,
+                    ]
+                )
 
         logger.info("Exported %d devices to %s", len(self.devices), filepath)
         return filepath
@@ -347,15 +386,15 @@ class Exporter:
 
         env = Environment(
             loader=FileSystemLoader(str(self.template_dir)),
-            autoescape=select_autoescape(['html', 'xml']),
+            autoescape=select_autoescape(["html", "xml"]),
         )
-        template = env.get_template('layout.html')
+        template = env.get_template("layout.html")
 
         # Convert devices to safe dictionaries (credentials masked)
         device_data = [d.to_dict(mask_credentials=True) for d in self.devices]
         output = template.render(devices=device_data)
 
-        filepath.write_text(output, encoding='utf-8')
+        filepath.write_text(output, encoding="utf-8")
         logger.info("Exported %d devices to %s", len(self.devices), filepath)
         return filepath
 
@@ -375,17 +414,17 @@ class Importer:
 
         devices: DeviceList = []
 
-        with filepath.open('r', encoding='utf-8') as csvfile:
+        with filepath.open("r", encoding="utf-8") as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
                 try:
                     device = Device(
                         id=0,  # Will be assigned by database
-                        host=row.get('host', ''),
-                        ip=row.get('ip', row.get('host', '')),
-                        snmp_community=row.get('snmp_community', 'public'),
-                        mysql_user=row.get('mysql_user', ''),
-                        _mysql_password=row.get('mysql_password', ''),
+                        host=row.get("host", ""),
+                        ip=row.get("ip", row.get("host", "")),
+                        snmp_community=row.get("snmp_community", "public"),
+                        mysql_user=row.get("mysql_user", ""),
+                        _mysql_password=row.get("mysql_password", ""),
                     )
                     devices.append(device)
                 except ValidationError as e:
@@ -428,10 +467,11 @@ def import_excel(database_path: str | Path, excel_path: str | Path) -> int:
 def export_excel(devices: DeviceList, filename: str | Path | None = None) -> Path:
     """Export devices to Excel file."""
     import spreadsheet
+
     return spreadsheet.export_to_excel(devices, filename)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import sys
 
     print("Database module for network device management")

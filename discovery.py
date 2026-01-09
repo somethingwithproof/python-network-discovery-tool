@@ -28,8 +28,8 @@ type DeviceList = list[Device]
 
 # Configure logging
 logging.basicConfig(
-    format='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 class ExitCode(StrEnum):
     """Exit codes for the CLI."""
+
     SUCCESS = "0"
     ERROR = "1"
     CONFIG_ERROR = "2"
@@ -77,8 +78,8 @@ class DiscoveryStats:
 def parse_args(args: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        prog='network-discover',
-        description='Discover network device services (SSH, SNMP, MySQL).',
+        prog="network-discover",
+        description="Discover network device services (SSH, SNMP, MySQL).",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -86,6 +87,7 @@ Examples:
   %(prog)s devices.xlsx -o results.xlsx -w 20
   %(prog)s devices.xlsx --no-ssh-strict -v
   %(prog)s devices.xlsx --no-ping-gate --keep-db
+  %(prog)s devices.xlsx --timeout 5 -w 50
 
 Environment Variables:
   SSH_USER                SSH username (default: root)
@@ -95,52 +97,63 @@ Environment Variables:
     )
 
     parser.add_argument(
-        'inputfile',
+        "inputfile",
         type=Path,
-        help='Excel file with hosts to scan',
+        help="Excel file with hosts to scan",
     )
     parser.add_argument(
-        '-o', '--output',
+        "-o",
+        "--output",
         type=Path,
-        help='Output Excel file (default: <date>_check.xlsx)',
+        help="Output Excel file (default: <date>_check.xlsx)",
     )
     parser.add_argument(
-        '-w', '--workers',
+        "-w",
+        "--workers",
         type=int,
         default=10,
-        metavar='N',
-        help='Maximum concurrent workers (default: 10)',
+        metavar="N",
+        help="Maximum concurrent workers (default: 10)",
     )
     parser.add_argument(
-        '-d', '--database',
+        "-d",
+        "--database",
         type=Path,
-        default=Path('devices.db'),
-        help='SQLite database file (default: devices.db)',
+        default=Path("devices.db"),
+        help="SQLite database file (default: devices.db)",
     )
     parser.add_argument(
-        '-v', '--verbose',
-        action='store_true',
-        help='Enable verbose (debug) logging',
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose (debug) logging",
     )
     parser.add_argument(
-        '--no-ssh-strict',
-        action='store_true',
-        help='Disable strict SSH host key checking (less secure)',
+        "--no-ssh-strict",
+        action="store_true",
+        help="Disable strict SSH host key checking (less secure)",
     )
     parser.add_argument(
-        '--no-ping-gate',
-        action='store_true',
-        help='Scan SSH/SNMP/MySQL even if ping fails (recommended for firewalled networks)',
+        "--no-ping-gate",
+        action="store_true",
+        help="Scan SSH/SNMP/MySQL even if ping fails (recommended for firewalled networks)",
     )
     parser.add_argument(
-        '--keep-db',
-        action='store_true',
-        help='Preserve existing database instead of recreating it',
+        "--keep-db",
+        action="store_true",
+        help="Preserve existing database instead of recreating it",
     )
     parser.add_argument(
-        '--version',
-        action='version',
-        version='%(prog)s 0.3.0',
+        "--timeout",
+        type=int,
+        default=None,
+        metavar="SECONDS",
+        help="Override default timeout for all scan operations (SSH, ping, SNMP, MySQL)",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version="%(prog)s 0.3.0",
     )
 
     return parser.parse_args(args)
@@ -187,8 +200,7 @@ def scan_devices(
     with ThreadPoolExecutor(max_workers=workers) as executor:
         # Submit all scan tasks
         future_to_device = {
-            executor.submit(scan_device, device, config): device
-            for device in devices
+            executor.submit(scan_device, device, config): device for device in devices
         }
 
         # Collect results as they complete
@@ -235,14 +247,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         logger.error("Input file not found: %s", input_path)
         return int(ExitCode.INPUT_ERROR)
 
-    if input_path.suffix.lower() not in ('.xlsx', '.xls'):
+    if input_path.suffix.lower() not in (".xlsx", ".xls"):
         logger.warning("Input file may not be an Excel file: %s", input_path)
 
     # Create configuration
-    config = ScanConfig(
-        ssh_strict_host_key=not args.no_ssh_strict,
-        skip_ping_gate=args.no_ping_gate,
-    )
+    config_kwargs: dict[str, int | bool] = {
+        "ssh_strict_host_key": not args.no_ssh_strict,
+        "skip_ping_gate": args.no_ping_gate,
+    }
+
+    # Apply timeout override if specified
+    if args.timeout is not None:
+        config_kwargs["ssh_timeout"] = args.timeout
+        config_kwargs["ping_timeout"] = args.timeout
+        config_kwargs["snmp_timeout"] = args.timeout
+        config_kwargs["mysql_timeout"] = args.timeout
+        logger.info("Using custom timeout: %d seconds", args.timeout)
+
+    config = ScanConfig(**config_kwargs)
 
     # Initialize database
     db_path: Path = args.database

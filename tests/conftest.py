@@ -4,20 +4,21 @@ Pytest configuration and shared fixtures for network device discovery tests.
 
 from __future__ import annotations
 
-import os
+import contextlib
+
+# Add parent directory to path for imports
+import sys
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Add parent directory to path for imports
-import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from devices import Device, ScanConfig, ScanType, ScanResult
 from database import Database
+from devices import Device, ScanConfig
 
 
 @pytest.fixture
@@ -71,7 +72,7 @@ def scan_config() -> ScanConfig:
 @pytest.fixture
 def temp_database() -> Generator[Database, None, None]:
     """Create a temporary database for testing."""
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
 
     db = Database(db_path)
@@ -80,10 +81,8 @@ def temp_database() -> Generator[Database, None, None]:
     yield db
 
     # Cleanup
-    try:
-        os.unlink(db_path)
-    except OSError:
-        pass
+    with contextlib.suppress(OSError):
+        Path(db_path).unlink()
 
 
 @pytest.fixture
@@ -96,7 +95,7 @@ def temp_dir() -> Generator[Path, None, None]:
 @pytest.fixture
 def mock_subprocess_ping_success():
     """Mock subprocess.run for successful ping."""
-    with patch('subprocess.run') as mock_run:
+    with patch("subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=0, stdout=b"PING success")
         yield mock_run
 
@@ -104,7 +103,7 @@ def mock_subprocess_ping_success():
 @pytest.fixture
 def mock_subprocess_ping_failure():
     """Mock subprocess.run for failed ping."""
-    with patch('subprocess.run') as mock_run:
+    with patch("subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=1, stdout=b"")
         yield mock_run
 
@@ -112,7 +111,7 @@ def mock_subprocess_ping_failure():
 @pytest.fixture
 def mock_paramiko_success():
     """Mock paramiko for successful SSH connection."""
-    with patch('paramiko.SSHClient') as mock_client:
+    with patch("paramiko.SSHClient") as mock_client:
         instance = mock_client.return_value
         instance.connect.return_value = None
 
@@ -128,7 +127,8 @@ def mock_paramiko_success():
 def mock_paramiko_auth_failure():
     """Mock paramiko for authentication failure."""
     import paramiko
-    with patch('paramiko.SSHClient') as mock_client:
+
+    with patch("paramiko.SSHClient") as mock_client:
         instance = mock_client.return_value
         instance.connect.side_effect = paramiko.AuthenticationException("Auth failed")
         yield mock_client
@@ -137,8 +137,7 @@ def mock_paramiko_auth_failure():
 @pytest.fixture
 def mock_snmp_success():
     """Mock SNMP for successful connection."""
-    with patch('devices.load_mib'), \
-         patch('devices.SnmpManager') as mock_manager:
+    with patch("devices.load_mib"), patch("devices.SnmpManager") as mock_manager:
         instance = mock_manager.return_value
         instance.sysName = "test-device"
         yield mock_manager
@@ -147,8 +146,7 @@ def mock_snmp_success():
 @pytest.fixture
 def mock_snmp_failure():
     """Mock SNMP for failed connection."""
-    with patch('devices.load_mib'), \
-         patch('devices.SnmpManager') as mock_manager:
+    with patch("devices.load_mib"), patch("devices.SnmpManager") as mock_manager:
         mock_manager.side_effect = Exception("SNMP timeout")
         yield mock_manager
 
@@ -156,7 +154,7 @@ def mock_snmp_failure():
 @pytest.fixture
 def mock_mysql_success():
     """Mock MySQL for successful connection."""
-    with patch('MySQLdb.connect') as mock_connect:
+    with patch("MySQLdb.connect") as mock_connect:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_cursor.fetchone.return_value = ("8.0.32",)
@@ -169,7 +167,8 @@ def mock_mysql_success():
 def mock_mysql_failure():
     """Mock MySQL for failed connection."""
     import MySQLdb
-    with patch('MySQLdb.connect') as mock_connect:
+
+    with patch("MySQLdb.connect") as mock_connect:
         mock_connect.side_effect = MySQLdb.Error("Connection refused")
         yield mock_connect
 

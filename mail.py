@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 class EmailErrorType(StrEnum):
     """Types of email errors."""
+
     CONFIG = auto()
     SEND = auto()
     CONNECTION = auto()
@@ -40,7 +41,7 @@ class EmailErrorType(StrEnum):
 class EmailConfigError(Exception):
     """Raised when email configuration is invalid."""
 
-    __slots__ = ('field', 'error_type')
+    __slots__ = ("error_type", "field")
 
     def __init__(
         self,
@@ -57,7 +58,7 @@ class EmailConfigError(Exception):
 class EmailSendError(Exception):
     """Raised when email sending fails."""
 
-    __slots__ = ('recipient', 'error_type')
+    __slots__ = ("error_type", "recipient")
 
     def __init__(
         self,
@@ -84,21 +85,15 @@ class EmailConfig:
         EMAIL_SMTP_SERVER: SMTP server address (host:port)
     """
 
-    email_from: EmailAddress = field(
-        default_factory=lambda: os.environ.get('EMAIL_FROM', '')
-    )
-    email_to: EmailAddress = field(
-        default_factory=lambda: os.environ.get('EMAIL_TO', '')
-    )
-    username: str = field(
-        default_factory=lambda: os.environ.get('EMAIL_USERNAME', '')
-    )
+    email_from: EmailAddress = field(default_factory=lambda: os.environ.get("EMAIL_FROM", ""))
+    email_to: EmailAddress = field(default_factory=lambda: os.environ.get("EMAIL_TO", ""))
+    username: str = field(default_factory=lambda: os.environ.get("EMAIL_USERNAME", ""))
     password: str = field(
-        default_factory=lambda: os.environ.get('EMAIL_PASSWORD', ''),
+        default_factory=lambda: os.environ.get("EMAIL_PASSWORD", ""),
         repr=False,  # Don't show password in repr
     )
     smtp_server: str = field(
-        default_factory=lambda: os.environ.get('EMAIL_SMTP_SERVER', 'smtp.gmail.com:587')
+        default_factory=lambda: os.environ.get("EMAIL_SMTP_SERVER", "smtp.gmail.com:587")
     )
     use_tls: bool = True
     timeout: int = 30
@@ -111,11 +106,11 @@ class EmailConfig:
             EmailConfigError: If any required configuration is missing
         """
         required_fields = {
-            'email_from': ('EMAIL_FROM', self.email_from),
-            'email_to': ('EMAIL_TO', self.email_to),
-            'username': ('EMAIL_USERNAME', self.username),
-            'password': ('EMAIL_PASSWORD', self.password),
-            'smtp_server': ('EMAIL_SMTP_SERVER', self.smtp_server),
+            "email_from": ("EMAIL_FROM", self.email_from),
+            "email_to": ("EMAIL_TO", self.email_to),
+            "username": ("EMAIL_USERNAME", self.username),
+            "password": ("EMAIL_PASSWORD", self.password),
+            "smtp_server": ("EMAIL_SMTP_SERVER", self.smtp_server),
         }
 
         for field_name, (env_var, value) in required_fields.items():
@@ -128,12 +123,12 @@ class EmailConfig:
     @property
     def smtp_host(self) -> str:
         """Extract SMTP host from server string."""
-        return self.smtp_server.split(':')[0]
+        return self.smtp_server.split(":")[0]
 
     @property
     def smtp_port(self) -> int:
         """Extract SMTP port from server string."""
-        parts = self.smtp_server.split(':')
+        parts = self.smtp_server.split(":")
         return int(parts[1]) if len(parts) > 1 else 587
 
 
@@ -171,7 +166,7 @@ class EmailSender:
     Can be initialized with explicit configuration or use environment variables.
     """
 
-    __slots__ = ('_config',)
+    __slots__ = ("_config",)
 
     def __init__(
         self,
@@ -199,11 +194,12 @@ class EmailSender:
                 self._config = config
             case None:
                 self._config = EmailConfig(
-                    email_from=email_from or os.environ.get('EMAIL_FROM', ''),
-                    email_to=email_to or os.environ.get('EMAIL_TO', ''),
-                    username=username or os.environ.get('EMAIL_USERNAME', ''),
-                    password=password or os.environ.get('EMAIL_PASSWORD', ''),
-                    smtp_server=smtp_server or os.environ.get('EMAIL_SMTP_SERVER', 'smtp.gmail.com:587'),
+                    email_from=email_from or os.environ.get("EMAIL_FROM", ""),
+                    email_to=email_to or os.environ.get("EMAIL_TO", ""),
+                    username=username or os.environ.get("EMAIL_USERNAME", ""),
+                    password=password or os.environ.get("EMAIL_PASSWORD", ""),
+                    smtp_server=smtp_server
+                    or os.environ.get("EMAIL_SMTP_SERVER", "smtp.gmail.com:587"),
                 )
 
     @property
@@ -269,7 +265,7 @@ class EmailSender:
 
         # Add body text
         body_text = body or f"Please find the attached file: {file_path.name}"
-        msg.attach(MIMEText(body_text, 'plain'))
+        msg.attach(MIMEText(body_text, "plain"))
 
         # Add attachment
         attachment = self._create_attachment(file_path)
@@ -281,7 +277,7 @@ class EmailSender:
         """Create a MIME attachment from a file."""
         info = AttachmentInfo.from_path(file_path)
 
-        with file_path.open('rb') as fp:
+        with file_path.open("rb") as fp:
             file_data = fp.read()
 
         # Use pattern matching to create appropriate MIME type
@@ -304,7 +300,7 @@ class EmailSender:
         match info.main_type:
             case "text":
                 return MIMEText(
-                    file_data.decode(errors='replace'),
+                    file_data.decode(errors="replace"),
                     _subtype=info.sub_type,
                 )
             case "image":
@@ -355,7 +351,7 @@ def send(file_path: FilePath, subject: str | None = None) -> None:
     sender.send_email(path, email_subject)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import sys
 
     # Example usage - requires environment variables to be set:
