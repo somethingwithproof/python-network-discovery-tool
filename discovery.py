@@ -1,103 +1,288 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+"""
+Network device discovery orchestrator.
+
+This script coordinates the scanning of network devices imported from an Excel file,
+stores results in a SQLite database, and exports the results.
+
+Requires Python 3.14+
+"""
+
+from __future__ import annotations
+
 import argparse
-import database
 import logging
-import threading
-import math
-from devices import test_ssh, test_ping, ScanTypes
+import sys
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
+from enum import StrEnum
+from pathlib import Path
 
-logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s',
-                    datefmt='%d/%m/%Y %I:%M:%S %p',
-                    filename='discover.log',
-                    level=logging.DEBUG)
+import database
+import spreadsheet
+from devices import Device, ScanConfig
 
-DATABASE = 'devices.db'
-MAX_WORKERS = 10
+# Type alias
+type DeviceList = list[Device]
 
-def check_params():
-    parser = argparse.ArgumentParser(description='Discover info of network' +
-                                                 'devices.')
-    parser.add_argument('inputfile', help='excel file with hosts to scan')
-
-    return parser.parse_args()
-
-
-def how_many_workers(items):
-    if len(items) < MAX_WORKERS:
-        workers = len(items)
-    else:
-        workers = MAX_WORKERS
-
-    return workers
+# Configure logging
+logging.basicConfig(
+    format='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    level=logging.INFO,
+)
+logger = logging.getLogger(__name__)
 
 
-def get_intervals(items, workers):
-    max_devices = int(math.ceil(len(items) / float(workers)))
+class ExitCode(StrEnum):
+    """Exit codes for the CLI."""
+    SUCCESS = "0"
+    ERROR = "1"
+    CONFIG_ERROR = "2"
+    INPUT_ERROR = "3"
 
-    return [items[x:x+max_devices] for x in range(0, len(items), max_devices)]
+
+@dataclass(slots=True)
+class DiscoveryStats:
+    """Statistics from a discovery run."""
+
+    total: int = 0
+    alive: int = 0
+    ssh: int = 0
+    snmp: int = 0
+    mysql: int = 0
+    errors: int = 0
+
+    @classmethod
+    def from_devices(cls, devices: Sequence[Device]) -> DiscoveryStats:
+        """Calculate statistics from a list of devices."""
+        return cls(
+            total=len(devices),
+            alive=sum(1 for d in devices if d.alive),
+            ssh=sum(1 for d in devices if d.ssh),
+            snmp=sum(1 for d in devices if d.snmp),
+            mysql=sum(1 for d in devices if d.mysql),
+            errors=sum(1 for d in devices if d.errors),
+        )
+
+    def __str__(self) -> str:
+        return (
+            f"Total: {self.total}, Alive: {self.alive}, "
+            f"SSH: {self.ssh}, SNMP: {self.snmp}, MySQL: {self.mysql}, "
+            f"Errors: {self.errors}"
+        )
 
 
-def scan(devices):
-    logging.info("Starting worker to process {} devices".format(len(devices)))
-    device_dict = {device.id:device for device in devices}
-    
-    futures = []
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        # Dispatch all of the tests
-        for device in devices:
-            logging.info("Scanning device: {}".format(device))
-            # device.scan()
-            futures.append(executor.submit(test_ping, device))
-            futures.append(executor.submit(test_ssh, device))
-            # logging.info("Scanning result for device: {}".format(device))
-            # lock.acquire()
-            # database.update_device(DATABASE, device)
-            # lock.release()
-        
-        # As results come in, update the device objects
-        for future in as_completed(futures):
-            result = future.result()
-            update_device(result, device_dict[result.device_id])
-            
-def update_device(result, device):
-    if (result.type == ScanTypes.ping):
-        device.alive = not result.errors
-    if (result.type == ScanTypes.ssh):
-        device.ssh = not result.errors
-    device.errors = result.errors
+def parse_args(args: Sequence[str] | None = None) -> argparse.Namespace:
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        prog='network-discover',
+        description='Discover network device services (SSH, SNMP, MySQL).',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s devices.xlsx
+  %(prog)s devices.xlsx -o results.xlsx -w 20
+  %(prog)s devices.xlsx --no-ssh-strict -v
+
+Environment Variables:
+  SSH_USER              SSH username (default: root)
+  SSH_KEY_FILE          Path to SSH known_hosts file
+  SSH_STRICT_HOST_KEY   Enable strict host key checking (default: true)
+        """,
+    )
+
+    parser.add_argument(
+        'inputfile',
+        type=Path,
+        help='Excel file with hosts to scan',
+    )
+    parser.add_argument(
+        '-o', '--output',
+        type=Path,
+        help='Output Excel file (default: <date>_check.xlsx)',
+    )
+    parser.add_argument(
+        '-w', '--workers',
+        type=int,
+        default=10,
+        metavar='N',
+        help='Maximum concurrent workers (default: 10)',
+    )
+    parser.add_argument(
+        '-d', '--database',
+        type=Path,
+        default=Path('devices.db'),
+        help='SQLite database file (default: devices.db)',
+    )
+    parser.add_argument(
+        '-v', '--verbose',
+        action='store_true',
+        help='Enable verbose (debug) logging',
+    )
+    parser.add_argument(
+        '--no-ssh-strict',
+        action='store_true',
+        help='Disable strict SSH host key checking (less secure)',
+    )
+    parser.add_argument(
+        '--version',
+        action='version',
+        version='%(prog)s 0.3.0',
+    )
+
+    return parser.parse_args(args)
+
+
+def scan_device(device: Device, config: ScanConfig) -> Device:
+    """
+    Scan a single device for all services.
+
+    This function is designed to be called from a thread pool.
+    """
+    logger.debug("Starting scan: %s", device.host)
+
+    try:
+        device.scan_all(config)
+        logger.info("Completed: %s", device)
+    except Exception as e:
+        logger.error("Failed: %s - %s", device.host, e)
+        device.add_error(f"Scan failed: {e}")
+
+    return device
+
+
+def scan_devices(
+    devices: DeviceList,
+    config: ScanConfig,
+    *,
+    max_workers: int = 10,
+) -> DeviceList:
+    """
+    Scan multiple devices concurrently.
+
+    Uses ThreadPoolExecutor for concurrent I/O operations.
+    """
+    if not devices:
+        logger.warning("No devices to scan")
+        return []
+
+    workers = min(len(devices), max_workers)
+    logger.info("Scanning %d devices with %d workers", len(devices), workers)
+
+    scanned: DeviceList = []
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        # Submit all scan tasks
+        future_to_device = {
+            executor.submit(scan_device, device, config): device
+            for device in devices
+        }
+
+        # Collect results as they complete
+        for future in as_completed(future_to_device):
+            original = future_to_device[future]
+            try:
+                scanned.append(future.result())
+            except Exception as e:
+                logger.exception("Unexpected error scanning %s", original.host)
+                original.add_error(f"Unexpected error: {e}")
+                scanned.append(original)
+
+    logger.info("Scan complete: %d devices processed", len(scanned))
+    return scanned
+
+
+def print_summary(stats: DiscoveryStats) -> None:
+    """Print a formatted summary of the discovery results."""
+    width = 50
+    print()
+    print("=" * width)
+    print("Discovery Summary".center(width))
+    print("=" * width)
+    print(f"  {'Total devices:':<20} {stats.total:>10}")
+    print(f"  {'Alive (ping):':<20} {stats.alive:>10}")
+    print(f"  {'SSH accessible:':<20} {stats.ssh:>10}")
+    print(f"  {'SNMP accessible:':<20} {stats.snmp:>10}")
+    print(f"  {'MySQL accessible:':<20} {stats.mysql:>10}")
+    print(f"  {'With errors:':<20} {stats.errors:>10}")
+    print("=" * width)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Main entry point."""
+    args = parse_args(argv)
+
+    # Configure logging level
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    # Validate input file
+    input_path: Path = args.inputfile
+    if not input_path.exists():
+        logger.error("Input file not found: %s", input_path)
+        return int(ExitCode.INPUT_ERROR)
+
+    if input_path.suffix.lower() not in ('.xlsx', '.xls'):
+        logger.warning("Input file may not be an Excel file: %s", input_path)
+
+    # Create configuration
+    config = ScanConfig(ssh_strict_host_key=not args.no_ssh_strict)
+
+    # Initialize database
+    db_path: Path = args.database
+    logger.info("Initializing database: %s", db_path)
+    db = database.Database(db_path)
+    db.create_table(drop_existing=True)
+
+    # Import devices from Excel
+    logger.info("Importing devices from: %s", input_path)
+    try:
+        devices = spreadsheet.import_from_excel(input_path)
+    except Exception as e:
+        logger.error("Failed to import devices: %s", e)
+        return int(ExitCode.INPUT_ERROR)
+
+    if not devices:
+        logger.warning("No devices found in input file")
+        return int(ExitCode.SUCCESS)
+
+    logger.info("Imported %d devices", len(devices))
+
+    # Store devices in database
+    db.insert_devices(devices)
+
+    # Scan devices
+    scanned = scan_devices(devices, config, max_workers=args.workers)
+
+    # Update database with results
+    logger.info("Updating database with scan results")
+    for device in scanned:
+        db.update_device(device)
+
+    # Export results
+    logger.info("Exporting results")
+    try:
+        # Export to new Excel file
+        output_path = spreadsheet.export_to_excel(scanned, args.output)
+        logger.info("Results exported to: %s", output_path)
+
+        # Update original input file with results
+        if args.output != input_path:
+            spreadsheet.export_to_excel(scanned, input_path)
+            logger.info("Updated input file: %s", input_path)
+
+    except Exception as e:
+        logger.error("Failed to export results: %s", e)
+        return int(ExitCode.ERROR)
+
+    # Print summary
+    stats = DiscoveryStats.from_devices(scanned)
+    print_summary(stats)
+
+    return int(ExitCode.SUCCESS)
+
 
 if __name__ == "__main__":
-    args = check_params()
-
-    logging.info("Create database")
-    database.create(DATABASE)
-    logging.info("Import excel to database")
-    database.import_excel(DATABASE, args.inputfile)
-    logging.info("Read devices for database")
-    devices = database.get_all_devices(DATABASE)
-
-    workers = how_many_workers(devices)
-    intervals = get_intervals(devices, workers)
-
-    # start workers
-    threads = list()
-    for interval in intervals:
-        t = threading.Thread(target=scan, args=(interval,))
-        threads.append(t)
-        t.start()
-
-    # wait for all workers
-    logging.info("Waiting for all workers")
-    for t in threads:
-        t.join()
-
-    logging.info("All workers are done")
-
-    # Exporting data
-    devices = database.get_all_devices(DATABASE)
-    logging.info("Exporting to excel")
-    database.export_excel(devices)
-
-    logging.info("Updating input")
-    database.update_excel(args.inputfile, devices)
+    sys.exit(main())

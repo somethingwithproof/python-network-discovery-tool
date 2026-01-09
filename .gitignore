@@ -1,4 +1,11 @@
 # Created by .ignore support plugin (hsz.mobi)
+
+### IDE ###
+.idea/
+.vscode/
+*.swp
+*.swo
+
 ### VirtualEnv template
 # Virtualenv
 # http://iamzed.com/2009/05/07/a-primer-on-virtualenv/
@@ -9,6 +16,10 @@
 [Ss]cripts
 pyvenv.cfg
 pip-selfcheck.json
+.venv/
+venv/
+env/
+
 ### Python template
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -69,3 +80,21 @@ docs/_build/
 # PyBuilder
 target/
 
+### Project specific ###
+# Generated output files
+html/output.html
+*.db
+*.sqlite
+*.sqlite3
+
+# Firebase
+firebase-debug.log
+.firebase/
+
+# Claude Code
+.claude/
+
+# Scan results
+*_check.xlsx
+devices.csv
+discover.log

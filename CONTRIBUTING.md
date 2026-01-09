@@ -1,112 +1,144 @@
-============
-Contributing
-============
+# Contributing
 
-Contributions are welcome, and they are greatly appreciated! Every
-little bit helps, and credit will always be given.
+Contributions are welcome! This guide explains how to contribute to the Network Device Discovery Tool.
 
-You can contribute in many ways:
+## Getting Started
 
-Types of Contributions
-----------------------
+### Prerequisites
 
-Report Bugs
-~~~~~~~~~~~
+- Python 3.14 or later
+- Git
+- System dependencies for SNMP and MySQL (see [Getting Started](docs/getting-started.md))
 
-Report bugs at https://github.com/vincentbernat/snimpy/issues.
+### Development Setup
 
-If you are reporting a bug, please include:
+```bash
+# Fork and clone the repository
+git clone https://github.com/YOUR_USERNAME/python-auto-discover-network-Device-Management.git
+cd python-auto-discover-network-Device-Management
 
-* Your operating system name and version.
-* Any details about your local setup that might be helpful in troubleshooting.
-* Detailed steps to reproduce the bug.
+# Create a virtual environment
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-Fix Bugs
-~~~~~~~~
+# Install development dependencies
+pip install -e ".[dev]"
+```
 
-Look through the GitHub issues for bugs. Anything tagged with "bug"
-is open to whoever wants to implement it.
+## Development Workflow
 
-Implement Features
-~~~~~~~~~~~~~~~~~~
+### 1. Create a Branch
 
-Look through the GitHub issues for features. Anything tagged with "feature"
-is open to whoever wants to implement it.
+```bash
+git checkout -b feature/your-feature-name
+# or
+git checkout -b fix/your-bug-fix
+```
 
-Write Documentation
-~~~~~~~~~~~~~~~~~~~
+### 2. Make Changes
 
-Snimpy could always use more documentation, whether as part of the
-official Snimpy docs, in docstrings, or even on the web in blog posts,
-articles, and such.
+Follow these code style guidelines:
 
-Submit Feedback
-~~~~~~~~~~~~~~~
+- Use Python 3.14+ features (type aliases, pattern matching, StrEnum)
+- Add type hints to all public functions and methods
+- Write docstrings for all public classes and functions
+- Use `slots=True` on dataclasses for memory efficiency
+- Validate all external input for security
 
-The best way to send feedback is to file an issue at https://github.com/vincentbernat/snimpy/issues.
+### 3. Run Quality Checks
 
-If you are proposing a feature:
+```bash
+# Linting
+ruff check .
+ruff check --fix .  # Auto-fix issues
 
-* Explain in detail how it would work.
-* Keep the scope as narrow as possible, to make it easier to implement.
-* Remember that this is a volunteer-driven project, and that contributions
-  are welcome :)
+# Type checking
+mypy .
 
-Get Started!
-------------
+# Tests
+pytest
+pytest --cov  # With coverage report
+```
 
-Ready to contribute? Here's how to set up `snimpy` for local development.
+### 4. Commit Changes
 
-1. Fork the `snimpy` repo on GitHub.
-2. Clone your fork locally::
+Write clear, descriptive commit messages:
 
-    $ git clone git@github.com:your_name_here/snimpy.git
+```bash
+git add .
+git commit -m "feat: add support for SNMPv3 authentication"
+```
 
-3. Install your local copy into a virtualenv. Assuming you have virtualenvwrapper installed, this is how you set up your fork for local development::
+Commit message prefixes:
+- `feat:` New feature
+- `fix:` Bug fix
+- `docs:` Documentation changes
+- `test:` Test additions or fixes
+- `refactor:` Code refactoring
 
-    $ mkvirtualenv snimpy
-    $ cd snimpy/
-    $ python setup.py develop
+### 5. Submit a Pull Request
 
-4. Create a branch for local development::
+1. Push your branch to GitHub
+2. Open a pull request against the `main` branch
+3. Fill out the PR template with:
+   - Description of changes
+   - Related issues
+   - Testing performed
 
-    $ git checkout -b name-of-your-bugfix-or-feature
+## Types of Contributions
 
-  Now you can make your changes locally.
+### Report Bugs
 
-5. When you're done making changes, check that your changes pass flake8 and the
-tests, including testing other Python versions with tox::
+File issues at [GitHub Issues](https://github.com/thomasvincent/python-auto-discover-network-Device-Management/issues).
 
-    $ flake8 snimpy tests
-	  $ python setup.py test
-    $ tox
+Include:
+- Python version (`python --version`)
+- Operating system and version
+- Steps to reproduce the issue
+- Expected vs. actual behavior
+- Error messages and tracebacks
 
-  To get flake8 and tox, just pip install them into your virtualenv.
+### Suggest Features
 
-6. Commit your changes and push your branch to GitHub::
+Open a GitHub issue with the `enhancement` label. Describe:
+- The problem you're trying to solve
+- Your proposed solution
+- Alternative approaches you considered
 
-    $ git add .
-    $ git commit -m "Your detailed description of your changes."
-    $ git push origin name-of-your-bugfix-or-feature
+### Improve Documentation
 
-7. Submit a pull request through the GitHub website.
+Documentation improvements are always welcome:
+- Fix typos or unclear explanations
+- Add examples
+- Improve API documentation
+- Add troubleshooting guides
 
-Pull Request Guidelines
------------------------
+### Write Tests
 
-Before you submit a pull request, check that it meets these guidelines:
+Help improve test coverage:
+- Add tests for untested code paths
+- Add integration tests
+- Add edge case tests
 
-1. The pull request should include tests.
-2. If the pull request adds functionality, the docs should be updated. Put
-   your new functionality into a function with a docstring, and add the
-   feature to the list in README.rst.
-3. The pull request should work for Python 2.6, 2.7, 3.3 and 3.4, and for PyPy. Check
-   https://travis-ci.org/vincentbernat/snimpy/pull_requests
-   and make sure that the tests pass for all supported Python versions.
+## Pull Request Guidelines
 
-Tips
-----
+Before submitting a pull request:
 
-To run a subset of tests::
+1. **Tests pass**: All existing and new tests must pass
+2. **Linting passes**: No ruff or mypy errors
+3. **Documentation updated**: Update docs if adding features
+4. **Backwards compatible**: Avoid breaking existing functionality
+5. **Focused changes**: One feature or fix per PR
 
-	$ python -m nose tests/test_snmp.py
+## Code Review Process
+
+1. A maintainer will review your PR
+2. Address any feedback or requested changes
+3. Once approved, a maintainer will merge your PR
+
+## Questions?
+
+- Open a [GitHub Discussion](https://github.com/thomasvincent/python-auto-discover-network-Device-Management/discussions)
+- Check existing issues and discussions first
+
+Thank you for contributing!

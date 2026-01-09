@@ -1,20 +1,27 @@
 # Variables
 PROJECT_NAME := auto-discover
-VENV_NAME := $(PROJECT_NAME)-venv
+VENV_NAME := .venv
+PYTHON := $(VENV_NAME)/bin/python
+PIP := $(VENV_NAME)/bin/pip
 
 # Targets
-.PHONY: clean-pyc clean-build clean-venv docs test lint
+.PHONY: clean-pyc clean-build clean-venv docs test lint install install-dev help
 
 help:
-	@echo "Please use \`make <target>' where <target> is one of"
+	@echo "Please use 'make <target>' where <target> is one of"
+	@echo "  install       to install dependencies"
+	@echo "  install-dev   to install development dependencies"
+	@echo "  clean         to remove all build artifacts"
 	@echo "  clean-build   to remove build artifacts"
 	@echo "  clean-pyc     to remove Python file artifacts"
 	@echo "  clean-venv    to remove the virtual environment"
 	@echo "  lint          to check style with flake8"
 	@echo "  test          to run tests"
-	@echo "  docs          to generate Sphinx HTML documentation, including API docs"
+	@echo "  docs          to generate documentation"
 
-clean: clean-build clean-pyc clean-venv
+clean: clean-build clean-pyc
+
+clean-all: clean clean-venv
 
 clean-build:
 	rm -rf build/
@@ -30,25 +37,21 @@ clean-pyc:
 clean-venv:
 	rm -rf $(VENV_NAME)
 
+$(VENV_NAME):
+	python3 -m venv $(VENV_NAME)
+	$(PIP) install -U pip
+
+install: $(VENV_NAME)
+	$(PIP) install -r requirements.txt
+
+install-dev: $(VENV_NAME)
+	$(PIP) install -e ".[dev]"
+
 lint:
-	flake8 auto-discover tests
+	$(VENV_NAME)/bin/flake8 *.py
 
 test:
-	python -m unittest discover
+	$(PYTHON) -m pytest tests/
 
 docs:
-	rm -f docs/$(PROJECT_NAME).rst
-	rm -f docs/modules.rst
-	sphinx-apidoc -o docs/ auto-discover
-	$(MAKE) -C docs clean
-	$(MAKE) -C docs html
-	$(open) docs/_build/html/index.html
-
-# Development targets
-venv:
-	python3 -m venv $(VENV_NAME)
-	$(VENV_NAME)/bin/pip install -U pip
-	$(VENV_NAME)/bin/pip install -r requirements.txt
-
-venv-dev: venv
-	$(VENV_NAME)/bin/pip install -r requirements-dev.txt
+	cd docs && mkdocs build

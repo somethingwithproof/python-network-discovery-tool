@@ -1,0 +1,90 @@
+# Standard Material for MkDocs configuration
+site_name: Project Documentation
+site_description: Documentation powered by Material for MkDocs
+site_author: Thomas Vincent
+
+# Repository information
+repo_name: github.com/thomasvincent/python-auto-discover-network-Device-Management
+repo_url: https://github.com/thomasvincent/python-auto-discover-network-Device-Management
+edit_uri: edit/main/docs/
+
+# Copyright
+copyright: Copyright &copy; 2025 Thomas Vincent
+
+# Configuration
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - search.highlight
+    - search.share
+    - content.code.copy
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+  icon:
+    repo: fontawesome/brands/github
+
+# Extensions
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences
+  - pymdownx.tasklist
+  - pymdownx.tilde
+
+# Plugins
+plugins:
+  - search
+
+# Extra configuration
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/thomasvincent
+    - icon: fontawesome/brands/linkedin
+      link: https://linkedin.com/in/YOUR_LINKEDIN
+  generator: false  # Removes the "Made with Material for MkDocs" footer text
+
+# Navigation (customize per repository)
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - API: api.md
+  - Contributing: contributing.md
