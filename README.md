@@ -203,7 +203,7 @@ MIT License - see [LICENSE](LICENSE) file
 - Built with [Rich](https://github.com/Textualize/rich) for beautiful terminal output
 - Uses [python-nmap](https://github.com/savon-noir/python-nmap) for network scanning
 - CLI powered by [Typer](https://github.com/tiangolo/typer)
-- Rewritten in 2026 with ❤️ and Claude Code
+- Rewritten in 2026 with ❤️
 
 ## 🔗 Links
 
