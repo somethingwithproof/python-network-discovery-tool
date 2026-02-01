@@ -3,14 +3,20 @@
 This module provides an enterprise-class device implementation with enhanced features.
 """
 
-from dataclasses import dataclass
-from dataclasses import field
+from __future__ import annotations
+
+import contextlib
+from dataclasses import dataclass, field
 from datetime import datetime
-from enum import auto
-from enum import Enum
-from typing import Any, Dict, Optional, Tuple
+from enum import Enum, auto
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any
 
 from network_discovery.domain.device import Device
+
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 
 class DeviceCategory(Enum):
@@ -70,20 +76,31 @@ class EnterpriseDevice:
     asset_id: str = ""
     location: str = ""
     owner: str = ""
-    purchase_date: Optional[datetime] = None
-    warranty_expiry: Optional[datetime] = None
-    last_patched: Optional[datetime] = None
+    purchase_date: datetime | None = None
+    warranty_expiry: datetime | None = None
+    last_patched: datetime | None = None
     os_version: str = ""
     firmware_version: str = ""
     compliance: bool = False
-    compliance_issues: Tuple[str, ...] = field(default_factory=tuple)
+    compliance_issues: tuple[str, ...] = field(default_factory=tuple)
     tags: frozenset = field(default_factory=frozenset)
-    custom_attributes: Dict[str, Any] = field(default_factory=dict)
-    last_scan_time: Optional[datetime] = None
-    uptime: Optional[int] = None
-    services: Dict[str, bool] = field(default_factory=dict)
+    custom_attributes: Mapping[str, Any] = field(default_factory=dict)
+    last_scan_time: datetime | None = None
+    uptime: int | None = None
+    services: Mapping[str, bool] = field(default_factory=dict)
 
-    def add_tag(self, tag: str) -> "EnterpriseDevice":
+    def __post_init__(self) -> None:
+        """Ensure immutability by wrapping mutable dicts in MappingProxyType."""
+        if isinstance(self.custom_attributes, dict):
+            object.__setattr__(
+                self,
+                "custom_attributes",
+                MappingProxyType(dict(self.custom_attributes)),
+            )
+        if isinstance(self.services, dict):
+            object.__setattr__(self, "services", MappingProxyType(dict(self.services)))
+
+    def add_tag(self, tag: str) -> EnterpriseDevice:
         """Add a tag to the device.
 
         Args:
@@ -96,7 +113,7 @@ class EnterpriseDevice:
         new_tags.add(tag)
         return self.replace(tags=frozenset(new_tags))
 
-    def remove_tag(self, tag: str) -> "EnterpriseDevice":
+    def remove_tag(self, tag: str) -> EnterpriseDevice:
         """Remove a tag from the device.
 
         Args:
@@ -109,7 +126,7 @@ class EnterpriseDevice:
         new_tags.discard(tag)
         return self.replace(tags=frozenset(new_tags))
 
-    def set_custom_attribute(self, key: str, value: Any) -> "EnterpriseDevice":
+    def set_custom_attribute(self, key: str, value: Any) -> EnterpriseDevice:
         """Set a custom attribute on the device.
 
         Args:
@@ -135,9 +152,7 @@ class EnterpriseDevice:
         """
         return self.custom_attributes.get(key, default)
 
-    def add_service(
-        self, service_name: str, status: bool = True
-    ) -> "EnterpriseDevice":
+    def add_service(self, service_name: str, status: bool = True) -> EnterpriseDevice:
         """Add a service to the device.
 
         Args:
@@ -151,7 +166,7 @@ class EnterpriseDevice:
         new_services[service_name] = status
         return self.replace(services=new_services)
 
-    def get_service_status(self, service_name: str) -> Optional[bool]:
+    def get_service_status(self, service_name: str) -> bool | None:
         """Get the status of a service.
 
         Args:
@@ -162,7 +177,7 @@ class EnterpriseDevice:
         """
         return self.services.get(service_name)
 
-    def update_scan_time(self) -> "EnterpriseDevice":
+    def update_scan_time(self) -> EnterpriseDevice:
         """Update the last scan time to the current time.
 
         Returns:
@@ -170,7 +185,7 @@ class EnterpriseDevice:
         """
         return self.replace(last_scan_time=datetime.now())
 
-    def days_since_patched(self) -> Optional[int]:
+    def days_since_patched(self) -> int | None:
         """Calculate the number of days since the device was last patched.
 
         Returns:
@@ -181,7 +196,7 @@ class EnterpriseDevice:
         delta = datetime.now() - self.last_patched
         return delta.days
 
-    def days_until_warranty_expiry(self) -> Optional[int]:
+    def days_until_warranty_expiry(self) -> int | None:
         """Calculate the number of days until the warranty expires.
 
         Returns:
@@ -193,7 +208,7 @@ class EnterpriseDevice:
         delta = self.warranty_expiry - datetime.now()
         return delta.days
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert the device attributes to a dictionary.
 
         Returns:
@@ -212,9 +227,7 @@ class EnterpriseDevice:
                 self.purchase_date.isoformat() if self.purchase_date else None
             ),
             "warranty_expiry": (
-                self.warranty_expiry.isoformat()
-                if self.warranty_expiry
-                else None
+                self.warranty_expiry.isoformat() if self.warranty_expiry else None
             ),
             "last_patched": (
                 self.last_patched.isoformat() if self.last_patched else None
@@ -224,19 +237,19 @@ class EnterpriseDevice:
             "compliance": self.compliance,
             "compliance_issues": list(self.compliance_issues),
             "tags": list(self.tags),
-            "custom_attributes": self.custom_attributes,
+            "custom_attributes": dict(self.custom_attributes),
             "last_scan_time": (
                 self.last_scan_time.isoformat() if self.last_scan_time else None
             ),
             "uptime": self.uptime,
-            "services": self.services,
+            "services": dict(self.services),
         }
 
         # Merge dictionaries
         return {**base_dict, **enterprise_dict}
 
     @classmethod
-    def from_dict(cls, dict_device: Dict[str, Any]) -> "EnterpriseDevice":
+    def from_dict(cls, dict_device: dict[str, Any]) -> EnterpriseDevice:
         """Create an EnterpriseDevice object from a dictionary.
 
         Args:
@@ -255,9 +268,7 @@ class EnterpriseDevice:
 
         warranty_expiry = None
         if dict_device.get("warranty_expiry"):
-            warranty_expiry = datetime.fromisoformat(
-                dict_device["warranty_expiry"]
-            )
+            warranty_expiry = datetime.fromisoformat(dict_device["warranty_expiry"])
 
         last_patched = None
         if dict_device.get("last_patched"):
@@ -265,24 +276,18 @@ class EnterpriseDevice:
 
         last_scan_time = None
         if dict_device.get("last_scan_time"):
-            last_scan_time = datetime.fromisoformat(
-                dict_device["last_scan_time"]
-            )
+            last_scan_time = datetime.fromisoformat(dict_device["last_scan_time"])
 
         # Parse enums
         category = DeviceCategory.UNKNOWN
         if dict_device.get("category"):
-            try:
+            with contextlib.suppress(KeyError, ValueError):
                 category = DeviceCategory[dict_device["category"]]
-            except (KeyError, ValueError):
-                pass
 
         status = DeviceStatus.UNKNOWN
         if dict_device.get("status"):
-            try:
+            with contextlib.suppress(KeyError, ValueError):
                 status = DeviceStatus[dict_device["status"]]
-            except (KeyError, ValueError):
-                pass
 
         # Convert compliance issues to tuple
         compliance_issues = tuple(dict_device.get("compliance_issues", []))
@@ -320,7 +325,7 @@ class EnterpriseDevice:
         """
         return f"{self.device.host} ({self.device.ip}) - {self.category.name} - {self.status.name}"
 
-    def replace(self, **kwargs) -> "EnterpriseDevice":
+    def replace(self, **kwargs) -> EnterpriseDevice:
         """Create a new EnterpriseDevice with some fields replaced.
 
         Args:
@@ -395,7 +400,7 @@ class EnterpriseDevice:
         return self.device.mysql
 
     @property
-    def errors(self) -> Tuple[str, ...]:
+    def errors(self) -> tuple[str, ...]:
         """Get the device errors."""
         return self.device.errors
 

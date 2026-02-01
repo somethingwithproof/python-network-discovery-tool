@@ -1,12 +1,13 @@
 """Tests for the EnterpriseDevice class."""
 
-from datetime import datetime
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from network_discovery.domain.device import Device
-from network_discovery.enterprise.device import DeviceCategory
-from network_discovery.enterprise.device import DeviceStatus
-from network_discovery.enterprise.device import EnterpriseDevice
+from network_discovery.enterprise.device import (
+    DeviceCategory,
+    DeviceStatus,
+    EnterpriseDevice,
+)
 
 
 class TestEnterpriseDevice:
@@ -87,9 +88,7 @@ class TestEnterpriseDevice:
         # Test getting a non-existent attribute
         assert device.get_custom_attribute("non-existent") is None
         # Test getting a non-existent attribute with a default value
-        assert (
-            device.get_custom_attribute("non-existent", "default") == "default"
-        )
+        assert device.get_custom_attribute("non-existent", "default") == "default"
         # Test overwriting an existing attribute
         device = device.set_custom_attribute("rack", "B2")
         assert device.get_custom_attribute("rack") == "B2"
@@ -127,9 +126,7 @@ class TestEnterpriseDevice:
         # Test with no patch date
         assert device.days_since_patched() is None
         # Test with a patch date
-        device = device.replace(
-            last_patched=datetime.now() - timedelta(days=10)
-        )
+        device = device.replace(last_patched=datetime.now() - timedelta(days=10))
         assert (
             device.days_since_patched() >= 9
         )  # Allow for some flexibility due to timing
@@ -142,16 +139,12 @@ class TestEnterpriseDevice:
         # Test with no warranty expiry date
         assert device.days_until_warranty_expiry() is None
         # Test with a future warranty expiry date
-        device = device.replace(
-            warranty_expiry=datetime.now() + timedelta(days=100)
-        )
+        device = device.replace(warranty_expiry=datetime.now() + timedelta(days=100))
         days = device.days_until_warranty_expiry()
         assert days >= 99  # Allow for some flexibility due to timing
         assert days <= 101
         # Test with a past warranty expiry date
-        device = device.replace(
-            warranty_expiry=datetime.now() - timedelta(days=50)
-        )
+        device = device.replace(warranty_expiry=datetime.now() - timedelta(days=50))
         days = device.days_until_warranty_expiry()
         assert days >= -51  # Allow for some flexibility due to timing
         assert days <= -49
@@ -164,13 +157,11 @@ class TestEnterpriseDevice:
         last_patched = now - timedelta(days=30)
         last_scan_time = now - timedelta(hours=1)
 
-        base_device = Device(
-            id=1, host="example.com", ip="192.168.1.1", alive=True
-        )
+        base_device = Device(id=1, host="example.com", ip="192.168.1.1", alive=True)
         device = EnterpriseDevice(
             device=base_device,
             category=DeviceCategory.SERVER,
-            status=DeviceStatus.ACTIVE,
+            status=DeviceStatus.OPERATIONAL,
             asset_id="123456",
             location="Data Center",
             owner="IT Department",
@@ -197,8 +188,8 @@ class TestEnterpriseDevice:
         assert device_dict["alive"] is True
 
         # Check EnterpriseDevice-specific properties
-        assert device_dict["category"] == DeviceCategory.SERVER.value
-        assert device_dict["status"] == DeviceStatus.ACTIVE.value
+        assert device_dict["category"] == DeviceCategory.SERVER.name
+        assert device_dict["status"] == DeviceStatus.OPERATIONAL.name
         assert device_dict["asset_id"] == "123456"
         assert device_dict["location"] == "Data Center"
         assert device_dict["owner"] == "IT Department"
@@ -235,8 +226,8 @@ class TestEnterpriseDevice:
             "host": "example.com",
             "ip": "192.168.1.1",
             "alive": True,
-            "category": DeviceCategory.SERVER.value,
-            "status": DeviceStatus.ACTIVE.value,
+            "category": DeviceCategory.SERVER.name,
+            "status": DeviceStatus.OPERATIONAL.name,
             "asset_id": "123456",
             "location": "Data Center",
             "owner": "IT Department",
@@ -250,7 +241,7 @@ class TestEnterpriseDevice:
             "tags": ["production", "web-server"],
             "custom_attributes": {"rack": "A1", "power_supply": "redundant"},
             "last_scan_time": last_scan_time.isoformat(),
-            "uptime": str(timedelta(days=30)),
+            "uptime": 2592000,  # 30 days in seconds
             "services": {"http": True, "https": True},
         }
 
@@ -264,7 +255,7 @@ class TestEnterpriseDevice:
 
         # Check EnterpriseDevice-specific properties
         assert device.category == DeviceCategory.SERVER
-        assert device.status == DeviceStatus.ACTIVE
+        assert device.status == DeviceStatus.OPERATIONAL
         assert device.asset_id == "123456"
         assert device.location == "Data Center"
         assert device.owner == "IT Department"
@@ -281,5 +272,5 @@ class TestEnterpriseDevice:
             "power_supply": "redundant",
         }
         assert isinstance(device.last_scan_time, datetime)
-        assert isinstance(device.uptime, timedelta)
+        assert device.uptime == 2592000  # 30 days in seconds
         assert device.services == {"http": True, "https": True}

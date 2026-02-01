@@ -14,9 +14,9 @@ Options:
 """
 
 import argparse
-from pathlib import Path
 import re
 import sys
+from pathlib import Path
 
 
 def read_changelog():
@@ -26,16 +26,14 @@ def read_changelog():
         print(f"Error: Changelog file not found at {changelog_path}")
         sys.exit(1)
 
-    with open(changelog_path, "r") as f:
+    with open(changelog_path) as f:
         return f.read()
 
 
 def extract_version_notes(changelog, version=None):
     """Extract notes for a specific version or the latest version."""
     # Find all version sections
-    version_pattern = (
-        r"## Version (\d+\.\d+\.\d+) \(.*?\)(.*?)(?=## Version|\Z)"
-    )
+    version_pattern = r"## Version (\d+\.\d+\.\d+) \(.*?\)(.*?)(?=## Version|\Z)"
     matches = re.findall(version_pattern, changelog, re.DOTALL)
 
     if not matches:

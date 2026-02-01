@@ -1,15 +1,11 @@
 """Tests for the CLI interface."""
 
-import os
 import tempfile
-from unittest.mock import AsyncMock
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from network_discovery.interfaces.cli import cli
-from network_discovery.interfaces.cli import parse_args
-from network_discovery.interfaces.cli import run_discovery
+from network_discovery.interfaces.cli import cli, parse_args, run_discovery
 
 
 @pytest.fixture
@@ -50,7 +46,7 @@ class TestCli:
                 "--no-report",
                 "--no-notification",
                 "--no-repository",
-                "-r",
+                "--repository-file",
                 "/tmp/devices.json",
             ]
         )
@@ -66,7 +62,7 @@ class TestCli:
 
     @pytest.mark.asyncio
     async def test_run_discovery_single_device(self, temp_directory):
-        """Test that run_discovery works with a single device IP."""
+        """Test that run_discovery works with a network CIDR."""
         args = parse_args(
             [
                 "192.168.1.0/24",
@@ -81,25 +77,23 @@ class TestCli:
         )
 
         with patch(
-            "network_discovery.core.discovery.DeviceDiscoveryService"
+            "network_discovery.interfaces.cli.DeviceDiscoveryService"
         ) as mock_discovery_service:
             mock_instance = mock_discovery_service.return_value
             mock_instance.discover_network = AsyncMock()
             mock_instance.discover_network.return_value = []
-            mock_instance.generate_report.return_value = os.path.join(
-                temp_directory, "devices.html"
-            )
 
-            await run_discovery(args)
+            result = await run_discovery(args)
 
-            mock_instance.discover_network.assert_called_once_with(
-                "192.168.1.0/24"
-            )
-            mock_instance.generate_report.assert_called_once_with("html")
+            mock_instance.discover_network.assert_called_once_with("192.168.1.0/24")
+            # With --no-report, generate_report should not be called
+            assert result == 0
 
     @pytest.mark.asyncio
     async def test_run_discovery_device(self, temp_directory):
-        """Test that run_discovery works with a single device."""
+        """Test that run_discovery works with a single device IP."""
+        from unittest.mock import MagicMock
+
         args = parse_args(
             [
                 "192.168.1.1",
@@ -114,39 +108,29 @@ class TestCli:
         )
 
         with patch(
-            "network_discovery.core.discovery.DeviceDiscoveryService"
+            "network_discovery.interfaces.cli.DeviceDiscoveryService"
         ) as mock_discovery_service:
             mock_instance = mock_discovery_service.return_value
             mock_instance.discover_device = AsyncMock()
-            mock_instance.discover_device.return_value = None
-            mock_instance.generate_report.return_value = os.path.join(
-                temp_directory, "devices.html"
-            )
+            # Return a mock device with a status method
+            mock_device = MagicMock()
+            mock_device.status.return_value = "alive: True"
+            mock_instance.discover_device.return_value = mock_device
 
-            await run_discovery(args)
+            result = await run_discovery(args)
 
             mock_instance.discover_device.assert_called_once_with("192.168.1.1")
-            mock_instance.generate_report.assert_called_once_with("html")
+            # With --no-report, generate_report should not be called
+            assert result == 0
 
     def test_cli_entry_point(self, temp_directory):
         """Test the CLI entry point function."""
-        with patch(
-            "network_discovery.interfaces.cli.parse_args"
-        ) as mock_parse_args:
-            with patch("asyncio.run") as mock_run:
-                mock_args = parse_args(
-                    [
-                        "192.168.1.0/24",
-                        "-o",
-                        temp_directory,
-                        "-t",
-                        temp_directory,
-                        "--no-notification",
-                        "--no-repository",
-                        "--no-report",
-                    ]
-                )
-                mock_parse_args.return_value = mock_args
+        with patch("network_discovery.interfaces.cli.app") as mock_app:
+            # Test that cli() passes args to app()
+            cli(["192.168.1.0/24"])
+            mock_app.assert_called_once_with(args=["192.168.1.0/24"])
 
-                cli(["192.168.1.0/24"])
-                mock_run.assert_called_once()
+            # Test that cli() with no args passes None to app()
+            mock_app.reset_mock()
+            cli()
+            mock_app.assert_called_once_with(args=None)

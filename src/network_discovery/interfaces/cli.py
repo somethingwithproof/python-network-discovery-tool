@@ -6,23 +6,20 @@ discovery tool with Pydantic-based settings validation and async execution.
 It also includes backward compatibility functions for the legacy argparse-based CLI.
 """
 
+from __future__ import annotations
+
 import argparse
 import asyncio
 import ipaddress
 import logging
-import os
-from pathlib import Path
 import sys
-from typing import List, Optional, Tuple, Union
+from pathlib import Path
 
-from pydantic import Field
 import typer
 
 from network_discovery.core.discovery import DeviceDiscoveryService
 from network_discovery.infrastructure.notification import (
     ConsoleNotificationService,
-)
-from network_discovery.infrastructure.notification import (
     EmailNotificationService,
 )
 from network_discovery.infrastructure.report import ReportGenerator
@@ -31,10 +28,9 @@ from network_discovery.infrastructure.scanner import NmapDeviceScanner
 
 from .settings import Settings
 
+
 # Create Typer app
-app = typer.Typer(
-    help="Network discovery tool to identify running services on devices"
-)
+app = typer.Typer(help="Network discovery tool to identify running services on devices")
 
 
 def configure_logging(verbose: bool) -> None:
@@ -53,9 +49,7 @@ def configure_logging(verbose: bool) -> None:
 
 def validate_network(
     network: str,
-) -> Tuple[
-    bool, Union[ipaddress.IPv4Network, ipaddress.IPv4Address, None], str
-]:
+) -> tuple[bool, ipaddress.IPv4Network | ipaddress.IPv4Address | None, str]:
     """Validate a network or IP address string.
 
     Args:
@@ -100,9 +94,7 @@ def init_repository(settings: Settings):
         logging.info("Using JSON file repository: %s", settings.repository_file)
         return repo
     except Exception as e:
-        logging.getLogger(__name__).error(
-            "Error initializing repository: %s", e
-        )
+        logging.getLogger(__name__).error("Error initializing repository: %s", e)
         raise
 
 
@@ -162,24 +154,44 @@ def init_report(settings: Settings):
 
     # Validate template directory for HTML reports
     if settings.format == "html" and not settings.template_dir.exists():
-        raise ValueError(
-            f"Template directory not found: {settings.template_dir}"
-        )
+        raise ValueError(f"Template directory not found: {settings.template_dir}")
 
     return ReportGenerator(settings.output_dir, settings.template_dir)
 
 
-async def run_discovery(settings: Settings) -> int:
+async def run_discovery(settings: Settings | argparse.Namespace) -> int:
     """Run the network discovery process using the provided settings.
 
     Args:
         settings: Application settings for the discovery process.
+            Can be either a Settings object or an argparse.Namespace for
+            backward compatibility.
 
     Returns:
         int: Exit code (0 for success, 1 for failure).
     """
+    # Convert argparse.Namespace to Settings for backward compatibility
+    if isinstance(settings, argparse.Namespace):
+        settings = Settings(
+            network=settings.network,
+            output_dir=Path(settings.output_dir),
+            format=settings.format,
+            template_dir=Path(settings.template_dir),
+            verbose=settings.verbose,
+            no_report=settings.no_report,
+            no_notification=settings.no_notification,
+            no_repository=settings.no_repository,
+            repository_file=Path(settings.repository_file),
+            email=getattr(settings, "email", False),
+            smtp_server=getattr(settings, "smtp_server", "smtp.gmail.com"),
+            smtp_port=getattr(settings, "smtp_port", 587),
+            smtp_username=getattr(settings, "smtp_username", "") or "",
+            smtp_password=getattr(settings, "smtp_password", "") or "",
+            email_recipient=getattr(settings, "email_recipient", "") or "",
+        )
+
     # Validate network input
-    is_network, network_obj, error = validate_network(settings.network)
+    is_network, _network_obj, error = validate_network(settings.network)
     if error:
         logging.getLogger(__name__).error(error)
         return 1
@@ -217,11 +229,27 @@ async def run_discovery(settings: Settings) -> int:
     # Generate report if enabled
     if report_service:
         try:
-            report_path = discovery_service.generate_report(settings.format)
-            if report_path:
-                logging.info("Report generated at %s", report_path)
+            devices = discovery_service.get_devices()
+
+            if settings.export_all:
+                # Export to all supported formats
+                results = report_service.export_all_formats(
+                    devices, settings.export_filename
+                )
+                for fmt, path in results.items():
+                    if path:
+                        logging.info("%s report generated at %s", fmt.upper(), path)
+                    else:
+                        logging.warning("Failed to generate %s report", fmt.upper())
             else:
-                logging.warning("No report was generated")
+                # Export to single format
+                report_path = report_service.generate_report(
+                    devices, settings.format, settings.export_filename
+                )
+                if report_path:
+                    logging.info("Report generated at %s", report_path)
+                else:
+                    logging.warning("No report was generated")
         except Exception as e:
             logging.getLogger(__name__).error("Error generating report: %s", e)
             return 1
@@ -244,7 +272,21 @@ def discover(
         help="Directory where reports will be saved",
     ),
     format: str = typer.Option(
-        "html", "--format", "-f", help="Report format (html, csv, xlsx, json)"
+        "html",
+        "--format",
+        "-f",
+        help="Report format (html, csv, xlsx, json, pdf)",
+    ),
+    export_all: bool = typer.Option(
+        False,
+        "--export-all",
+        "-a",
+        help="Export to all supported formats (json, csv, xlsx, html, pdf)",
+    ),
+    export_filename: str = typer.Option(
+        "",
+        "--export-filename",
+        help="Custom filename for exports (without extension)",
     ),
     template_dir: Path = typer.Option(
         Path("./templates"),
@@ -299,6 +341,8 @@ def discover(
         network=network,
         output_dir=output_dir,
         format=format,
+        export_all=export_all,
+        export_filename=export_filename if export_filename else None,
         template_dir=template_dir,
         verbose=verbose,
         no_report=no_report,
@@ -321,17 +365,21 @@ def discover(
     sys.exit(code)
 
 
-def cli() -> None:
+def cli(args: list[str] | None = None) -> None:
     """Run the command-line interface.
 
     This is the main entry point for the command-line interface when the package
     is run as a script.
+
+    Args:
+        args: Optional list of command-line arguments. If None, sys.argv is used.
+              This parameter is primarily for testing purposes.
     """
-    app()
+    app(args=args)
 
 
 # Legacy CLI support functions for backward compatibility with tests
-def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
+def parse_args(args: list[str] | None = None) -> argparse.Namespace:
     """Parse command-line arguments.
 
     Args:

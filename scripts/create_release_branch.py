@@ -13,10 +13,10 @@ Arguments:
 """
 
 import argparse
-from pathlib import Path
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 
 def run_command(command, check=True):
@@ -49,7 +49,7 @@ def check_git_status():
 def update_version_in_branch(version):
     """Update the version in __init__.py in the current branch."""
     init_path = Path("src/network_discovery/__init__.py")
-    with open(init_path, "r") as f:
+    with open(init_path) as f:
         content = f.read()
 
     new_content = re.sub(
@@ -93,9 +93,7 @@ def create_release_branch(version):
 
     print(f"\nRelease branch {branch_name} has been created and pushed.")
     print("\nNext steps:")
-    print(
-        f"1. Make any final adjustments to the release in the {branch_name} branch"
-    )
+    print(f"1. Make any final adjustments to the release in the {branch_name} branch")
     print("2. When ready, merge the release branch into main:")
     print(f"   git checkout main && git merge --no-ff {branch_name}")
     print("3. Then merge the release branch back into develop:")

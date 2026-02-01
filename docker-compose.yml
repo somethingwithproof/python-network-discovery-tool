@@ -1,57 +1,127 @@
-version: '3.8'
-
 services:
+  # Production service for running network discovery
   network-discovery:
     build:
       context: .
       dockerfile: Dockerfile
+      target: production
     volumes:
-      # Mount the output directory to persist reports
       - ./output:/app/output
-      # Mount the templates directory for custom templates
-      - ./templates:/app/templates
-      # Mount SSH keys for authentication
-      - ~/.ssh:/root/.ssh:ro
+      - ./templates:/app/templates:ro
+      - ~/.ssh:/home/appuser/.ssh:ro
     environment:
-      # Environment variables for authentication
-      - SSH_USER=${SSH_USER:-zenossmon}
-      - SSH_KEY_FILE=/root/.ssh/id_rsa.pub
-      - MYSQL_USER=${MYSQL_USER:-}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-}
-    # Default command can be overridden via CLI
-    command: --help
+      SSH_USER: ${SSH_USER:-}
+      MYSQL_USER: ${MYSQL_USER:-}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
+      SNMP_COMMUNITY: ${SNMP_COMMUNITY:-public}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    networks:
+      - discovery-net
+    depends_on:
+      redis:
+        condition: service_healthy
+    # Override with: docker compose run network-discovery 192.168.1.0/24
+    command: ["--help"]
 
-  # Development environment with all dependencies
+  # Development environment with hot reload
   dev:
     build:
       context: .
       dockerfile: Dockerfile
+      target: development
     volumes:
-      # Mount the entire project for development
       - .:/app
-      # Mount SSH keys for authentication
+      - dev-venv:/app/.venv
       - ~/.ssh:/root/.ssh:ro
+      - dev-cache:/root/.cache
     environment:
-      - SSH_USER=${SSH_USER:-zenossmon}
-      - SSH_KEY_FILE=/root/.ssh/id_rsa.pub
-      - MYSQL_USER=${MYSQL_USER:-}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-}
-    # Override entrypoint to provide a shell for development
-    entrypoint: /bin/bash
-    # Keep the container running
+      SSH_USER: ${SSH_USER:-}
+      MYSQL_USER: ${MYSQL_USER:-}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
+      SNMP_COMMUNITY: ${SNMP_COMMUNITY:-public}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      PYTHONDONTWRITEBYTECODE: 1
+    networks:
+      - discovery-net
+    depends_on:
+      - redis
+    stdin_open: true
     tty: true
+    # Run with: docker compose run dev
 
-  # Test environment for running tests
+  # Test runner service
   test:
     build:
       context: .
       dockerfile: Dockerfile
+      target: development
     volumes:
-      # Mount the entire project for testing
       - .:/app
+      - test-venv:/app/.venv
+      - test-cache:/root/.cache
     environment:
-      - PYTHONPATH=/app
-    # Override entrypoint to run tests
-    entrypoint: pytest
-    # Default command can be overridden via CLI
-    command: -xvs tests/
+      PYTHONPATH: /app/src
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    networks:
+      - discovery-net
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: ["sh", "-c", "uv sync --extra dev --extra mysql --extra redis --extra pdf && uv run pytest -xvs tests/"]
+
+  # Redis for repository storage and testing
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - discovery-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    command: redis-server --appendonly yes
+
+  # API server for web interface
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./output:/app/output
+      - ./templates:/app/templates:ro
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    networks:
+      - discovery-net
+    depends_on:
+      redis:
+        condition: service_healthy
+    entrypoint: ["uvicorn"]
+    command: ["network_discovery.interfaces.api:app", "--host", "0.0.0.0", "--port", "8000"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  discovery-net:
+    driver: bridge
+
+volumes:
+  redis-data:
+  dev-cache:
+  dev-venv:
+  test-cache:
+  test-venv:

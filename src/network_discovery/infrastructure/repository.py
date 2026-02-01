@@ -3,19 +3,29 @@
 This module provides implementations of the DeviceRepositoryService interface.
 """
 
+from __future__ import annotations
+
+import importlib.util
 import json
 import logging
-import os
-from typing import List, Optional
+from pathlib import Path
 
 import ijson
-import redis
 
 from network_discovery.application.interfaces import DeviceRepositoryService
 from network_discovery.domain.device import Device
 
+
 # Setup logging
 logger = logging.getLogger(__name__)
+
+# Check for optional redis dependency
+REDIS_AVAILABLE = importlib.util.find_spec("redis") is not None
+if REDIS_AVAILABLE:
+    import redis
+else:
+    redis = None  # type: ignore[assignment]
+    logger.debug("redis not available. RedisRepository will be disabled.")
 
 
 class JsonFileRepository(DeviceRepositoryService):
@@ -40,25 +50,22 @@ class JsonFileRepository(DeviceRepositoryService):
         If the file doesn't exist, create it with an empty JSON object.
         If the file exists but is empty or invalid, initialize it with an empty JSON object.
         """
-        directory = os.path.dirname(self.file_path)
-        if directory and not os.path.exists(directory):
-            os.makedirs(directory)
+        path = Path(self.file_path)
+        if path.parent.name and not path.parent.exists():
+            path.parent.mkdir(parents=True)
 
-        if not os.path.exists(self.file_path):
-            with open(self.file_path, "w", encoding="utf-8") as file:
-                file.write("{}")
+        if not path.exists():
+            path.write_text("{}", encoding="utf-8")
         else:
             try:
-                with open(self.file_path, "r", encoding="utf-8") as file:
-                    # Just try to load the file to check if it's valid JSON
+                with path.open(encoding="utf-8") as file:
                     json.load(file)
-            except (json.JSONDecodeError, IOError) as e:
+            except (OSError, json.JSONDecodeError) as e:
                 logger.error(
                     "Error reading JSON file: %s. Initializing with empty object.",
                     e,
                 )
-                with open(self.file_path, "w", encoding="utf-8") as file:
-                    file.write("{}")
+                path.write_text("{}", encoding="utf-8")
 
     def save(self, device: Device) -> None:
         """Save a device to the repository.
@@ -68,27 +75,23 @@ class JsonFileRepository(DeviceRepositoryService):
         """
         key = f"device:{device.id}"
         device_data = device.to_dict()
+        path = Path(self.file_path)
 
         try:
-            # Load the current data
-            with open(self.file_path, "r", encoding="utf-8") as file:
+            with path.open(encoding="utf-8") as file:
                 data = json.load(file)
 
-            # Update the device data
             data[key] = device_data
 
-            # Write the updated data back to the file
-            with open(self.file_path, "w", encoding="utf-8") as file:
+            with path.open("w", encoding="utf-8") as file:
                 json.dump(data, file, indent=4)
 
             logger.debug("Device %s saved to JSON file", device.id)
-        except (json.JSONDecodeError, IOError) as e:
-            logger.error(
-                "Error saving device %s to JSON file: %s", device.id, e
-            )
+        except (OSError, json.JSONDecodeError) as e:
+            logger.error("Error saving device %s to JSON file: %s", device.id, e)
             raise
 
-    def get(self, device_id: int) -> Optional[Device]:
+    def get(self, device_id: int) -> Device | None:
         """Get a device from the repository by its ID.
 
         Args:
@@ -100,18 +103,14 @@ class JsonFileRepository(DeviceRepositoryService):
         key = f"device:{device_id}"
 
         try:
-            # Use ijson to stream the JSON file and find the specific device
-            with open(self.file_path, "rb") as file:
-                for prefix, event, value in ijson.parse(file):
+            with Path(self.file_path).open("rb") as file:
+                for prefix, event, _value in ijson.parse(file):
                     if prefix == key and event == "start_map":
-                        # Found the device, now parse its data
-                        device_data = {}
-                        current_key = None
+                        device_data: dict = {}
+                        current_key: str | None = None
 
-                        # Continue parsing until we reach the end of the device object
                         for p, e, v in ijson.parse(file):
                             if p == key and e == "end_map":
-                                # End of the device object
                                 break
                             elif e == "map_key":
                                 current_key = v
@@ -121,16 +120,12 @@ class JsonFileRepository(DeviceRepositoryService):
 
                         return Device.from_dict(device_data)
 
-            # Device not found
             return None
-        except (ijson.JSONError, IOError) as e:
-            logger.error(
-                "Error retrieving device %s from JSON file: %s", device_id, e
-            )
-            # Fall back to loading the entire file
+        except (OSError, ijson.JSONError) as e:
+            logger.error("Error retrieving device %s from JSON file: %s", device_id, e)
             return self._get_fallback(device_id)
 
-    def _get_fallback(self, device_id: int) -> Optional[Device]:
+    def _get_fallback(self, device_id: int) -> Device | None:
         """Fallback method to get a device by loading the entire file.
 
         Args:
@@ -142,20 +137,18 @@ class JsonFileRepository(DeviceRepositoryService):
         key = f"device:{device_id}"
 
         try:
-            with open(self.file_path, "r", encoding="utf-8") as file:
+            with Path(self.file_path).open(encoding="utf-8") as file:
                 data = json.load(file)
 
             device_data = data.get(key)
             if device_data:
                 return Device.from_dict(device_data)
             return None
-        except (json.JSONDecodeError, IOError) as e:
-            logger.error(
-                "Error in fallback retrieval of device %s: %s", device_id, e
-            )
+        except (OSError, json.JSONDecodeError) as e:
+            logger.error("Error in fallback retrieval of device %s: %s", device_id, e)
             return None
 
-    def get_all(self) -> List[Device]:
+    def get_all(self) -> list[Device]:
         """Get all devices from the repository.
 
         Returns:
@@ -164,15 +157,12 @@ class JsonFileRepository(DeviceRepositoryService):
         devices = []
 
         try:
-            # Use ijson to stream the JSON file and find all devices
-            with open(self.file_path, "rb") as file:
-                # Get all keys that start with "device:"
+            with Path(self.file_path).open("rb") as file:
                 device_keys = []
-                for prefix, event, value in ijson.parse(file):
+                for _prefix, event, value in ijson.parse(file):
                     if event == "map_key" and value.startswith("device:"):
                         device_keys.append(value)
 
-            # Get each device by its ID
             for key in device_keys:
                 device_id = int(key.split(":")[1])
                 device = self.get(device_id)
@@ -180,12 +170,11 @@ class JsonFileRepository(DeviceRepositoryService):
                     devices.append(device)
 
             return devices
-        except (ijson.JSONError, IOError) as e:
+        except (OSError, ijson.JSONError) as e:
             logger.error("Error retrieving all devices from JSON file: %s", e)
-            # Fall back to loading the entire file
             return self._get_all_fallback()
 
-    def _get_all_fallback(self) -> List[Device]:
+    def _get_all_fallback(self) -> list[Device]:
         """Fallback method to get all devices by loading the entire file.
 
         Returns:
@@ -194,7 +183,7 @@ class JsonFileRepository(DeviceRepositoryService):
         devices = []
 
         try:
-            with open(self.file_path, "r", encoding="utf-8") as file:
+            with Path(self.file_path).open(encoding="utf-8") as file:
                 data = json.load(file)
 
             for key, value in data.items():
@@ -205,7 +194,7 @@ class JsonFileRepository(DeviceRepositoryService):
                         logger.error("Error creating device from data: %s", e)
 
             return devices
-        except (json.JSONDecodeError, IOError) as e:
+        except (OSError, json.JSONDecodeError) as e:
             logger.error("Error in fallback retrieval of all devices: %s", e)
             return []
 
@@ -216,25 +205,21 @@ class JsonFileRepository(DeviceRepositoryService):
             device_id: The ID of the device to delete.
         """
         key = f"device:{device_id}"
+        path = Path(self.file_path)
 
         try:
-            # Load the current data
-            with open(self.file_path, "r", encoding="utf-8") as file:
+            with path.open(encoding="utf-8") as file:
                 data = json.load(file)
 
-            # Remove the device if it exists
             if key in data:
                 del data[key]
 
-                # Write the updated data back to the file
-                with open(self.file_path, "w", encoding="utf-8") as file:
+                with path.open("w", encoding="utf-8") as file:
                     json.dump(data, file, indent=4)
 
                 logger.debug("Device %s deleted from JSON file", device_id)
-        except (json.JSONDecodeError, IOError) as e:
-            logger.error(
-                "Error deleting device %s from JSON file: %s", device_id, e
-            )
+        except (OSError, json.JSONDecodeError) as e:
+            logger.error("Error deleting device %s from JSON file: %s", device_id, e)
             raise
 
     def clear_all(self) -> None:
@@ -243,12 +228,9 @@ class JsonFileRepository(DeviceRepositoryService):
         This is useful for testing and initialization.
         """
         try:
-            # Write an empty JSON object to the file
-            with open(self.file_path, "w", encoding="utf-8") as file:
-                file.write("{}")
-
+            Path(self.file_path).write_text("{}", encoding="utf-8")
             logger.debug("All devices cleared from JSON file")
-        except IOError as e:
+        except OSError as e:
             logger.error("Error clearing all devices from JSON file: %s", e)
             raise
 
@@ -260,22 +242,23 @@ class RedisRepository(DeviceRepositoryService):
     which can be problematic in production environments with large datasets.
     """
 
-    def __init__(
-        self, host: str = "localhost", port: int = 6379, db: int = 0
-    ) -> None:
+    def __init__(self, host: str = "localhost", port: int = 6379, db: int = 0) -> None:
         """Initialize a new RedisRepository.
 
         Args:
             host: The Redis host.
             port: The Redis port.
             db: The Redis database number.
+
+        Raises:
+            ImportError: If redis is not installed.
         """
-        self.redis = redis.Redis(
-            host=host, port=port, db=db, decode_responses=True
-        )
-        self.device_set_key = (
-            "devices:all"  # Key for the set containing all device IDs
-        )
+        if not REDIS_AVAILABLE:
+            raise ImportError(
+                "RedisRepository requires redis. Install with: pip install redis"
+            )
+        self.redis = redis.Redis(host=host, port=port, db=db, decode_responses=True)
+        self.device_set_key = "devices:all"  # Key for the set containing all device IDs
 
     def save(self, device: Device) -> None:
         """Save a device to the repository.
@@ -285,16 +268,14 @@ class RedisRepository(DeviceRepositoryService):
         """
         key = f"device:{device.id}"
         try:
-            # Save the device data
             self.redis.set(key, json.dumps(device.to_dict()))
-            # Add the device ID to the set of all devices
             self.redis.sadd(self.device_set_key, device.id)
             logger.debug("Device %s saved to Redis", device.id)
         except redis.RedisError as e:
             logger.error("Error saving device %s to Redis: %s", device.id, e)
             raise
 
-    def get(self, device_id: int) -> Optional[Device]:
+    def get(self, device_id: int) -> Device | None:
         """Get a device from the repository by its ID.
 
         Args:
@@ -310,15 +291,13 @@ class RedisRepository(DeviceRepositoryService):
                 return Device.from_dict(json.loads(device_data))
             return None
         except redis.RedisError as e:
-            logger.error(
-                "Error retrieving device %s from Redis: %s", device_id, e
-            )
+            logger.error("Error retrieving device %s from Redis: %s", device_id, e)
             raise
         except json.JSONDecodeError as e:
             logger.error("Error decoding device %s data: %s", device_id, e)
             return None
 
-    def get_all(self) -> List[Device]:
+    def get_all(self) -> list[Device]:
         """Get all devices from the repository.
 
         Returns:
@@ -326,10 +305,8 @@ class RedisRepository(DeviceRepositoryService):
         """
         devices = []
         try:
-            # Get all device IDs from the set
             device_ids = self.redis.smembers(self.device_set_key)
 
-            # Get each device by its ID
             for device_id in device_ids:
                 device = self.get(int(device_id))
                 if device:
@@ -348,15 +325,11 @@ class RedisRepository(DeviceRepositoryService):
         """
         key = f"device:{device_id}"
         try:
-            # Remove the device data
             self.redis.delete(key)
-            # Remove the device ID from the set of all devices
             self.redis.srem(self.device_set_key, device_id)
             logger.debug("Device %s deleted from Redis", device_id)
         except redis.RedisError as e:
-            logger.error(
-                "Error deleting device %s from Redis: %s", device_id, e
-            )
+            logger.error("Error deleting device %s from Redis: %s", device_id, e)
             raise
 
     def clear_all(self) -> None:
@@ -365,17 +338,30 @@ class RedisRepository(DeviceRepositoryService):
         This is useful for testing and initialization.
         """
         try:
-            # Get all device IDs
             device_ids = self.redis.smembers(self.device_set_key)
 
-            # Delete each device
             for device_id in device_ids:
                 self.redis.delete(f"device:{device_id}")
 
-            # Clear the set of all devices
             self.redis.delete(self.device_set_key)
 
             logger.debug("All devices cleared from Redis")
         except redis.RedisError as e:
             logger.error("Error clearing all devices from Redis: %s", e)
+            raise
+
+    def clear(self) -> None:
+        """Alias for clear_all() for API compatibility."""
+        self.clear_all()
+
+    def count(self) -> int:
+        """Count the number of devices in the repository.
+
+        Returns:
+            The number of devices stored.
+        """
+        try:
+            return self.redis.scard(self.device_set_key)
+        except redis.RedisError as e:
+            logger.error("Error counting devices in Redis: %s", e)
             raise

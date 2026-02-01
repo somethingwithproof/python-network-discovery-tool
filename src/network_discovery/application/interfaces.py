@@ -3,11 +3,14 @@
 This module defines the interfaces for the application services.
 """
 
-from abc import ABC
-from abc import abstractmethod
-from typing import Any, List, Optional, Tuple
+from __future__ import annotations
 
-from network_discovery.domain.device import Device
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    from network_discovery.domain.device import Device
 
 
 class DeviceScannerService(ABC):
@@ -36,9 +39,7 @@ class DeviceScannerService(ABC):
         """
 
     @abstractmethod
-    async def is_port_open(
-        self, device: Device, port: int
-    ) -> Tuple[bool, List[str]]:
+    async def is_port_open(self, device: Device, port: int) -> tuple[bool, list[str]]:
         """Check if a specific port on a device is open.
 
         Args:
@@ -52,7 +53,7 @@ class DeviceScannerService(ABC):
         """
 
     @abstractmethod
-    async def check_ssh(self, device: Device) -> Tuple[bool, List[str]]:
+    async def check_ssh(self, device: Device) -> tuple[bool, list[str]]:
         """Check if SSH is available on a device.
 
         Args:
@@ -65,7 +66,7 @@ class DeviceScannerService(ABC):
         """
 
     @abstractmethod
-    async def check_snmp(self, device: Device) -> Tuple[bool, List[str]]:
+    async def check_snmp(self, device: Device) -> tuple[bool, list[str]]:
         """Check if SNMP is available on a device.
 
         Args:
@@ -78,7 +79,7 @@ class DeviceScannerService(ABC):
         """
 
     @abstractmethod
-    async def check_mysql(self, device: Device) -> Tuple[bool, List[str]]:
+    async def check_mysql(self, device: Device) -> tuple[bool, list[str]]:
         """Check if MySQL is available on a device.
 
         Args:
@@ -103,7 +104,7 @@ class DeviceRepositoryService(ABC):
         """
 
     @abstractmethod
-    def get(self, device_id: int) -> Optional[Device]:
+    def get(self, device_id: int) -> Device | None:
         """Get a device from the repository by its ID.
 
         Args:
@@ -114,7 +115,7 @@ class DeviceRepositoryService(ABC):
         """
 
     @abstractmethod
-    def get_all(self) -> List[Device]:
+    def get_all(self) -> list[Device]:
         """Get all devices from the repository.
 
         Returns:
@@ -134,9 +135,7 @@ class NotificationService(ABC):
     """Interface for notification services."""
 
     @abstractmethod
-    def send_notification(
-        self, recipient: str, subject: str, message: str
-    ) -> None:
+    def send_notification(self, recipient: str, subject: str, message: str) -> None:
         """Send a notification.
 
         Args:
@@ -150,7 +149,7 @@ class ReportService(ABC):
     """Interface for report generation services."""
 
     @abstractmethod
-    def generate_report(self, devices: List[Device], format_type: str) -> Any:
+    def generate_report(self, devices: list[Device], format_type: str) -> Any:
         """Generate a report for a list of devices.
 
         Args:

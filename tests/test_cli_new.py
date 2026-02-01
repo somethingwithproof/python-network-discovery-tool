@@ -1,15 +1,11 @@
 """Tests for the CLI interface."""
 
-import os
 import tempfile
-from unittest.mock import AsyncMock
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from network_discovery.interfaces.cli import cli
-from network_discovery.interfaces.cli import parse_args
-from network_discovery.interfaces.cli import run_discovery
+from network_discovery.interfaces.cli import cli, parse_args, run_discovery
 
 
 @pytest.fixture
@@ -76,25 +72,21 @@ class TestCli:
                 temp_dir,
                 "--no-notification",
                 "--no-repository",
+                "--no-report",
             ]
         )
 
         with patch(
-            "network_discovery.core.discovery.DeviceDiscoveryService"
+            "network_discovery.interfaces.cli.DeviceDiscoveryService"
         ) as mock_discovery_service:
             mock_instance = mock_discovery_service.return_value
             mock_instance.discover_network = AsyncMock()
             mock_instance.discover_network.return_value = []
-            mock_instance.generate_report.return_value = os.path.join(
-                temp_dir, "devices.html"
-            )
 
-            await run_discovery(args)
+            result = await run_discovery(args)
 
-            mock_instance.discover_network.assert_called_once_with(
-                "192.168.1.0/24"
-            )
-            mock_instance.generate_report.assert_called_once_with("html")
+            mock_instance.discover_network.assert_called_once_with("192.168.1.0/24")
+            assert result == 0
 
     @pytest.mark.asyncio
     async def test_run_discovery_device(self, temp_dir):
@@ -108,41 +100,33 @@ class TestCli:
                 temp_dir,
                 "--no-notification",
                 "--no-repository",
+                "--no-report",
             ]
         )
 
         with patch(
-            "network_discovery.core.discovery.DeviceDiscoveryService"
+            "network_discovery.interfaces.cli.DeviceDiscoveryService"
         ) as mock_discovery_service:
             mock_instance = mock_discovery_service.return_value
             mock_instance.discover_device = AsyncMock()
-            mock_instance.discover_device.return_value = None
-            mock_instance.generate_report.return_value = os.path.join(
-                temp_dir, "devices.html"
-            )
+            # Return a mock device with a status method
+            mock_device = MagicMock()
+            mock_device.status.return_value = "alive: True"
+            mock_instance.discover_device.return_value = mock_device
 
-            await run_discovery(args)
+            result = await run_discovery(args)
 
             mock_instance.discover_device.assert_called_once_with("192.168.1.1")
-            mock_instance.generate_report.assert_called_once_with("html")
+            assert result == 0
 
     def test_cli(self, temp_dir):
         """Test the CLI entry point."""
-        with patch(
-            "network_discovery.interfaces.cli.parse_args"
-        ) as mock_parse_args:
-            with patch("asyncio.run") as mock_run:
-                mock_parse_args.return_value = parse_args(
-                    [
-                        "192.168.1.0/24",
-                        "-o",
-                        temp_dir,
-                        "-t",
-                        temp_dir,
-                        "--no-notification",
-                        "--no-repository",
-                        "--no-report",
-                    ]
-                )
-                cli(["192.168.1.0/24"])
-                mock_run.assert_called_once()
+        with patch("network_discovery.interfaces.cli.app") as mock_app:
+            # Test that cli() passes args to app()
+            cli(["192.168.1.0/24"])
+            mock_app.assert_called_once_with(args=["192.168.1.0/24"])
+
+            # Test that cli() with no args passes None to app()
+            mock_app.reset_mock()
+            cli()
+            mock_app.assert_called_once_with(args=None)

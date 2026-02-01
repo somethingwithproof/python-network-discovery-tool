@@ -3,18 +3,17 @@
 This package contains the implementations of the application service interfaces.
 """
 
-from .notification import ConsoleNotificationService
-from .notification import EmailNotificationService
+from .notification import ConsoleNotificationService, EmailNotificationService
 from .report import ReportGenerator
-from .repository import JsonFileRepository
-from .repository import RedisRepository
+from .repository import JsonFileRepository, RedisRepository
 from .scanner import NmapDeviceScanner
 
-__all__ = [
-    "NmapDeviceScanner",
-    "JsonFileRepository",
-    "RedisRepository",
-    "EmailNotificationService",
+
+__all__: list[str] = [
     "ConsoleNotificationService",
+    "EmailNotificationService",
+    "JsonFileRepository",
+    "NmapDeviceScanner",
+    "RedisRepository",
     "ReportGenerator",
 ]

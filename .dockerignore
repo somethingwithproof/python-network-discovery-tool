@@ -1,6 +1,7 @@
 # Git
 .git
 .gitignore
+.gitattributes
 
 # Python
 __pycache__/
@@ -8,7 +9,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -23,24 +23,51 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Testing
 .coverage
 htmlcov/
 .tox/
+.nox/
 .pytest_cache/
 coverage.xml
 *.cover
 
-# Docker
-Dockerfile
-docker-compose.yml
-.dockerignore
-
-# Editor directories and files
+# IDE/Editor
 .idea/
 .vscode/
 *.swp
 *.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker (don't copy these into the image)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
 
 # Project specific
 output/
 devices.json
+*.log
+.env
+.env.*
+
+# Documentation (not needed in runtime)
+docs/
+*.md
+!README.md
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml

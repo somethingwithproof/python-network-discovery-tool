@@ -14,11 +14,10 @@ Options:
 """
 
 import argparse
-import os
-from pathlib import Path
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 
 def run_command(command, dry_run=False, check=True):
@@ -35,7 +34,7 @@ def run_command(command, dry_run=False, check=True):
 def get_current_version():
     """Get the current version from __init__.py."""
     init_path = Path("src/network_discovery/__init__.py")
-    with open(init_path, "r") as f:
+    with open(init_path) as f:
         content = f.read()
     match = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', content)
     if match:
@@ -51,7 +50,7 @@ def bump_version(current_version, dry_run=False):
         print(f"Error: Could not parse version '{current_version}'")
         sys.exit(1)
 
-    major, minor, patch, suffix = match.groups()
+    major, minor, _patch, _suffix = match.groups()
 
     # Increment the minor version and add .dev0
     new_minor = int(minor) + 1
@@ -59,7 +58,7 @@ def bump_version(current_version, dry_run=False):
 
     # Update the version in __init__.py
     init_path = Path("src/network_discovery/__init__.py")
-    with open(init_path, "r") as f:
+    with open(init_path) as f:
         content = f.read()
 
     new_content = re.sub(
@@ -83,7 +82,7 @@ def commit_changes(new_version, dry_run=False):
     if dry_run:
         print(f"Would commit version bump to {new_version}")
     else:
-        run_command(f"git add src/network_discovery/__init__.py")
+        run_command("git add src/network_discovery/__init__.py")
         run_command(
             f'git commit -m "chore: bump version to {new_version} for development"'
         )

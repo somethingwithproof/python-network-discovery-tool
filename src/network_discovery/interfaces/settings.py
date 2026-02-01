@@ -19,7 +19,9 @@ class Settings(BaseSettings):
     Attributes:
         network: Network CIDR or single IP address to scan.
         output_dir: Directory where reports will be saved.
-        format: Format for generated reports (html, csv, xlsx, json).
+        format: Format for generated reports (html, csv, xlsx, json, pdf).
+        export_all: Whether to export to all supported formats.
+        export_filename: Custom filename for exports (without extension).
         template_dir: Directory containing HTML templates.
         verbose: Whether to enable verbose logging.
         no_report: Whether to disable report generation.
@@ -41,7 +43,15 @@ class Settings(BaseSettings):
     format: str = Field(
         default="html",
         description="Report format",
-        pattern="^(html|csv|xlsx|json)$",
+        pattern="^(html|csv|xlsx|json|pdf)$",
+    )
+    export_all: bool = Field(
+        default=False,
+        description="Export to all supported formats",
+    )
+    export_filename: str | None = Field(
+        default=None,
+        description="Custom filename for exports (without extension)",
     )
     template_dir: Path = Field(
         default=Path("./templates"), description="Template directory"

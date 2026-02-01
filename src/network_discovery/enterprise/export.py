@@ -3,15 +3,19 @@
 This module provides export functionality for enterprise devices in various formats.
 """
 
+from __future__ import annotations
+
 import csv
-from datetime import datetime
 import json
-import os
-from typing import List, Optional
+from datetime import datetime
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
 
-from network_discovery.enterprise.device import EnterpriseDevice
+
+if TYPE_CHECKING:
+    from network_discovery.enterprise.device import EnterpriseDevice
 
 
 class EnterpriseExporter:
@@ -24,10 +28,10 @@ class EnterpriseExporter:
             output_dir: The directory where export files will be saved.
         """
         self.output_dir = output_dir
-        os.makedirs(output_dir, exist_ok=True)
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     def export_to_json(
-        self, devices: List[EnterpriseDevice], filename: Optional[str] = None
+        self, devices: list[EnterpriseDevice], filename: str | None = None
     ) -> str:
         """Export devices to JSON format.
 
@@ -42,16 +46,16 @@ class EnterpriseExporter:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"devices_{timestamp}.json"
 
-        output_path = os.path.join(self.output_dir, filename)
+        output_path = str(Path(self.output_dir) / filename)
         devices_data = [device.to_dict() for device in devices]
 
-        with open(output_path, "w", encoding="utf-8") as f:
+        with Path(output_path).open("w", encoding="utf-8") as f:
             json.dump(devices_data, f, indent=2)
 
         return output_path
 
     def export_to_yaml(
-        self, devices: List[EnterpriseDevice], filename: Optional[str] = None
+        self, devices: list[EnterpriseDevice], filename: str | None = None
     ) -> str:
         """Export devices to YAML format.
 
@@ -66,18 +70,16 @@ class EnterpriseExporter:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"devices_{timestamp}.yaml"
 
-        output_path = os.path.join(self.output_dir, filename)
+        output_path = str(Path(self.output_dir) / filename)
         devices_data = [device.to_dict() for device in devices]
 
-        with open(output_path, "w", encoding="utf-8") as f:
-            yaml.dump(
-                devices_data, f, default_flow_style=False, sort_keys=False
-            )
+        with Path(output_path).open("w", encoding="utf-8") as f:
+            yaml.dump(devices_data, f, default_flow_style=False, sort_keys=False)
 
         return output_path
 
     def export_to_csv(
-        self, devices: List[EnterpriseDevice], filename: Optional[str] = None
+        self, devices: list[EnterpriseDevice], filename: str | None = None
     ) -> str:
         """Export devices to CSV format.
 
@@ -92,9 +94,8 @@ class EnterpriseExporter:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"devices_{timestamp}.csv"
 
-        output_path = os.path.join(self.output_dir, filename)
+        output_path = str(Path(self.output_dir) / filename)
 
-        # Define CSV headers
         headers = [
             "ID",
             "Host",
@@ -116,7 +117,7 @@ class EnterpriseExporter:
             "Tags",
         ]
 
-        with open(output_path, "w", newline="", encoding="utf-8") as f:
+        with Path(output_path).open("w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow(headers)
 
@@ -150,8 +151,8 @@ class EnterpriseExporter:
 
         return output_path
 
-    def export_to_nagios(
-        self, devices: List[EnterpriseDevice], filename: Optional[str] = None
+    def export_to_nagios(  # noqa: PLR0912
+        self, devices: list[EnterpriseDevice], filename: str | None = None
     ) -> str:
         """Export devices to Nagios configuration format.
 
@@ -166,32 +167,26 @@ class EnterpriseExporter:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"nagios_devices_{timestamp}.cfg"
 
-        output_path = os.path.join(self.output_dir, filename)
+        output_path = str(Path(self.output_dir) / filename)
 
-        with open(output_path, "w", encoding="utf-8") as f:
+        with Path(output_path).open("w", encoding="utf-8") as f:
             for device in devices:
                 if not device.alive:
-                    continue  # Skip devices that are not alive
+                    continue
 
-                # Host definition
                 f.write("define host {\n")
                 f.write(f"    host_name              {device.host}\n")
                 f.write(f"    alias                  {device.host}\n")
                 f.write(f"    address                {device.ip}\n")
                 f.write("    use                    generic-host\n")
 
-                # Add custom attributes as custom variables
                 for key, value in device.custom_attributes.items():
                     if isinstance(value, (str, int, float, bool)):
                         f.write(f"    _{key}                 {value}\n")
 
-                # Add tags as hostgroups
                 if device.tags:
-                    f.write(
-                        f"    hostgroups             {','.join(device.tags)}\n"
-                    )
+                    f.write(f"    hostgroups             {','.join(device.tags)}\n")
 
-                # Add notes based on device information
                 notes = []
                 if device.asset_id:
                     notes.append(f"Asset ID: {device.asset_id}")
@@ -205,7 +200,6 @@ class EnterpriseExporter:
 
                 f.write("}\n\n")
 
-                # Service definitions
                 if device.ssh:
                     f.write("define service {\n")
                     f.write(f"    host_name              {device.host}\n")
@@ -215,7 +209,6 @@ class EnterpriseExporter:
                     f.write("}\n\n")
 
                 if device.snmp:
-                    # Get the snmp_group from the base device
                     snmp_group = device.device.snmp_group
                     f.write("define service {\n")
                     f.write(f"    host_name              {device.host}\n")
@@ -237,7 +230,7 @@ class EnterpriseExporter:
         return output_path
 
     def export_to_zenoss(
-        self, devices: List[EnterpriseDevice], filename: Optional[str] = None
+        self, devices: list[EnterpriseDevice], filename: str | None = None
     ) -> str:
         """Export devices to Zenoss JSON format.
 
@@ -252,29 +245,17 @@ class EnterpriseExporter:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"zenoss_devices_{timestamp}.json"
 
-        output_path = os.path.join(self.output_dir, filename)
+        output_path = str(Path(self.output_dir) / filename)
 
         zenoss_devices = []
         for device in devices:
-            # Skip devices that are not alive
             if not device.alive:
                 continue
 
-            # Map device category to Zenoss device class
-            device_class = "/Devices"
-            if device.category.name == "NETWORK":
-                device_class = "/Devices/Network"
-            elif device.category.name == "SERVER":
-                device_class = "/Devices/Server"
-            elif device.category.name == "STORAGE":
-                device_class = "/Devices/Storage"
-            elif device.category.name == "SECURITY":
-                device_class = "/Devices/Security"
+            device_class = _map_category_to_zenoss_class(device.category.name)
 
-            # Get the base device properties
             base_device = device.device
 
-            # Create Zenoss device object
             zenoss_device = {
                 "deviceName": device.host,
                 "deviceClass": device_class,
@@ -284,7 +265,7 @@ class EnterpriseExporter:
                 "snmpMonitor": device.snmp,
                 "pingMonitor": True,
                 "sshMonitor": device.ssh,
-                "productionState": 1000,  # Production
+                "productionState": 1000,
                 "comments": device.status.name,
                 "systems": list(device.tags),
                 "groups": [],
@@ -305,26 +286,24 @@ class EnterpriseExporter:
                 },
             }
 
-            # Add custom attributes as properties
             for key, value in device.custom_attributes.items():
                 if isinstance(value, (str, int, float, bool)):
                     zenoss_device["properties"][key] = value
 
             zenoss_devices.append(zenoss_device)
 
-        # Create Zenoss import structure
         zenoss_data = {"devices": zenoss_devices}
 
-        with open(output_path, "w", encoding="utf-8") as f:
+        with Path(output_path).open("w", encoding="utf-8") as f:
             json.dump(zenoss_data, f, indent=2)
 
         return output_path
 
     def export(
         self,
-        devices: List[EnterpriseDevice],
+        devices: list[EnterpriseDevice],
         format_type: str,
-        filename: Optional[str] = None,
+        filename: str | None = None,
     ) -> str:
         """Export devices to the specified format.
 
@@ -339,17 +318,34 @@ class EnterpriseExporter:
         Raises:
             ValueError: If the format type is not supported.
         """
-        format_type = format_type.lower()
+        exporters = {
+            "json": self.export_to_json,
+            "yaml": self.export_to_yaml,
+            "csv": self.export_to_csv,
+            "nagios": self.export_to_nagios,
+            "zenoss": self.export_to_zenoss,
+        }
 
-        if format_type == "json":
-            return self.export_to_json(devices, filename)
-        elif format_type == "yaml":
-            return self.export_to_yaml(devices, filename)
-        elif format_type == "csv":
-            return self.export_to_csv(devices, filename)
-        elif format_type == "nagios":
-            return self.export_to_nagios(devices, filename)
-        elif format_type == "zenoss":
-            return self.export_to_zenoss(devices, filename)
-        else:
+        format_lower = format_type.lower()
+        exporter_fn = exporters.get(format_lower)
+        if exporter_fn is None:
             raise ValueError(f"Unsupported export format: {format_type}")
+        return exporter_fn(devices, filename)
+
+
+def _map_category_to_zenoss_class(category_name: str) -> str:
+    """Map a device category name to a Zenoss device class.
+
+    Args:
+        category_name: The device category name.
+
+    Returns:
+        The Zenoss device class path.
+    """
+    mapping = {
+        "NETWORK": "/Devices/Network",
+        "SERVER": "/Devices/Server",
+        "STORAGE": "/Devices/Storage",
+        "SECURITY": "/Devices/Security",
+    }
+    return mapping.get(category_name, "/Devices")

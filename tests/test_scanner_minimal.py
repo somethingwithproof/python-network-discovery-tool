@@ -1,8 +1,7 @@
 """Minimal test for NmapDeviceScanner initialization."""
 
 import gc
-from unittest.mock import MagicMock
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -22,7 +21,6 @@ class TestMinimalScanner:
     async def test_is_alive_basic_mock(self):
         """Test is_alive with a minimal mock setup."""
         device = Device(id=1, host="example.com", ip="192.168.1.1")
-        scanner = NmapDeviceScanner()
 
         mock_scanner = MagicMock()
         mock_scanner.all_hosts.return_value = [device.ip]
@@ -30,8 +28,11 @@ class TestMinimalScanner:
         mock_host.state.return_value = "up"
         mock_scanner.__getitem__.return_value = mock_host
 
+        # Patch before creating the scanner so it uses our mock
         with patch("nmap.PortScanner", return_value=mock_scanner):
-            result = await scanner.is_alive(device)
+            scanner = NmapDeviceScanner()
+            result, errors = await scanner.is_alive(device)
             assert result is True
+            assert errors == []
 
         gc.collect()

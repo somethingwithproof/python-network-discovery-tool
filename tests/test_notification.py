@@ -1,18 +1,13 @@
 """Tests for notification service implementations."""
 
-import logging
 import smtplib
-from unittest.mock import call
-from unittest.mock import MagicMock
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from network_discovery.domain.device import Device
 from network_discovery.infrastructure.notification import (
     ConsoleNotificationService,
-)
-from network_discovery.infrastructure.notification import (
     EmailNotificationService,
 )
 
@@ -78,9 +73,7 @@ class TestEmailNotificationService:
         assert service.password == "password123"
 
     @patch("smtplib.SMTP")
-    def test_send_notification_success(
-        self, mock_smtp, email_notification_service
-    ):
+    def test_send_notification_success(self, mock_smtp, email_notification_service):
         """Test successfully sending an email notification."""
         # Setup mock SMTP instance
         mock_smtp_instance = MagicMock()
@@ -134,9 +127,7 @@ class TestEmailNotificationService:
         assert "<b>Bold Text</b>" in mime_msg
 
     @patch("smtplib.SMTP")
-    def test_send_notification_smtp_error(
-        self, mock_smtp, email_notification_service
-    ):
+    def test_send_notification_smtp_error(self, mock_smtp, email_notification_service):
         """Test handling SMTP errors when sending an email notification."""
         # Setup mock to raise an SMTP error
         mock_smtp.return_value.__enter__.side_effect = smtplib.SMTPException(
@@ -152,9 +143,7 @@ class TestEmailNotificationService:
             )
 
     @patch("smtplib.SMTP")
-    def test_send_notification_auth_error(
-        self, mock_smtp, email_notification_service
-    ):
+    def test_send_notification_auth_error(self, mock_smtp, email_notification_service):
         """Test handling authentication errors when sending an email notification."""
         # Setup mock instance
         mock_smtp_instance = MagicMock()
@@ -189,15 +178,9 @@ class TestEmailNotificationService:
 
             # Use more specific assertions for hostname validation
             # These patterns ensure the exact hostnames are matched
-            assert (
-                ">example1.com<" in message or "host: example1.com" in message
-            )
-            assert (
-                ">example2.com<" in message or "host: example2.com" in message
-            )
-            assert (
-                ">example3.com<" in message or "host: example3.com" in message
-            )
+            assert ">example1.com<" in message or "host: example1.com" in message
+            assert ">example2.com<" in message or "host: example2.com" in message
+            assert ">example3.com<" in message or "host: example3.com" in message
 
             # Use more specific assertions for IP validation
             assert ">192.168.1.1<" in message or "ip: 192.168.1.1" in message
@@ -218,7 +201,7 @@ class TestConsoleNotificationService:
         )
 
         # Capture the stdout output
-        out, err = capfd.readouterr()
+        out, _err = capfd.readouterr()
 
         # Verify the output contains the expected content
         assert "NOTIFICATION TO: admin" in out
@@ -237,7 +220,7 @@ class TestConsoleNotificationService:
         )
 
         # Capture the stdout output
-        out, err = capfd.readouterr()
+        out, _err = capfd.readouterr()
 
         # Verify the output contains the expected content including special characters
         assert "Test with 🔥 emoji" in out
@@ -249,7 +232,7 @@ class TestConsoleNotificationService:
     ):
         """Test handling errors when printing to console."""
         # Setup mock to raise an error
-        mock_print.side_effect = IOError("Print error")
+        mock_print.side_effect = OSError("Print error")
 
         # Call send_notification with logging capture
         with patch(
@@ -320,9 +303,5 @@ For complete details, see the attached report.
         call_args = mock_smtp_instance.sendmail.call_args[0]
         assert call_args[0] == "alerts@company.com"  # From
         assert call_args[1] == "network-team@company.com"  # To
-        assert (
-            "Network Discovery Report" in call_args[2]
-        )  # Subject in message string
-        assert (
-            "Total devices scanned: 150" in call_args[2]
-        )  # Content in message string
+        assert "Network Discovery Report" in call_args[2]  # Subject in message string
+        assert "Total devices scanned: 150" in call_args[2]  # Content in message string

@@ -3,8 +3,10 @@
 import json
 import os
 import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
+import ijson
 import pytest
 
 from network_discovery.domain.device import Device
@@ -21,7 +23,7 @@ class TestJsonFileRepository:
             temp.write(b"{}")
             temp_path = temp.name
         yield temp_path
-        os.unlink(temp_path)
+        Path(temp_path).unlink()
 
     @pytest.fixture
     def sample_device(self):
@@ -38,7 +40,7 @@ class TestJsonFileRepository:
             mysql_user="user",
             mysql_password="password",
             uname="Linux",
-            errors=["Error 1"],
+            errors=("Error 1",),
             scanned=True,
         )
 
@@ -47,14 +49,14 @@ class TestJsonFileRepository:
         repo = JsonFileRepository(temp_file)
         assert repo.file_path == temp_file
 
-    def test_init_file_not_exists(self, temp_dir):
+    def test_init_file_not_exists(self):
         """Test that a JsonFileRepository creates a file if it doesn't exist."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            file_path = os.path.join(temp_dir, "nonexistent.json")
+            file_path = str(Path(temp_dir) / "nonexistent.json")
             JsonFileRepository(file_path)
-            assert os.path.exists(file_path)
-            with open(file_path, "r", encoding="utf-8") as f:
-                assert f.read() == "{}"
+            p = Path(file_path)
+            assert p.exists()
+            assert p.read_text(encoding="utf-8") == "{}"
 
     def test_init_file_invalid_json(self):
         """Test that a JsonFileRepository handles invalid JSON."""
@@ -64,23 +66,20 @@ class TestJsonFileRepository:
 
         try:
             JsonFileRepository(temp_path)
-            with open(temp_path, "r", encoding="utf-8") as f:
-                assert f.read() == "{}"
+            assert Path(temp_path).read_text(encoding="utf-8") == "{}"
         finally:
-            os.unlink(temp_path)
+            Path(temp_path).unlink()
 
     def test_save_and_get(self, temp_file, sample_device):
         """Test that a device can be saved and retrieved."""
         repo = JsonFileRepository(temp_file)
         repo.save(sample_device)
 
-        # Check that the device was saved to the file
-        with open(temp_file, "r", encoding="utf-8") as f:
+        with Path(temp_file).open(encoding="utf-8") as f:
             data = json.load(f)
             assert f"device:{sample_device.id}" in data
             assert data[f"device:{sample_device.id}"] == sample_device.to_dict()
 
-        # Check that the device can be retrieved
         retrieved_device = repo.get(sample_device.id)
         assert retrieved_device is not None
         assert retrieved_device.id == sample_device.id
@@ -92,19 +91,21 @@ class TestJsonFileRepository:
         assert retrieved_device.mysql == sample_device.mysql
         assert retrieved_device.errors == sample_device.errors
 
-    def test_get_not_found(self, temp_file, device):
+    def test_get_not_found(self, temp_file):
         """Test that None is returned when a device is not found."""
         repo = JsonFileRepository(temp_file)
-        device = repo.get(999)
-        assert device is None
+        result = repo.get(999)
+        assert result is None
 
     def test_get_fallback(self, temp_file, sample_device):
         """Test that the fallback method works when ijson fails."""
         repo = JsonFileRepository(temp_file)
         repo.save(sample_device)
 
-        # Mock ijson.parse to raise an exception
-        with patch("ijson.parse", side_effect=Exception("Test error")):
+        with patch(
+            "network_discovery.infrastructure.repository.ijson.parse",
+            side_effect=ijson.JSONError("Test error"),
+        ):
             retrieved_device = repo.get(sample_device.id)
             assert retrieved_device is not None
             assert retrieved_device.id == sample_device.id
@@ -130,8 +131,10 @@ class TestJsonFileRepository:
         repo.save(device1)
         repo.save(device2)
 
-        # Mock ijson.parse to raise an exception
-        with patch("ijson.parse", side_effect=Exception("Test error")):
+        with patch(
+            "network_discovery.infrastructure.repository.ijson.parse",
+            side_effect=ijson.JSONError("Test error"),
+        ):
             devices = repo.get_all()
             assert len(devices) == 2
             assert any(d.id == 1 for d in devices)
@@ -142,17 +145,13 @@ class TestJsonFileRepository:
         repo = JsonFileRepository(temp_file)
         repo.save(sample_device)
 
-        # Check that the device exists
         assert repo.get(sample_device.id) is not None
 
-        # Delete the device
         repo.delete(sample_device.id)
 
-        # Check that the device was deleted
         assert repo.get(sample_device.id) is None
 
-        # Check that the device was deleted from the file
-        with open(temp_file, "r", encoding="utf-8") as f:
+        with Path(temp_file).open(encoding="utf-8") as f:
             data = json.load(f)
             assert f"device:{sample_device.id}" not in data
 
@@ -166,95 +165,79 @@ class TestJsonFileRepository:
         repo = JsonFileRepository(temp_file)
         repo.save(sample_device)
 
-        # Check that the device exists
         assert repo.get(sample_device.id) is not None
 
-        # Clear all devices
         repo.clear_all()
 
-        # Check that the device was deleted
         assert repo.get(sample_device.id) is None
+        assert Path(temp_file).read_text(encoding="utf-8") == "{}"
 
-        # Check that the file contains an empty JSON object
-        with open(temp_file, "r", encoding="utf-8") as f:
-            assert f.read() == "{}"
-
-    def test_save_io_error(self, sample_device, temp_dir):
+    @pytest.mark.skipif(os.geteuid() == 0, reason="Root can write to read-only files")
+    def test_save_io_error(self, sample_device):
         """Test that an IOError is handled when saving a device."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            file_path = os.path.join(temp_dir, "test.json")
+            file_path = str(Path(temp_dir) / "test.json")
             repo = JsonFileRepository(file_path)
 
-            # Make the file read-only
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write("{}")
-            os.chmod(file_path, 0o444)  # Read-only
+            p = Path(file_path)
+            p.write_text("{}", encoding="utf-8")
+            p.chmod(0o444)  # Read-only
 
-            # Try to save a device
             with pytest.raises(IOError):
                 repo.save(sample_device)
 
-            # Restore permissions for cleanup
-            os.chmod(file_path, 0o644)
+            p.chmod(0o644)
 
-    def test_get_io_error(self, device, temp_dir):
+    def test_get_io_error(self):
         """Test that an IOError is handled when retrieving a device."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            file_path = os.path.join(temp_dir, "nonexistent.json")
+            file_path = str(Path(temp_dir) / "nonexistent.json")
             repo = JsonFileRepository(file_path)
 
-            # Remove the file to simulate an IOError
-            os.unlink(file_path)
+            Path(file_path).unlink()
 
-            # Try to get a device
             device = repo.get(1)
             assert device is None
 
-    def test_get_all_io_error(self, temp_dir):
+    def test_get_all_io_error(self):
         """Test that an IOError is handled when retrieving all devices."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            file_path = os.path.join(temp_dir, "nonexistent.json")
+            file_path = str(Path(temp_dir) / "nonexistent.json")
             repo = JsonFileRepository(file_path)
 
-            # Remove the file to simulate an IOError
-            os.unlink(file_path)
+            Path(file_path).unlink()
 
-            # Try to get all devices
             devices = repo.get_all()
             assert devices == []
 
-    def test_delete_io_error(self, temp_dir):
+    @pytest.mark.skipif(os.geteuid() == 0, reason="Root can write to read-only files")
+    def test_delete_io_error(self, sample_device):
         """Test that an IOError is handled when deleting a device."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            file_path = os.path.join(temp_dir, "test.json")
+            file_path = str(Path(temp_dir) / "test.json")
             repo = JsonFileRepository(file_path)
 
-            # Make the file read-only
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write("{}")
-            os.chmod(file_path, 0o444)  # Read-only
+            repo.save(sample_device)
 
-            # Try to delete a device
-            with pytest.raises(IOError):
-                repo.delete(1)
+            Path(file_path).chmod(0o444)
 
-            # Restore permissions for cleanup
-            os.chmod(file_path, 0o644)
+            with pytest.raises(OSError):
+                repo.delete(sample_device.id)
 
-    def test_clear_all_io_error(self, temp_dir):
+            Path(file_path).chmod(0o644)
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="Root can write to read-only files")
+    def test_clear_all_io_error(self):
         """Test that an IOError is handled when clearing all devices."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            file_path = os.path.join(temp_dir, "test.json")
+            file_path = str(Path(temp_dir) / "test.json")
             repo = JsonFileRepository(file_path)
 
-            # Make the file read-only
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write("{}")
-            os.chmod(file_path, 0o444)  # Read-only
+            p = Path(file_path)
+            p.write_text("{}", encoding="utf-8")
+            p.chmod(0o444)
 
-            # Try to clear all devices
             with pytest.raises(IOError):
                 repo.clear_all()
 
-            # Restore permissions for cleanup
-            os.chmod(file_path, 0o644)
+            p.chmod(0o644)

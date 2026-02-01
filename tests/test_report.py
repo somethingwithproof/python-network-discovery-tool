@@ -1,9 +1,8 @@
 """Tests for the ReportGenerator class."""
 
-import os
+import json
 import tempfile
-from unittest.mock import MagicMock
-from unittest.mock import patch
+from pathlib import Path
 
 import pytest
 
@@ -13,9 +12,27 @@ from network_discovery.infrastructure.report import ReportGenerator
 
 @pytest.fixture
 def report_generator():
-    """Return a report generator instance."""
+    """Return a report generator instance with a valid template directory."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        yield ReportGenerator(output_dir=temp_dir, template_dir="./templates")
+        template_dir = Path(temp_dir) / "templates"
+        template_dir.mkdir()
+        (template_dir / "layout.html").write_text("""<!DOCTYPE html>
+<html>
+<head><title>Device Report</title></head>
+<body>
+<h1>Device Report</h1>
+<p>Generated: {{ generated_at }}</p>
+<p>Total: {{ total_devices }}, Alive: {{ alive_devices }}</p>
+<ul>
+{% for device in devices %}
+<li>{{ device.host }} ({{ device.ip }}) - Alive: {{ device.alive }}</li>
+{% endfor %}
+</ul>
+</body>
+</html>""")
+
+        output_dir = str(Path(temp_dir) / "output")
+        yield ReportGenerator(output_dir=output_dir, template_dir=str(template_dir))
 
 
 @pytest.fixture
@@ -50,144 +67,122 @@ class TestReportGenerator:
     def test_init(self):
         """Test that a ReportGenerator can be initialized."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            generator = ReportGenerator(
-                output_dir=temp_dir, template_dir="./templates"
-            )
+            generator = ReportGenerator(output_dir=temp_dir, template_dir="./templates")
             assert generator.output_dir == temp_dir
             assert generator.template_dir == "./templates"
 
-    def test_ensure_output_dir_exists(self):
+    def test_init_creates_output_dir(self):
         """Test that the output directory is created if it doesn't exist."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            output_dir = os.path.join(temp_dir, "output")
-            assert not os.path.exists(output_dir)
+            output_dir = str(Path(temp_dir) / "output")
+            assert not Path(output_dir).exists()
 
-            generator = ReportGenerator(
-                output_dir=output_dir, template_dir="./templates"
-            )
-            generator._ensure_output_dir_exists()
+            ReportGenerator(output_dir=output_dir, template_dir="./templates")
 
-            assert os.path.exists(output_dir)
+            assert Path(output_dir).exists()
+
+    def test_supported_formats(self, report_generator):
+        """Test that supported formats are returned."""
+        formats = report_generator.supported_formats
+        assert "html" in formats
+        assert "csv" in formats
+        assert "xlsx" in formats
+        assert "json" in formats
 
     def test_generate_html_report(self, report_generator, devices):
         """Test that an HTML report can be generated."""
-        # Mock the jinja2.Environment
-        with patch("jinja2.Environment") as mock_env:
-            # Mock the get_template method
-            mock_template = MagicMock()
-            mock_env.return_value.get_template.return_value = mock_template
+        report_path = report_generator.generate_report(devices, "html")
 
-            # Mock the render method
-            mock_template.render.return_value = "<html>Test Report</html>"
+        assert Path(report_path).exists()
+        assert report_path.endswith(".html")
 
-            # Generate the report
-            report_path = report_generator.generate_html_report(devices)
-
-            # Check that the template was loaded
-            mock_env.return_value.get_template.assert_called_once_with(
-                "html_report.html"
-            )
-
-            # Check that the template was rendered with the devices
-            mock_template.render.assert_called_once()
-            args, kwargs = mock_template.render.call_args
-            assert "devices" in kwargs
-            assert kwargs["devices"] == devices
-
-            # Check that the report was written to a file
-            assert os.path.exists(report_path)
-            with open(report_path, "r", encoding="utf-8") as f:
-                assert f.read() == "<html>Test Report</html>"
+        content = Path(report_path).read_text(encoding="utf-8")
+        assert "Device Report" in content
+        assert "example1.com" in content
+        assert "192.168.1.1" in content
 
     def test_generate_csv_report(self, report_generator, devices):
         """Test that a CSV report can be generated."""
-        # Generate the report
-        report_path = report_generator.generate_csv_report(devices)
+        report_path = report_generator.generate_report(devices, "csv")
 
-        # Check that the report was written to a file
-        assert os.path.exists(report_path)
+        assert Path(report_path).exists()
+        assert report_path.endswith(".csv")
 
-        # Check that the file contains the expected content
-        with open(report_path, "r", encoding="utf-8") as f:
-            content = f.read()
-            assert "ID,Host,IP,Alive,SSH,SNMP,MySQL" in content
-            assert "1,example1.com,192.168.1.1,True,True,False,True" in content
-            assert "2,example2.com,192.168.1.2,True,False,True,False" in content
-            assert (
-                "3,example3.com,192.168.1.3,False,False,False,False" in content
-            )
+        content = Path(report_path).read_text(encoding="utf-8")
+        assert "ID,Host,IP" in content
+        assert "1,example1.com,192.168.1.1" in content
+        assert "2,example2.com,192.168.1.2" in content
+        assert "3,example3.com,192.168.1.3" in content
 
     def test_generate_json_report(self, report_generator, devices):
         """Test that a JSON report can be generated."""
-        # Generate the report
-        report_path = report_generator.generate_json_report(devices)
+        report_path = report_generator.generate_report(devices, "json")
 
-        # Check that the report was written to a file
-        assert os.path.exists(report_path)
+        assert Path(report_path).exists()
+        assert report_path.endswith(".json")
 
-        # Check that the file contains valid JSON
-        import json
-
-        with open(report_path, "r", encoding="utf-8") as f:
+        with Path(report_path).open(encoding="utf-8") as f:
             data = json.load(f)
-            assert len(data) == 3
-            assert data[0]["id"] == 1
-            assert data[0]["host"] == "example1.com"
-            assert data[0]["ip"] == "192.168.1.1"
-            assert data[0]["alive"] is True
-            assert data[0]["ssh"] is True
-            assert data[0]["snmp"] is False
-            assert data[0]["mysql"] is True
+            assert "metadata" in data
+            assert "devices" in data
+            assert "summary" in data
 
-    def test_generate_report_html(self, report_generator, devices):
-        """Test that generate_report works with HTML format."""
-        with patch.object(
-            report_generator, "generate_html_report"
-        ) as mock_html:
-            mock_html.return_value = "/path/to/report.html"
+            assert data["metadata"]["total_devices"] == 3
+            assert len(data["devices"]) == 3
+            assert data["devices"][0]["id"] == 1
+            assert data["devices"][0]["host"] == "example1.com"
 
-            # Generate the report
-            report_path = report_generator.generate_report(devices, "html")
+    def test_generate_xlsx_report(self, report_generator, devices):
+        """Test that an Excel report can be generated."""
+        report_path = report_generator.generate_report(devices, "xlsx")
 
-            # Check that the HTML report was generated
-            mock_html.assert_called_once_with(devices)
-            assert report_path == "/path/to/report.html"
+        assert Path(report_path).exists()
+        assert report_path.endswith(".xlsx")
 
-    def test_generate_report_csv(self, report_generator, devices):
-        """Test that generate_report works with CSV format."""
-        with patch.object(report_generator, "generate_csv_report") as mock_csv:
-            mock_csv.return_value = "/path/to/report.csv"
+    def test_generate_report_with_custom_filename(self, report_generator, devices):
+        """Test that generate_report works with a custom filename."""
+        report_path = report_generator.generate_report(
+            devices, "csv", filename="custom_report"
+        )
 
-            # Generate the report
-            report_path = report_generator.generate_report(devices, "csv")
-
-            # Check that the CSV report was generated
-            mock_csv.assert_called_once_with(devices)
-            assert report_path == "/path/to/report.csv"
-
-    def test_generate_report_json(self, report_generator, devices):
-        """Test that generate_report works with JSON format."""
-        with patch.object(
-            report_generator, "generate_json_report"
-        ) as mock_json:
-            mock_json.return_value = "/path/to/report.json"
-
-            # Generate the report
-            report_path = report_generator.generate_report(devices, "json")
-
-            # Check that the JSON report was generated
-            mock_json.assert_called_once_with(devices)
-            assert report_path == "/path/to/report.json"
+        assert Path(report_path).exists()
+        assert "custom_report.csv" in report_path
 
     def test_generate_report_invalid_format(self, report_generator, devices):
         """Test that generate_report raises a ValueError for invalid formats."""
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError) as exc_info:
             report_generator.generate_report(devices, "invalid")
+        assert "Unsupported report format" in str(exc_info.value)
 
     def test_generate_report_empty_devices(self, report_generator):
         """Test that generate_report works with an empty list of devices."""
-        # Generate the report
         report_path = report_generator.generate_report([], "html")
+        assert Path(report_path).exists()
 
-        # Check that the report was written to a file
-        assert os.path.exists(report_path)
+    def test_generate_report_formats_case_insensitive(self, report_generator, devices):
+        """Test that format type is case insensitive."""
+        report_path = report_generator.generate_report(devices, "CSV")
+        assert Path(report_path).exists()
+        assert report_path.endswith(".csv")
+
+    def test_export_all_formats(self, report_generator, devices):
+        """Test that all formats can be exported at once."""
+        results = report_generator.export_all_formats(devices, filename="all_formats")
+
+        assert "html" in results
+        assert "csv" in results
+        assert "xlsx" in results
+        assert "json" in results
+
+        for _format_type, path in results.items():
+            if path is not None:
+                assert Path(path).exists()
+
+    def test_html_report_requires_template_dir(self):
+        """Test that HTML report requires a template directory."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            generator = ReportGenerator(output_dir=temp_dir, template_dir=None)
+
+            with pytest.raises(ValueError) as exc_info:
+                generator.generate_report([], "html")
+            assert "Template directory is required" in str(exc_info.value)

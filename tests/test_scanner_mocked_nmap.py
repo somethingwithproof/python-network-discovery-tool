@@ -1,17 +1,12 @@
 """Test scanner with completely mocked nmap module."""
 
 import gc
-import sys
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Import modules that depend on the mocked 'nmap'
-# These imports must be placed after the mock setup below
-# We'll avoid the E402 by using a different import approach
-
-# Mock the nmap module before importing scanner code
-mock_nmap = MagicMock()
+from network_discovery.domain.device import Device
+from network_discovery.infrastructure.scanner import NmapDeviceScanner
 
 
 class MockPortScanner:
@@ -38,34 +33,6 @@ class MockPortScanner:
         return host_mock
 
 
-# Set up the mock before importing the modules that use nmap
-mock_nmap.PortScanner = MockPortScanner
-sys.modules["nmap"] = mock_nmap
-
-# Now we can import the modules that depend on the mocked 'nmap'
-from network_discovery.domain.device import Device  # noqa: E402
-from network_discovery.infrastructure.scanner import (  # noqa: E402
-    NmapDeviceScanner,
-)
-
-
-@pytest.fixture
-def setup_scanner():
-    """Set up a scanner instance and a device with mocked scan results."""
-    mock_scanner = MockPortScanner()
-    device = Device(id=1, host="example.com", ip="192.168.1.1")
-
-    host_state = MagicMock()
-    host_state.state.return_value = "up"
-    mock_scanner.hosts_data[device.ip] = host_state
-
-    return {
-        "scanner": NmapDeviceScanner(),
-        "device": device,
-        "mock_scanner": mock_scanner,
-    }
-
-
 class TestMockedNmapScanner:
     """Test scanner with a fully mocked nmap module."""
 
@@ -76,12 +43,24 @@ class TestMockedNmapScanner:
         gc.collect()
 
     @pytest.mark.asyncio
-    async def test_is_alive(self, setup_scanner):
+    async def test_is_alive(self):
         """Test is_alive against a mocked-up host marked as 'up'."""
-        scanner = setup_scanner["scanner"]
-        device = setup_scanner["device"]
+        device = Device(id=1, host="example.com", ip="192.168.1.1")
 
-        result = await scanner.is_alive(device)
+        # Create the mock scanner
+        mock_scanner = MockPortScanner()
 
-        assert result is True
+        # Set up mock data
+        host_state = MagicMock()
+        host_state.state.return_value = "up"
+        mock_scanner.hosts_data[device.ip] = host_state
+
+        # Patch before creating the scanner so it uses our mock
+        with patch("nmap.PortScanner", return_value=mock_scanner):
+            scanner = NmapDeviceScanner()
+            result, errors = await scanner.is_alive(device)
+
+            assert result is True
+            assert errors == []
+
         gc.collect()

@@ -1,60 +1,152 @@
 [build-system]
-requires = ["setuptools>=65.5.1", "wheel"]
+requires = ["setuptools>=70.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
-# Google Python Style Guide Configuration
-# Based on: https://google.github.io/styleguide/pyguide.html
-
-[tool.black]
-line-length = 80  # Google style uses 80 characters
-target-version = ["py310", "py311", "py312", "py313"]
-include = '\.pyi?$'
-exclude = '''
-/(
-    \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-)/
-'''
-
-[tool.isort]
-# Google Python Style Guide import organization
-profile = "google"
-line_length = 80
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-ensure_newline_before_comments = true
-known_first_party = ["network_discovery"]
-sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
-
-[tool.flake8]
-max-line-length = 80
-select = ["E", "F", "W", "C90"]
-ignore = [
-    "E203",  # whitespace before ':'
-    "E501",  # line too long (handled by black)
-    "W503",  # line break before binary operator
+[project]
+name = "network-discovery"
+version = "1.0.0"
+description = "A Python network discovery tool for scanning and monitoring network devices"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Thomas Vincent", email = "thomasvincent@users.noreply.github.com"},
 ]
+keywords = ["network", "discovery", "scanner", "nmap", "monitoring"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: System :: Networking :: Monitoring",
+    "Typing :: Typed",
+]
+dependencies = [
+    "python-nmap>=0.7.1",
+    "paramiko>=3.4.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "typer>=0.9.0",
+    "pyyaml>=6.0.0",
+    "ijson>=3.2.0",
+    "jinja2>=3.1.0",
+    "openpyxl>=3.1.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.8.0",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0",
+    "types-PyYAML>=6.0.0",
+    "types-paramiko>=3.0.0",
+]
+mysql = [
+    "pymysql>=1.1.0",
+]
+postgres = [
+    "pg8000>=1.30.0",
+]
+snmp = [
+    "snimpy>=1.0.0",
+    "pysnmp>=6.0.0",
+]
+redis = [
+    "redis>=5.0.0",
+]
+dns = [
+    "dnspython>=2.4.0",
+]
+pdf = [
+    "fpdf2>=2.7.0",
+]
+all = [
+    "network-discovery[mysql,postgres,snmp,redis,dns,pdf]",
+]
+
+[project.scripts]
+network-discovery = "network_discovery.interfaces.cli:cli"
+
+[project.urls]
+Homepage = "https://github.com/thomasvincent/python-network-discovery-tool"
+Repository = "https://github.com/thomasvincent/python-network-discovery-tool"
+Issues = "https://github.com/thomasvincent/python-network-discovery-tool/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+# Ruff - Modern Python linter and formatter (replaces Black, isort, flake8, pyupgrade)
+# https://docs.astral.sh/ruff/
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+src = ["src", "tests"]
 exclude = [
     ".git",
-    "__pycache__",
-    "venv",
     ".venv",
+    "__pycache__",
     "build",
     "dist",
+    "*.egg-info",
 ]
 
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+    "PTH",    # flake8-use-pathlib
+    "ERA",    # eradicate (commented out code)
+    "PL",     # Pylint
+    "RUF",    # Ruff-specific rules
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "PLR0913", # too many arguments
+    "PLR2004", # magic value comparison
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ARG", "PLR2004", "PLC0415"]
+"scripts/*" = ["PTH123"]
+"src/network_discovery/interfaces/cli.py" = ["B008", "PLR0912"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["network_discovery"]
+force-single-line = false
+lines-after-imports = 2
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+# MyPy - Static type checker
 [tool.mypy]
 python_version = "3.10"
+strict = true
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -63,19 +155,54 @@ check_untyped_defs = true
 disallow_untyped_decorators = true
 no_implicit_optional = true
 strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+show_error_codes = true
+pretty = true
 
+[[tool.mypy.overrides]]
+module = [
+    "nmap.*",
+    "paramiko.*",
+    "snimpy.*",
+    "pymysql.*",
+    "redis.*",
+    "pysnmp.*",
+    "uvicorn.*",
+]
+ignore_missing_imports = true
+
+# Pytest - Testing framework
 [tool.pytest.ini_options]
-minversion = "6.0"
-addopts = "--cov=network_discovery --cov-report=term-missing --cov-report=xml"
+minversion = "8.0"
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=network_discovery",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+]
 testpaths = ["tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
+asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
 
+# Coverage - Code coverage reporting
 [tool.coverage.run]
-source = ["network_discovery"]
-omit = ["tests/*"]
+source = ["src/network_discovery"]
+branch = true
+parallel = true
+omit = ["tests/*", "*/__main__.py"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -83,16 +210,18 @@ exclude_lines = [
     "def __repr__",
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
     "pass",
-    "raise ImportError",
+    "@abstractmethod",
 ]
+fail_under = 50
+show_missing = true
+precision = 2
 
+[tool.coverage.paths]
+source = ["src/network_discovery"]
+
+# Bandit - Security linter
 [tool.bandit]
-# Only report on the high-severity issues
-severity-level = 3
-# Skip tests, which often have hardcoded credentials for testing
 exclude_dirs = ["tests", ".tox", ".venv", "venv"]
-# Focus on high-confidence issues
-confidence-level = 3
-# Skip low-severity issues like using assert statements
 skips = ["B101", "B104", "B110", "B112", "B601"]

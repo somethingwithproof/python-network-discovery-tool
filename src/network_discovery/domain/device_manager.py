@@ -4,9 +4,15 @@ This module defines an improved DeviceManager entity, which manages a collection
 using a dictionary for faster lookups.
 """
 
-from typing import Dict, Iterator, List, Optional
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from network_discovery.domain.device import Device
+
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 
 class DeviceManager:
@@ -18,7 +24,7 @@ class DeviceManager:
 
     def __init__(self) -> None:
         """Initialize a new DeviceManager with an empty dictionary of devices."""
-        self.devices_dict: Dict[int, Device] = {}
+        self.devices_dict: dict[int, Device] = {}
 
     def add_device(self, device: Device) -> None:
         """Add a device to the collection.
@@ -37,7 +43,7 @@ class DeviceManager:
         if device_id in self.devices_dict:
             del self.devices_dict[device_id]
 
-    def get_device(self, device_id: int) -> Optional[Device]:
+    def get_device(self, device_id: int) -> Device | None:
         """Get a device by its ID.
 
         Args:
@@ -48,7 +54,7 @@ class DeviceManager:
         """
         return self.devices_dict.get(device_id)
 
-    def get_all_devices(self) -> List[Device]:
+    def get_all_devices(self) -> list[Device]:
         """Get all devices in the collection.
 
         Returns:
@@ -57,7 +63,7 @@ class DeviceManager:
         return list(self.devices_dict.values())
 
     @property
-    def devices(self) -> List[Device]:
+    def devices(self) -> list[Device]:
         """Get all devices in the collection.
 
         This property is provided for backward compatibility with the original DeviceManager.
@@ -83,7 +89,7 @@ class DeviceManager:
         """
         return len(self.devices_dict)
 
-    def to_dict(self) -> List[Dict]:
+    def to_dict(self) -> list[dict]:
         """Convert the collection of devices to a list of dictionaries.
 
         Returns:
@@ -92,7 +98,7 @@ class DeviceManager:
         return [device.to_dict() for device in self.devices_dict.values()]
 
     @classmethod
-    def from_dict(cls, devices_list: List[Dict]) -> "DeviceManager":
+    def from_dict(cls, devices_list: list[dict]) -> DeviceManager:
         """Create a DeviceManager from a list of dictionaries.
 
         Args:

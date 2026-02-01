@@ -5,17 +5,26 @@ It orchestrates the use of scanner, repository, notification, and report service
 to scan networks, store results, and generate reports.
 """
 
+from __future__ import annotations
+
 import asyncio
 import ipaddress
 import logging
-from typing import Dict, List, Optional, Union
+import socket
+from typing import TYPE_CHECKING
 
-from network_discovery.application.interfaces import DeviceRepositoryService
-from network_discovery.application.interfaces import DeviceScannerService
-from network_discovery.application.interfaces import NotificationService
-from network_discovery.application.interfaces import ReportService
 from network_discovery.domain.device import Device
 from network_discovery.domain.device_manager import DeviceManager
+
+
+if TYPE_CHECKING:
+    from network_discovery.application.interfaces import (
+        DeviceRepositoryService,
+        DeviceScannerService,
+        NotificationService,
+        ReportService,
+    )
+
 
 # Setup module logger
 logger = logging.getLogger(__name__)
@@ -32,9 +41,9 @@ class DeviceDiscoveryService:
     def __init__(
         self,
         scanner: DeviceScannerService,
-        repository: Optional[DeviceRepositoryService] = None,
-        notification_service: Optional[NotificationService] = None,
-        report_service: Optional[ReportService] = None,
+        repository: DeviceRepositoryService | None = None,
+        notification_service: NotificationService | None = None,
+        report_service: ReportService | None = None,
     ) -> None:
         """Initialize a new DeviceDiscoveryService.
 
@@ -53,7 +62,7 @@ class DeviceDiscoveryService:
         self.report_service = report_service
         self.device_manager = DeviceManager()
 
-    async def discover_network(self, network: str) -> List[Device]:
+    async def discover_network(self, network: str) -> list[Device]:
         """Discover and scan all devices on a network.
 
         Parses the network CIDR, creates a Device instance for each IP in the
@@ -108,9 +117,7 @@ class DeviceDiscoveryService:
 
             # Send notification if notification service is configured
             if self.notification_service:
-                alive_count = sum(
-                    1 for d in self.device_manager.devices if d.alive
-                )
+                alive_count = sum(1 for d in self.device_manager.devices if d.alive)
                 message = (
                     f"Network discovery completed for {network}.\n"
                     f"Found {len(self.device_manager.devices)} devices, "
@@ -122,9 +129,7 @@ class DeviceDiscoveryService:
 
             # Generate report if report service is configured
             if self.report_service:
-                self.report_service.generate_report(
-                    self.device_manager.devices, "html"
-                )
+                self.report_service.generate_report(self.device_manager.devices, "html")
 
             logger.info("Discovery completed on network %s", network)
             return self.device_manager.devices
@@ -149,11 +154,15 @@ class DeviceDiscoveryService:
             The discovered device with scan results.
 
         Raises:
+            ValueError: If the hostname cannot be resolved.
             Exception: If an error occurs during the discovery process.
         """
         try:
             logger.info("Starting discovery for device %s", host)
-            device = Device(id=device_id, host=host, ip=host)
+
+            # Resolve hostname to IP address if needed
+            ip_str = self._resolve_host(host)
+            device = Device(id=device_id, host=host, ip=ip_str)
 
             # Scan the device
             scanned_device = await self.scanner.scan_device(device)
@@ -168,7 +177,34 @@ class DeviceDiscoveryService:
             logger.error("Error during device discovery: %s", e)
             raise
 
-    def get_devices(self) -> List[Device]:
+    def _resolve_host(self, host: str) -> str:
+        """Resolve a hostname or IP address to an IP address string.
+
+        Args:
+            host: The hostname or IP address to resolve.
+
+        Returns:
+            The resolved IP address as a string.
+
+        Raises:
+            ValueError: If the hostname cannot be resolved.
+        """
+        # Check if host is already a valid IP address
+        try:
+            ipaddress.ip_address(host)
+            return host
+        except ValueError:
+            pass
+
+        # Try to resolve as hostname
+        try:
+            ip_str = socket.gethostbyname(host)
+            logger.debug("Resolved %s to %s", host, ip_str)
+            return ip_str
+        except socket.gaierror as e:
+            raise ValueError(f"Cannot resolve hostname '{host}': {e}") from e
+
+    def get_devices(self) -> list[Device]:
         """Get all discovered devices.
 
         Retrieves devices from the repository if available, otherwise returns
@@ -181,7 +217,7 @@ class DeviceDiscoveryService:
             return self.repository.get_all()
         return self.device_manager.devices
 
-    def generate_report(self, format_type: str = "html") -> Optional[str]:
+    def generate_report(self, format_type: str = "html") -> str | None:
         """Generate a report of discovered devices.
 
         Generates a report of all discovered devices using the configured

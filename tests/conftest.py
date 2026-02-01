@@ -2,9 +2,10 @@
 
 # pylint: disable=redefined-outer-name
 
-import os
 import tempfile
-from typing import Any, Dict, Generator
+from collections.abc import Generator
+from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -26,11 +27,11 @@ def temp_file() -> Generator[str, None, None]:
     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
         tmp_file_path = tmp_file.name
         yield tmp_file_path
-        os.unlink(tmp_file_path)
+        Path(tmp_file_path).unlink()
 
 
 @pytest.fixture
-def device_dict() -> Dict[str, Any]:
+def device_dict() -> dict[str, Any]:
     """Return a dictionary representation of a device."""
     return {
         "id": 1,
@@ -50,7 +51,7 @@ def device_dict() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def device(device_dict: Dict[str, Any]) -> Device:
+def device(device_dict: dict[str, Any]) -> Device:
     """Return a device instance."""
     return Device.from_dict(device_dict.copy())
 
