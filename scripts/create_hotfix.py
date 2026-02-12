@@ -13,18 +13,16 @@ Arguments:
 """
 
 import argparse
-from pathlib import Path
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 
 def run_command(command, check=True):
     """Run a shell command and return its output."""
     print(f"Running: {command}")
-    result = subprocess.run(
-        command, shell=True, check=check, text=True, capture_output=True
-    )
+    result = subprocess.run(command, shell=True, check=check, text=True, capture_output=True)
     return result.stdout.strip()
 
 
@@ -40,16 +38,14 @@ def check_git_status():
     """Check if the git working directory is clean."""
     status = run_command("git status --porcelain")
     if status:
-        print(
-            "Error: Working directory is not clean. Please commit or stash your changes."
-        )
+        print("Error: Working directory is not clean. Please commit or stash your changes.")
         sys.exit(1)
 
 
 def update_version_in_branch(version):
     """Update the version in __init__.py in the current branch."""
     init_path = Path("src/network_discovery/__init__.py")
-    with open(init_path, "r") as f:
+    with open(init_path) as f:
         content = f.read()
 
     new_content = re.sub(

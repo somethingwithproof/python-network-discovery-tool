@@ -6,7 +6,6 @@ import tempfile
 from unittest.mock import patch
 
 import pytest
-
 from network_discovery.domain.device import Device
 from network_discovery.infrastructure.repository import JsonFileRepository
 
@@ -53,7 +52,7 @@ class TestJsonFileRepository:
             file_path = os.path.join(temp_dir, "nonexistent.json")
             JsonFileRepository(file_path)
             assert os.path.exists(file_path)
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 assert f.read() == "{}"
 
     def test_init_file_invalid_json(self):
@@ -64,7 +63,7 @@ class TestJsonFileRepository:
 
         try:
             JsonFileRepository(temp_path)
-            with open(temp_path, "r", encoding="utf-8") as f:
+            with open(temp_path, encoding="utf-8") as f:
                 assert f.read() == "{}"
         finally:
             os.unlink(temp_path)
@@ -75,7 +74,7 @@ class TestJsonFileRepository:
         repo.save(sample_device)
 
         # Check that the device was saved to the file
-        with open(temp_file, "r", encoding="utf-8") as f:
+        with open(temp_file, encoding="utf-8") as f:
             data = json.load(f)
             assert f"device:{sample_device.id}" in data
             assert data[f"device:{sample_device.id}"] == sample_device.to_dict()
@@ -152,7 +151,7 @@ class TestJsonFileRepository:
         assert repo.get(sample_device.id) is None
 
         # Check that the device was deleted from the file
-        with open(temp_file, "r", encoding="utf-8") as f:
+        with open(temp_file, encoding="utf-8") as f:
             data = json.load(f)
             assert f"device:{sample_device.id}" not in data
 
@@ -176,7 +175,7 @@ class TestJsonFileRepository:
         assert repo.get(sample_device.id) is None
 
         # Check that the file contains an empty JSON object
-        with open(temp_file, "r", encoding="utf-8") as f:
+        with open(temp_file, encoding="utf-8") as f:
             assert f.read() == "{}"
 
     def test_save_io_error(self, sample_device, temp_dir):

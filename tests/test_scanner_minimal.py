@@ -1,11 +1,9 @@
 """Minimal test for NmapDeviceScanner initialization."""
 
 import gc
-from unittest.mock import MagicMock
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 from network_discovery.domain.device import Device
 from network_discovery.infrastructure.scanner import NmapDeviceScanner
 

@@ -1,12 +1,9 @@
 """Tests for the EnterpriseDevice class."""
 
-from datetime import datetime
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from network_discovery.domain.device import Device
-from network_discovery.enterprise.device import DeviceCategory
-from network_discovery.enterprise.device import DeviceStatus
-from network_discovery.enterprise.device import EnterpriseDevice
+from network_discovery.enterprise.device import DeviceCategory, DeviceStatus, EnterpriseDevice
 
 
 class TestEnterpriseDevice:
@@ -87,9 +84,7 @@ class TestEnterpriseDevice:
         # Test getting a non-existent attribute
         assert device.get_custom_attribute("non-existent") is None
         # Test getting a non-existent attribute with a default value
-        assert (
-            device.get_custom_attribute("non-existent", "default") == "default"
-        )
+        assert device.get_custom_attribute("non-existent", "default") == "default"
         # Test overwriting an existing attribute
         device = device.set_custom_attribute("rack", "B2")
         assert device.get_custom_attribute("rack") == "B2"
@@ -127,12 +122,8 @@ class TestEnterpriseDevice:
         # Test with no patch date
         assert device.days_since_patched() is None
         # Test with a patch date
-        device = device.replace(
-            last_patched=datetime.now() - timedelta(days=10)
-        )
-        assert (
-            device.days_since_patched() >= 9
-        )  # Allow for some flexibility due to timing
+        device = device.replace(last_patched=datetime.now() - timedelta(days=10))
+        assert device.days_since_patched() >= 9  # Allow for some flexibility due to timing
         assert device.days_since_patched() <= 11
 
     def test_days_until_warranty_expiry(self):
@@ -142,16 +133,12 @@ class TestEnterpriseDevice:
         # Test with no warranty expiry date
         assert device.days_until_warranty_expiry() is None
         # Test with a future warranty expiry date
-        device = device.replace(
-            warranty_expiry=datetime.now() + timedelta(days=100)
-        )
+        device = device.replace(warranty_expiry=datetime.now() + timedelta(days=100))
         days = device.days_until_warranty_expiry()
         assert days >= 99  # Allow for some flexibility due to timing
         assert days <= 101
         # Test with a past warranty expiry date
-        device = device.replace(
-            warranty_expiry=datetime.now() - timedelta(days=50)
-        )
+        device = device.replace(warranty_expiry=datetime.now() - timedelta(days=50))
         days = device.days_until_warranty_expiry()
         assert days >= -51  # Allow for some flexibility due to timing
         assert days <= -49
@@ -164,9 +151,7 @@ class TestEnterpriseDevice:
         last_patched = now - timedelta(days=30)
         last_scan_time = now - timedelta(hours=1)
 
-        base_device = Device(
-            id=1, host="example.com", ip="192.168.1.1", alive=True
-        )
+        base_device = Device(id=1, host="example.com", ip="192.168.1.1", alive=True)
         device = EnterpriseDevice(
             device=base_device,
             category=DeviceCategory.SERVER,

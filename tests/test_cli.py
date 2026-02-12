@@ -2,14 +2,10 @@
 
 import os
 import tempfile
-from unittest.mock import AsyncMock
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
-from network_discovery.interfaces.cli import cli
-from network_discovery.interfaces.cli import parse_args
-from network_discovery.interfaces.cli import run_discovery
+from network_discovery.interfaces.cli import cli, parse_args, run_discovery
 
 
 @pytest.fixture
@@ -92,9 +88,7 @@ class TestCli:
 
             await run_discovery(args)
 
-            mock_instance.discover_network.assert_called_once_with(
-                "192.168.1.0/24"
-            )
+            mock_instance.discover_network.assert_called_once_with("192.168.1.0/24")
             mock_instance.generate_report.assert_called_once_with("html")
 
     @pytest.mark.asyncio
@@ -130,23 +124,23 @@ class TestCli:
 
     def test_cli_entry_point(self, temp_directory):
         """Test the CLI entry point function."""
-        with patch(
-            "network_discovery.interfaces.cli.parse_args"
-        ) as mock_parse_args:
-            with patch("asyncio.run") as mock_run:
-                mock_args = parse_args(
-                    [
-                        "192.168.1.0/24",
-                        "-o",
-                        temp_directory,
-                        "-t",
-                        temp_directory,
-                        "--no-notification",
-                        "--no-repository",
-                        "--no-report",
-                    ]
-                )
-                mock_parse_args.return_value = mock_args
+        with (
+            patch("network_discovery.interfaces.cli.parse_args") as mock_parse_args,
+            patch("asyncio.run") as mock_run,
+        ):
+            mock_args = parse_args(
+                [
+                    "192.168.1.0/24",
+                    "-o",
+                    temp_directory,
+                    "-t",
+                    temp_directory,
+                    "--no-notification",
+                    "--no-repository",
+                    "--no-report",
+                ]
+            )
+            mock_parse_args.return_value = mock_args
 
-                cli(["192.168.1.0/24"])
-                mock_run.assert_called_once()
+            cli(["192.168.1.0/24"])
+            mock_run.assert_called_once()

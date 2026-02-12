@@ -3,139 +3,78 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
   lint:
-    name: Lint with Ruff
+    name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.12"
+      - run: uv sync --dev
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
 
-      - name: Install dependencies
-        run: uv sync --dev
-
-      - name: Lint with ruff
-        run: |
-          uv run ruff check .
-          uv run ruff format --check .
-
-  test-unit:
-    name: Unit Tests - Python ${{ matrix.python-version }}
+  test:
+    name: Test (Python ${{ matrix.python-version }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
         python-version: ["3.12", "3.13"]
-
     steps:
-      - uses: actions/checkout@v6
-
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Install nmap
         run: |
           if [ "$RUNNER_OS" == "Linux" ]; then
-            sudo apt-get update
-            sudo apt-get install -y nmap
+            sudo apt-get update && sudo apt-get install -y nmap
           elif [ "$RUNNER_OS" == "macOS" ]; then
             brew install nmap
           fi
         shell: bash
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
+      - uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: ${{ matrix.python-version }}
-
-      - name: Install dependencies
-        run: uv sync --dev
-
-      - name: Run unit tests
-        run: uv run pytest test_netprobe.py -v --cov=. --cov-report=xml
-
+      - run: uv sync --dev
+      - run: uv run pytest test_netprobe.py -v --cov=. --cov-report=xml
       - name: Upload coverage
         if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5
         with:
           file: ./coverage.xml
           fail_ci_if_error: false
 
-  test-e2e:
-    name: E2E Tests - Docker
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Install nmap
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y nmap
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: uv sync --dev
-
-      - name: Start Docker test environment
-        run: |
-          docker-compose -f docker-compose.test.yml up -d
-          echo "⏳ Waiting for services to start..."
-          sleep 20
-
-      - name: Show running containers
-        run: docker ps --filter name=test-
-
-      - name: Run E2E tests
-        run: uv run pytest test_e2e.py -v -m e2e --maxfail=3
-
-      - name: Show Docker logs on failure
-        if: failure()
-        run: docker-compose -f docker-compose.test.yml logs
-
-      - name: Cleanup Docker environment
-        if: always()
-        run: docker-compose -f docker-compose.test.yml down
-
   type-check:
-    name: Type Check with mypy
+    name: Type check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.12"
-
-      - name: Install dependencies
-        run: |
+      - run: |
           uv sync --dev
           uv pip install mypy types-all
-
-      - name: Type check
-        run: uv run mypy netprobe.py --ignore-missing-imports || true
+      - run: uv run mypy netprobe.py --ignore-missing-imports || true

@@ -1,20 +1,16 @@
 """Tests for enterprise export functionality."""
 
 import csv
-from datetime import datetime
 import json
 import os
 import tempfile
-from unittest.mock import mock_open
-from unittest.mock import patch
+from datetime import datetime
+from unittest.mock import mock_open, patch
 
 import pytest
 import yaml
-
 from network_discovery.domain.device import Device
-from network_discovery.enterprise.device import DeviceCategory
-from network_discovery.enterprise.device import DeviceStatus
-from network_discovery.enterprise.device import EnterpriseDevice
+from network_discovery.enterprise.device import DeviceCategory, DeviceStatus, EnterpriseDevice
 from network_discovery.enterprise.export import EnterpriseExporter
 
 
@@ -86,8 +82,8 @@ def enterprise_devices(base_device):
         # Create a base device
         base = Device(
             id=i + 1,
-            host=f"device{i+1}.example.com",
-            ip=f"192.168.1.{100+i}",
+            host=f"device{i + 1}.example.com",
+            ip=f"192.168.1.{100 + i}",
             snmp_group="public" if i % 2 == 0 else "private",
             alive=i != 3,  # All alive except the last one
             snmp=i % 2 == 0,
@@ -95,8 +91,8 @@ def enterprise_devices(base_device):
             mysql=i % 4 == 0,
             mysql_user="admin" if i % 4 == 0 else "",
             mysql_password="password123" if i % 4 == 0 else "",
-            uname=f"Linux {i+1}" if i != 3 else "",
-            errors=(f"Error {i+1}",) if i == 3 else (),
+            uname=f"Linux {i + 1}" if i != 3 else "",
+            errors=(f"Error {i + 1}",) if i == 3 else (),
             scanned=True,
         )
 
@@ -105,18 +101,16 @@ def enterprise_devices(base_device):
             device=base,
             category=categories[i],
             status=statuses[i],
-            asset_id=f"ASSET-00{i+1}",
-            location=f"Location {i+1}",
-            owner=f"Owner {i+1}",
-            os_version=f"OS Version {i+1}" if i != 3 else "",
-            firmware_version=f"Firmware {i+1}" if i != 3 else "",
+            asset_id=f"ASSET-00{i + 1}",
+            location=f"Location {i + 1}",
+            owner=f"Owner {i + 1}",
+            os_version=f"OS Version {i + 1}" if i != 3 else "",
+            firmware_version=f"Firmware {i + 1}" if i != 3 else "",
             compliance=i != 3,
             last_scan_time=datetime(2025, 1, 1, 12, i, 0) if i != 3 else None,
             uptime=86400 * (i + 1) if i != 3 else None,
-            tags=[f"tag-{i+1}", "enterprise"] if i != 3 else [],
-            custom_attributes=(
-                {"key1": f"value{i+1}", "key2": i + 1} if i != 3 else {}
-            ),
+            tags=[f"tag-{i + 1}", "enterprise"] if i != 3 else [],
+            custom_attributes=({"key1": f"value{i + 1}", "key2": i + 1} if i != 3 else {}),
         )
 
         devices.append(device)
@@ -159,7 +153,7 @@ class TestEnterpriseExporter:
         assert output_path.endswith(".json")
 
         # Verify file content
-        with open(output_path, "r") as f:
+        with open(output_path) as f:
             data = json.load(f)
             assert isinstance(data, list)
             assert len(data) == len(enterprise_devices)
@@ -185,7 +179,7 @@ class TestEnterpriseExporter:
         assert output_path.endswith(".yaml")
 
         # Verify file content
-        with open(output_path, "r") as f:
+        with open(output_path) as f:
             data = yaml.safe_load(f)
             assert isinstance(data, list)
             assert len(data) == len(enterprise_devices)
@@ -206,7 +200,7 @@ class TestEnterpriseExporter:
         assert output_path.endswith(".csv")
 
         # Verify file content
-        with open(output_path, "r", newline="") as f:
+        with open(output_path, newline="") as f:
             reader = csv.reader(f)
             headers = next(reader)  # Get the headers
 
@@ -239,7 +233,7 @@ class TestEnterpriseExporter:
         assert output_path.endswith(".cfg")
 
         # Read file content
-        with open(output_path, "r") as f:
+        with open(output_path) as f:
             content = f.read()
 
             # Check for Nagios host definitions
@@ -267,7 +261,7 @@ class TestEnterpriseExporter:
         assert output_path.endswith(".json")
 
         # Verify file content
-        with open(output_path, "r") as f:
+        with open(output_path) as f:
             data = json.load(f)
             assert "devices" in data
             assert isinstance(data["devices"], list)
@@ -323,9 +317,7 @@ class TestEnterpriseExporter:
     def test_custom_filename(self, exporter, enterprise_devices):
         """Test exporting with custom filenames."""
         # Test with custom filename
-        custom_path = exporter.export_to_json(
-            enterprise_devices, "custom_export.json"
-        )
+        custom_path = exporter.export_to_json(enterprise_devices, "custom_export.json")
         assert os.path.exists(custom_path)
         assert os.path.basename(custom_path) == "custom_export.json"
 
@@ -337,12 +329,10 @@ class TestEnterpriseExporter:
 
     @patch("builtins.open", new_callable=mock_open)
     @patch("json.dump")
-    def test_json_export_error(
-        self, mock_json_dump, mock_file, exporter, enterprise_devices
-    ):
+    def test_json_export_error(self, mock_json_dump, mock_file, exporter, enterprise_devices):
         """Test error handling during JSON export."""
         # Mock json.dump to raise an exception
-        mock_json_dump.side_effect = IOError("Test IO error")
+        mock_json_dump.side_effect = OSError("Test IO error")
 
         # Attempt to export should raise the IOError
         with pytest.raises(IOError) as exc_info:
@@ -352,9 +342,7 @@ class TestEnterpriseExporter:
 
     @patch("builtins.open", new_callable=mock_open)
     @patch("yaml.dump")
-    def test_yaml_export_error(
-        self, mock_yaml_dump, mock_file, exporter, enterprise_devices
-    ):
+    def test_yaml_export_error(self, mock_yaml_dump, mock_file, exporter, enterprise_devices):
         """Test error handling during YAML export."""
         # Mock yaml.dump to raise an exception
         mock_yaml_dump.side_effect = yaml.YAMLError("Test YAML error")
@@ -372,7 +360,7 @@ class TestEnterpriseExporter:
         assert os.path.exists(json_path)
 
         # Verify empty list is exported
-        with open(json_path, "r") as f:
+        with open(json_path) as f:
             data = json.load(f)
             assert data == []
 

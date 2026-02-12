@@ -12,12 +12,10 @@ import asyncio
 import json
 import subprocess
 import time
-from pathlib import Path
 
 import pytest
 
-from netprobe import NetworkScanner, Device, save_json, save_csv
-
+from netprobe import NetworkScanner, save_csv, save_json
 
 # Test network configuration (matches docker-compose.test.yml)
 TEST_NETWORK = "172.20.0.0/24"
@@ -43,7 +41,7 @@ def docker_environment():
     time.sleep(15)  # Give services time to start
 
     # Wait for MySQL to be healthy
-    for i in range(30):
+    for _i in range(30):
         result = subprocess.run(
             ["docker", "inspect", "--format={{.State.Health.Status}}", "test-mysql-server"],
             capture_output=True,
@@ -142,15 +140,25 @@ async def test_scan_entire_network(docker_environment):
 
     # Should find at least our test servers
     alive_devices = [d for d in devices if d.alive]
-    assert len(alive_devices) >= 4, f"Should find at least 4 alive hosts, found {len(alive_devices)}"
+    assert len(alive_devices) >= 4, (
+        f"Should find at least 4 alive hosts, found {len(alive_devices)}"
+    )
 
     # Check that specific IPs are found
     device_ips = {d.ip for d in alive_devices}
-    expected_ips = {SSH_SERVER_IP, MYSQL_SERVER_IP, SNMP_SERVER_IP, COMBINED_SERVER_IP, EMPTY_SERVER_IP}
+    expected_ips = {
+        SSH_SERVER_IP,
+        MYSQL_SERVER_IP,
+        SNMP_SERVER_IP,
+        COMBINED_SERVER_IP,
+        EMPTY_SERVER_IP,
+    }
 
     # At least some of our test servers should be found
     found_test_servers = device_ips.intersection(expected_ips)
-    assert len(found_test_servers) >= 3, f"Should find at least 3 test servers, found {found_test_servers}"
+    assert len(found_test_servers) >= 3, (
+        f"Should find at least 3 test servers, found {found_test_servers}"
+    )
 
 
 @pytest.mark.e2e
@@ -189,11 +197,13 @@ def test_json_export_e2e(docker_environment, tmp_path):
     scanner = NetworkScanner()
 
     # Scan a few servers
-    devices = asyncio.run(asyncio.gather(
-        scanner.scan_device(MYSQL_SERVER_IP),
-        scanner.scan_device(SNMP_SERVER_IP),
-        scanner.scan_device(EMPTY_SERVER_IP),
-    ))
+    devices = asyncio.run(
+        asyncio.gather(
+            scanner.scan_device(MYSQL_SERVER_IP),
+            scanner.scan_device(SNMP_SERVER_IP),
+            scanner.scan_device(EMPTY_SERVER_IP),
+        )
+    )
 
     # Export to JSON
     output_file = tmp_path / "e2e_results.json"
@@ -215,10 +225,12 @@ def test_csv_export_e2e(docker_environment, tmp_path):
     scanner = NetworkScanner()
 
     # Scan servers
-    devices = asyncio.run(asyncio.gather(
-        scanner.scan_device(MYSQL_SERVER_IP),
-        scanner.scan_device(EMPTY_SERVER_IP),
-    ))
+    devices = asyncio.run(
+        asyncio.gather(
+            scanner.scan_device(MYSQL_SERVER_IP),
+            scanner.scan_device(EMPTY_SERVER_IP),
+        )
+    )
 
     # Export to CSV
     output_file = tmp_path / "e2e_results.csv"
@@ -306,13 +318,15 @@ def test_docker_environment_health(docker_environment):
         text=True,
     )
 
-    running_containers = result.stdout.strip().split('\n')
+    running_containers = result.stdout.strip().split("\n")
     running_containers = [c for c in running_containers if c]  # Filter empty
 
     print(f"\n🐳 Running test containers: {running_containers}")
 
     # Should have our test containers
-    assert len(running_containers) >= 3, f"Expected at least 3 test containers, found {len(running_containers)}"
+    assert len(running_containers) >= 3, (
+        f"Expected at least 3 test containers, found {len(running_containers)}"
+    )
 
     # Verify specific containers
     container_names = set(running_containers)

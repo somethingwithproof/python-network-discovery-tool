@@ -43,9 +43,7 @@ class MockPortScanner:
 
     def all_hosts(self):
         """Return configured hosts."""
-        logger.debug(
-            f"all_hosts called, returning: {list(self.hosts_data.keys())}"
-        )
+        logger.debug(f"all_hosts called, returning: {list(self.hosts_data.keys())}")
         return list(self.hosts_data.keys())
 
     def __getitem__(self, key):

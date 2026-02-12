@@ -1,16 +1,12 @@
 """Extended tests for the NmapDeviceScanner class to improve coverage."""
 
-from unittest.mock import AsyncMock
-from unittest.mock import MagicMock
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from paramiko.ssh_exception import AuthenticationException
-from paramiko.ssh_exception import SSHException
 import pymysql
 import pytest
-
 from network_discovery.domain.device import Device
 from network_discovery.infrastructure.scanner import NmapDeviceScanner
+from paramiko.ssh_exception import AuthenticationException, SSHException
 
 
 @pytest.fixture
@@ -41,9 +37,7 @@ class TestNmapDeviceScannerExtended:
         with patch("paramiko.SSHClient") as mock_ssh_client:
             # Mock the connect method to raise an AuthenticationException
             mock_instance = mock_ssh_client.return_value
-            mock_instance.connect.side_effect = AuthenticationException(
-                "Authentication failed"
-            )
+            mock_instance.connect.side_effect = AuthenticationException("Authentication failed")
 
             # Check SSH
             result, errors = await scanner.check_ssh(test_device)
@@ -91,9 +85,7 @@ class TestNmapDeviceScannerExtended:
         with patch("paramiko.SSHClient") as mock_ssh_client:
             # Mock the connect method to raise a TimeoutError
             mock_instance = mock_ssh_client.return_value
-            mock_instance.connect.side_effect = TimeoutError(
-                "Connection timed out"
-            )
+            mock_instance.connect.side_effect = TimeoutError("Connection timed out")
 
             # Check SSH
             result, errors = await scanner.check_ssh(test_device)
@@ -117,9 +109,7 @@ class TestNmapDeviceScannerExtended:
         with patch("paramiko.SSHClient") as mock_ssh_client:
             # Mock the connect method to raise a ConnectionRefusedError
             mock_instance = mock_ssh_client.return_value
-            mock_instance.connect.side_effect = ConnectionRefusedError(
-                "Connection refused"
-            )
+            mock_instance.connect.side_effect = ConnectionRefusedError("Connection refused")
 
             # Check SSH
             result, errors = await scanner.check_ssh(test_device)
@@ -144,9 +134,7 @@ class TestNmapDeviceScannerExtended:
             # Mock the connect method
             mock_instance = mock_ssh_client.return_value
             # Mock the exec_command method to raise an exception
-            mock_instance.exec_command.side_effect = Exception(
-                "Command execution error"
-            )
+            mock_instance.exec_command.side_effect = Exception("Command execution error")
 
             # Check SSH
             result, errors = await scanner.check_ssh(test_device)
@@ -168,12 +156,8 @@ class TestNmapDeviceScannerExtended:
 
         # Mock the snimpy_load function
         with (
-            patch(
-                "network_discovery.infrastructure.scanner.SNMP_AVAILABLE", True
-            ),
-            patch(
-                "network_discovery.infrastructure.scanner.snimpy_load"
-            ) as mock_load,
+            patch("network_discovery.infrastructure.scanner.SNMP_AVAILABLE", True),
+            patch("network_discovery.infrastructure.scanner.snimpy_load") as mock_load,
         ):
             # Mock the load function to raise an exception
             mock_load.side_effect = Exception("Failed to load MIB")
@@ -204,9 +188,7 @@ class TestNmapDeviceScannerExtended:
 
         # Mock pymysql.connect
         with (
-            patch(
-                "network_discovery.infrastructure.scanner.MYSQL_AVAILABLE", True
-            ),
+            patch("network_discovery.infrastructure.scanner.MYSQL_AVAILABLE", True),
             patch("pymysql.connect") as mock_connect,
         ):
             # Mock connect to raise an OperationalError
@@ -240,9 +222,7 @@ class TestNmapDeviceScannerExtended:
 
         # Mock pymysql.connect
         with (
-            patch(
-                "network_discovery.infrastructure.scanner.MYSQL_AVAILABLE", True
-            ),
+            patch("network_discovery.infrastructure.scanner.MYSQL_AVAILABLE", True),
             patch("pymysql.connect") as mock_connect,
         ):
             # Mock connect to raise an OperationalError
@@ -276,9 +256,7 @@ class TestNmapDeviceScannerExtended:
 
         # Mock pymysql.connect
         with (
-            patch(
-                "network_discovery.infrastructure.scanner.MYSQL_AVAILABLE", True
-            ),
+            patch("network_discovery.infrastructure.scanner.MYSQL_AVAILABLE", True),
             patch("pymysql.connect") as mock_connect,
         ):
             # Mock connect to raise an OperationalError
@@ -312,9 +290,7 @@ class TestNmapDeviceScannerExtended:
 
         # Mock pymysql.connect and cursor
         with (
-            patch(
-                "network_discovery.infrastructure.scanner.MYSQL_AVAILABLE", True
-            ),
+            patch("network_discovery.infrastructure.scanner.MYSQL_AVAILABLE", True),
             patch("pymysql.connect") as mock_connect,
         ):
             # Mock the connection and cursor
@@ -324,9 +300,7 @@ class TestNmapDeviceScannerExtended:
             mock_connection.cursor.return_value = mock_cursor
 
             # Mock execute to raise a ProgrammingError
-            mock_cursor.execute.side_effect = pymysql.err.ProgrammingError(
-                "Query error"
-            )
+            mock_cursor.execute.side_effect = pymysql.err.ProgrammingError("Query error")
 
             # Check MySQL
             result, errors = await scanner.check_mysql(test_device)

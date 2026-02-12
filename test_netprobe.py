@@ -1,9 +1,10 @@
 """Tests for netprobe - Modern network scanner."""
 
 import asyncio
-from pathlib import Path
+
 import pytest
-from netprobe import Device, NetworkScanner, save_json, save_csv
+
+from netprobe import Device, NetworkScanner, save_csv, save_json
 
 
 def test_device_creation():
@@ -18,12 +19,7 @@ def test_device_creation():
 def test_device_with_services():
     """Test Device with services enabled."""
     device = Device(
-        ip="192.168.1.10",
-        alive=True,
-        ssh=True,
-        snmp=True,
-        mysql=False,
-        hostname="server.local"
+        ip="192.168.1.10", alive=True, ssh=True, snmp=True, mysql=False, hostname="server.local"
     )
     assert device.alive
     assert device.ssh
@@ -82,6 +78,7 @@ def test_save_json(tmp_path):
 
     assert output_file.exists()
     import json
+
     data = json.loads(output_file.read_text())
     assert len(data) == 2
     assert data[0]["ip"] == "192.168.1.1"
