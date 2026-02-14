@@ -2,8 +2,7 @@
 
 import os
 import subprocess
-from unittest.mock import MagicMock
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 class TestDocker:
@@ -12,57 +11,43 @@ class TestDocker:
     def test_dockerfile_exists(self):
         """Test that the Dockerfile exists."""
         assert os.path.exists(
-            os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), "Dockerfile"
-            )
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), "Dockerfile")
         )
 
     def test_docker_compose_exists(self):
         """Test that the docker-compose.yml file exists."""
         assert os.path.exists(
-            os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), "docker-compose.yml"
-            )
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), "docker-compose.yml")
         )
 
     def test_dockerignore_exists(self):
         """Test that the .dockerignore file exists."""
         assert os.path.exists(
-            os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), ".dockerignore"
-            )
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), ".dockerignore")
         )
 
     def test_env_example_exists(self):
         """Test that the .env.example file exists."""
         assert os.path.exists(
-            os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), ".env.example"
-            )
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env.example")
         )
 
     def test_docker_test_script_exists(self):
         """Test that the docker-test.sh script exists."""
         assert os.path.exists(
-            os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), "docker-test.sh"
-            )
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), "docker-test.sh")
         )
 
     def test_docker_demo_script_exists(self):
         """Test that the docker-demo.sh script exists."""
         assert os.path.exists(
-            os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), "docker-demo.sh"
-            )
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), "docker-demo.sh")
         )
 
     def test_setup_env_script_exists(self):
         """Test that the setup-env.sh script exists."""
         assert os.path.exists(
-            os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), "setup-env.sh"
-            )
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), "setup-env.sh")
         )
 
     def test_test_docker_setup_script_exists(self):
@@ -76,9 +61,7 @@ class TestDocker:
 
     def test_makefile_exists(self):
         """Test that the Makefile exists."""
-        assert os.path.exists(
-            os.path.join(os.path.dirname(os.path.dirname(__file__)), "Makefile")
-        )
+        assert os.path.exists(os.path.join(os.path.dirname(os.path.dirname(__file__)), "Makefile"))
 
     def test_docker_workflow_exists(self):
         """Test that the GitHub Actions workflow for Docker exists."""
@@ -139,10 +122,7 @@ class TestDocker:
     def test_dockerfile_content(self):
         """Test that the Dockerfile contains the expected content."""
         with open(
-            os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), "Dockerfile"
-            ),
-            "r",
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), "Dockerfile"),
         ) as f:
             content = f.read()
             # Check for key components
@@ -156,10 +136,7 @@ class TestDocker:
     def test_docker_compose_content(self):
         """Test that the docker-compose.yml file contains the expected content."""
         with open(
-            os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), "docker-compose.yml"
-            ),
-            "r",
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), "docker-compose.yml"),
         ) as f:
             content = f.read()
             # Check for key components
@@ -175,10 +152,7 @@ class TestDocker:
     def test_dockerignore_content(self):
         """Test that the .dockerignore file contains the expected content."""
         with open(
-            os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), ".dockerignore"
-            ),
-            "r",
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), ".dockerignore"),
         ) as f:
             content = f.read()
             # Check for key components
@@ -194,10 +168,7 @@ class TestDocker:
     def test_env_example_content(self):
         """Test that the .env.example file contains the expected content."""
         with open(
-            os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), ".env.example"
-            ),
-            "r",
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env.example"),
         ) as f:
             content = f.read()
             # Check for key components

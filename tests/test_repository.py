@@ -3,15 +3,12 @@
 import json
 import os
 import tempfile
-from unittest.mock import MagicMock
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-from redis.exceptions import RedisError
-
 from network_discovery.domain.device import Device
-from network_discovery.infrastructure.repository import JsonFileRepository
-from network_discovery.infrastructure.repository import RedisRepository
+from network_discovery.infrastructure.repository import JsonFileRepository, RedisRepository
+from redis.exceptions import RedisError
 
 
 @pytest.fixture
@@ -80,7 +77,7 @@ class TestJsonFileRepository:
             assert os.path.exists(os.path.dirname(file_path))
             # Check if the file was created with empty JSON object
             assert os.path.exists(file_path)
-            with open(file_path, "r") as f:
+            with open(file_path) as f:
                 content = f.read()
                 assert content == "{}"
 
@@ -94,7 +91,7 @@ class TestJsonFileRepository:
             JsonFileRepository(tmp_file.name)
 
             # Check if the file was rewritten with empty JSON object
-            with open(tmp_file.name, "r") as f:
+            with open(tmp_file.name) as f:
                 content = f.read()
                 assert content == "{}"
 
@@ -179,7 +176,7 @@ class TestJsonFileRepository:
 
     def test_save_with_file_error(self, device):
         """Test saving a device with a file error."""
-        with patch("builtins.open", side_effect=IOError("Test IO Error")):
+        with patch("builtins.open", side_effect=OSError("Test IO Error")):
             repository = JsonFileRepository("test.json")
             with pytest.raises(IOError):
                 repository.save(device)
@@ -190,16 +187,18 @@ class TestJsonFileRepository:
         json_repository.save(device)
 
         # Patch the open function to raise an error
-        with patch("builtins.open", side_effect=IOError("Test IO Error")):
-            # Should return None when encountering an error
-            # in both primary and fallback methods
-            with patch.object(
+        with (
+            patch("builtins.open", side_effect=OSError("Test IO Error")),
+            patch.object(
                 json_repository,
                 "_get_fallback",
-                side_effect=IOError("Fallback error"),
-            ):
-                retrieved_device = json_repository.get(device.id)
-                assert retrieved_device is None
+                side_effect=OSError("Fallback error"),
+            ),
+        ):
+            # Should return None when encountering an error
+            # in both primary and fallback methods
+            retrieved_device = json_repository.get(device.id)
+            assert retrieved_device is None
 
     def test_fallback_methods(self, json_repository, device):
         """Test fallback methods for get and get_all."""
@@ -228,9 +227,7 @@ class TestRedisRepository:
         # Verify Redis client was initialized with correct parameters
         from redis import Redis
 
-        Redis.assert_called_once_with(
-            host="testhost", port=1234, db=2, decode_responses=True
-        )
+        Redis.assert_called_once_with(host="testhost", port=1234, db=2, decode_responses=True)
 
     def test_save_device(self, redis_repository, device, mock_redis):
         """Test saving a device to the repository."""
@@ -244,9 +241,7 @@ class TestRedisRepository:
         assert isinstance(mock_redis.set.call_args[0][1], str)
 
         # Verify the device ID was added to the set
-        mock_redis.sadd.assert_called_once_with(
-            redis_repository.device_set_key, device.id
-        )
+        mock_redis.sadd.assert_called_once_with(redis_repository.device_set_key, device.id)
 
     def test_get_device(self, redis_repository, device, mock_redis):
         """Test getting a device from the repository."""
@@ -295,9 +290,7 @@ class TestRedisRepository:
         devices = redis_repository.get_all()
 
         # Verify Redis client was called correctly
-        mock_redis.smembers.assert_called_once_with(
-            redis_repository.device_set_key
-        )
+        mock_redis.smembers.assert_called_once_with(redis_repository.device_set_key)
         assert mock_redis.get.call_count == 2
 
         # Verify the right number of devices was returned (one valid, one invalid)
@@ -311,9 +304,7 @@ class TestRedisRepository:
 
         # Verify Redis client was called correctly
         mock_redis.delete.assert_called_once_with("device:1")
-        mock_redis.srem.assert_called_once_with(
-            redis_repository.device_set_key, 1
-        )
+        mock_redis.srem.assert_called_once_with(redis_repository.device_set_key, 1)
 
     def test_clear_all(self, redis_repository, mock_redis):
         """Test clearing all devices from the repository."""
@@ -324,9 +315,7 @@ class TestRedisRepository:
         redis_repository.clear_all()
 
         # Verify Redis client was called correctly
-        mock_redis.smembers.assert_called_once_with(
-            redis_repository.device_set_key
-        )
+        mock_redis.smembers.assert_called_once_with(redis_repository.device_set_key)
         assert mock_redis.delete.call_count == 3  # Two devices + the set itself
 
     def test_redis_error_handling(self, redis_repository, device, mock_redis):
@@ -373,9 +362,7 @@ class TestRepositoryIntegration:
                 ssh=i % 3 == 0,  # Every third device has SSH
                 snmp=i % 4 == 0,  # Every fourth device has SNMP
                 mysql=i % 5 == 0,  # Every fifth device has MySQL
-                errors=(
-                    (f"Error {i}",) if i % 2 == 1 else ()
-                ),  # Odd IDs have errors
+                errors=((f"Error {i}",) if i % 2 == 1 else ()),  # Odd IDs have errors
                 scanned=True,
             )
             devices.append(device)

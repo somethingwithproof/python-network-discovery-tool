@@ -69,6 +69,8 @@ select = [
 ]
 ignore = [
     "E501",   # line too long (handled by formatter)
+    "B008",   # function call in default arg (typer pattern)
+    "N999",   # invalid module name (directory name, not changeable)
 ]
 
 [tool.ruff.format]

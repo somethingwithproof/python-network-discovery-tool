@@ -1,11 +1,9 @@
 """Tests for the RedisRepository class."""
 
 import json
-from unittest.mock import MagicMock
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 from network_discovery.domain.device import Device
 from network_discovery.infrastructure.repository import RedisRepository
 
@@ -48,16 +46,12 @@ class TestRedisRepository:
     def test_init(self, mock_redis):
         """Test that a RedisRepository can be initialized."""
         RedisRepository(host="testhost", port=1234, db=5)
-        mock_redis.assert_called_once_with(
-            host="testhost", port=1234, db=5, decode_responses=True
-        )
+        mock_redis.assert_called_once_with(host="testhost", port=1234, db=5, decode_responses=True)
 
     def test_save(self, repository, sample_device, mock_redis):
         """Test that a device can be saved to Redis."""
         repository.save(sample_device)
-        mock_redis.set.assert_called_once_with(
-            "device:1", json.dumps(sample_device.to_dict())
-        )
+        mock_redis.set.assert_called_once_with("device:1", json.dumps(sample_device.to_dict()))
 
     def test_get(self, repository, sample_device, mock_redis):
         """Test that a device can be retrieved from Redis."""

@@ -16,7 +16,9 @@ def get_memory_usage():
     """Get current memory usage in a readable format."""
     process = psutil.Process(os.getpid())
     memory_info = process.memory_info()
-    return f"RSS: {memory_info.rss / 1024 / 1024:.2f} MB, VMS: {memory_info.vms / 1024 / 1024:.2f} MB"
+    return (
+        f"RSS: {memory_info.rss / 1024 / 1024:.2f} MB, VMS: {memory_info.vms / 1024 / 1024:.2f} MB"
+    )
 
 
 def log_step(step_name):
@@ -59,9 +61,7 @@ try:
         import nmap
 
         log_step("After importing nmap")
-        logger.info(
-            f"Imported nmap version: {getattr(nmap, '__version__', 'unknown')}"
-        )
+        logger.info(f"Imported nmap version: {getattr(nmap, '__version__', 'unknown')}")
     except ImportError as e:
         logger.error(f"Failed to import nmap: {e}")
 

@@ -25,12 +25,11 @@ Options:
 """
 
 import argparse
-from datetime import datetime
-import os
-from pathlib import Path
 import re
 import subprocess
 import sys
+from datetime import datetime
+from pathlib import Path
 
 
 def run_command(command, dry_run=False, check=True):
@@ -38,9 +37,7 @@ def run_command(command, dry_run=False, check=True):
     print(f"Running: {command}")
     if dry_run:
         return ""
-    result = subprocess.run(
-        command, shell=True, check=check, text=True, capture_output=True
-    )
+    result = subprocess.run(command, shell=True, check=check, text=True, capture_output=True)
     return result.stdout.strip()
 
 
@@ -55,7 +52,7 @@ def validate_version(version):
 def get_current_version():
     """Get the current version from __init__.py."""
     init_path = Path("src/network_discovery/__init__.py")
-    with open(init_path, "r") as f:
+    with open(init_path) as f:
         content = f.read()
     match = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', content)
     if match:
@@ -66,7 +63,7 @@ def get_current_version():
 def update_version(version, dry_run=False):
     """Update the version in __init__.py."""
     init_path = Path("src/network_discovery/__init__.py")
-    with open(init_path, "r") as f:
+    with open(init_path) as f:
         content = f.read()
 
     new_content = re.sub(
@@ -105,9 +102,7 @@ def get_changes_since_last_tag():
         # If there are no tags yet, get all commits
         return run_command("git log --pretty=format:'%h %s' --no-merges")
 
-    return run_command(
-        f"git log {last_tag}..HEAD --pretty=format:'%h %s' --no-merges"
-    )
+    return run_command(f"git log {last_tag}..HEAD --pretty=format:'%h %s' --no-merges")
 
 
 def categorize_changes(changes):
@@ -171,7 +166,7 @@ def update_changelog(version, categorized_changes, dry_run=False):
         new_entry += "\n"
 
     # Read the current changelog
-    with open(changelog_path, "r") as f:
+    with open(changelog_path) as f:
         current_changelog = f.read()
 
     # Insert the new entry after the title
@@ -179,19 +174,14 @@ def update_changelog(version, categorized_changes, dry_run=False):
     if title_match:
         insert_pos = title_match.end()
         new_changelog = (
-            current_changelog[:insert_pos]
-            + "\n"
-            + new_entry
-            + current_changelog[insert_pos:]
+            current_changelog[:insert_pos] + "\n" + new_entry + current_changelog[insert_pos:]
         )
     else:
         # If no title found, prepend the title and new entry
         new_changelog = f"# Changelog\n\n{new_entry}{current_changelog}"
 
     if dry_run:
-        print(
-            f"Would update {changelog_path} with new entry for version {version}"
-        )
+        print(f"Would update {changelog_path} with new entry for version {version}")
         print("New entry:")
         print(new_entry)
     else:
@@ -228,9 +218,7 @@ def create_github_release(version, changelog_entry, dry_run=False):
     try:
         run_command("gh --version", check=True)
     except subprocess.CalledProcessError:
-        print(
-            "GitHub CLI (gh) is not installed. Skipping GitHub release creation."
-        )
+        print("GitHub CLI (gh) is not installed. Skipping GitHub release creation.")
         print("Install it from: https://cli.github.com/")
         return
 
@@ -245,9 +233,7 @@ def create_github_release(version, changelog_entry, dry_run=False):
             f.write(changelog_entry)
 
         # Create the release
-        run_command(
-            f'gh release create {tag_name} --title "{title}" --notes-file {notes_file}'
-        )
+        run_command(f'gh release create {tag_name} --title "{title}" --notes-file {notes_file}')
 
         # Clean up
         notes_file.unlink()
@@ -280,7 +266,7 @@ def bump_dev_version(version, dry_run=False):
         print(f"Error: Could not parse version '{version}'")
         return None
 
-    major, minor, patch = match.groups()
+    major, minor, _patch = match.groups()
 
     # Increment the minor version and add .dev0
     new_minor = int(minor) + 1
@@ -288,7 +274,7 @@ def bump_dev_version(version, dry_run=False):
 
     # Update the version in __init__.py
     init_path = Path("src/network_discovery/__init__.py")
-    with open(init_path, "r") as f:
+    with open(init_path) as f:
         content = f.read()
 
     new_content = re.sub(
@@ -298,9 +284,7 @@ def bump_dev_version(version, dry_run=False):
     )
 
     if dry_run:
-        print(
-            f"Would update {init_path} with development version {new_version}"
-        )
+        print(f"Would update {init_path} with development version {new_version}")
     else:
         with open(init_path, "w") as f:
             f.write(new_content)
@@ -309,10 +293,8 @@ def bump_dev_version(version, dry_run=False):
     # Commit the change
     if not dry_run:
         run_command(f"git add {init_path}")
-        run_command(
-            f'git commit -m "chore: bump version to {new_version} for development"'
-        )
-        run_command(f"git push origin HEAD")
+        run_command(f'git commit -m "chore: bump version to {new_version} for development"')
+        run_command("git push origin HEAD")
         print(f"Committed and pushed development version bump to {new_version}")
     else:
         print(f"Would commit development version bump to {new_version}")
@@ -321,16 +303,10 @@ def bump_dev_version(version, dry_run=False):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Release script for network-discovery"
-    )
+    parser = argparse.ArgumentParser(description="Release script for network-discovery")
     parser.add_argument("version", help="The version to release (e.g., 0.3.0)")
-    parser.add_argument(
-        "--dry-run", action="store_true", help="Run without making changes"
-    )
-    parser.add_argument(
-        "--no-publish", action="store_true", help="Skip publishing to PyPI"
-    )
+    parser.add_argument("--dry-run", action="store_true", help="Run without making changes")
+    parser.add_argument("--no-publish", action="store_true", help="Skip publishing to PyPI")
     parser.add_argument(
         "--bump-dev",
         action="store_true",
@@ -364,13 +340,11 @@ def main():
     categorized_changes = categorize_changes(changes)
 
     # Update changelog
-    changelog_entry = update_changelog(
-        version, categorized_changes, args.dry_run
-    )
+    changelog_entry = update_changelog(version, categorized_changes, args.dry_run)
 
     # Commit changes
     if not args.dry_run:
-        run_command(f"git add src/network_discovery/__init__.py CHANGES.md")
+        run_command("git add src/network_discovery/__init__.py CHANGES.md")
         run_command(f'git commit -m "chore: bump version to {version}"')
         print("Committed version bump")
     else:
@@ -385,9 +359,7 @@ def main():
     # Build and publish
     build_and_publish(args.dry_run, not args.no_publish)
 
-    print(
-        f"Release {version} {'would be' if args.dry_run else 'has been'} completed!"
-    )
+    print(f"Release {version} {'would be' if args.dry_run else 'has been'} completed!")
 
     # Bump version for development if requested
     if args.bump_dev:
