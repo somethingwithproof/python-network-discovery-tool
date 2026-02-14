@@ -4,10 +4,10 @@
 
 import os
 import tempfile
-from typing import Any, Dict, Generator
+from collections.abc import Generator
+from typing import Any
 
 import pytest
-
 from network_discovery.domain.device import Device
 from network_discovery.domain.device_manager import DeviceManager
 from network_discovery.infrastructure.repository import JsonFileRepository
@@ -30,7 +30,7 @@ def temp_file() -> Generator[str, None, None]:
 
 
 @pytest.fixture
-def device_dict() -> Dict[str, Any]:
+def device_dict() -> dict[str, Any]:
     """Return a dictionary representation of a device."""
     return {
         "id": 1,
@@ -50,7 +50,7 @@ def device_dict() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def device(device_dict: Dict[str, Any]) -> Device:
+def device(device_dict: dict[str, Any]) -> Device:
     """Return a device instance."""
     return Device.from_dict(device_dict.copy())
 

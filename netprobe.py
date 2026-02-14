@@ -12,23 +12,23 @@ import csv
 import ipaddress
 import json
 import logging
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal
 
 import nmap
+import typer
+from rich import print as rprint
 from rich.console import Console
 from rich.logging import RichHandler
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 from rich.table import Table
-from rich import print as rprint
-import typer
 
 # Modern logger with Rich
 logging.basicConfig(
     level=logging.INFO,
     format="%(message)s",
-    handlers=[RichHandler(rich_tracebacks=True, show_time=False)]
+    handlers=[RichHandler(rich_tracebacks=True, show_time=False)],
 )
 logger = logging.getLogger(__name__)
 console = Console()
@@ -44,6 +44,7 @@ app = typer.Typer(
 @dataclass
 class Device:
     """Network device with scan results."""
+
     ip: str
     alive: bool = False
     ssh: bool = False
@@ -92,12 +93,11 @@ class NetworkScanner:
 
             # Run port scans concurrently
             port_results = await asyncio.gather(
-                *[self._check_port(ip, port) for port in ports_to_check.keys()],
-                return_exceptions=True
+                *[self._check_port(ip, port) for port in ports_to_check], return_exceptions=True
             )
 
             # Update device with results
-            for port, result in zip(ports_to_check.keys(), port_results):
+            for port, result in zip(ports_to_check.keys(), port_results, strict=False):
                 if isinstance(result, Exception):
                     device.errors.append(f"Error checking port {port}: {result}")
                 else:
@@ -126,11 +126,7 @@ class NetworkScanner:
     async def _check_port(self, ip: str, port: int) -> bool:
         """Check if a specific port is open."""
         try:
-            result = await asyncio.to_thread(
-                self.nm.scan,
-                hosts=ip,
-                arguments=f"-p {port} -T4 --open"
-            )
+            await asyncio.to_thread(self.nm.scan, hosts=ip, arguments=f"-p {port} -T4 --open")
 
             if ip not in self.nm.all_hosts():
                 return False
@@ -147,6 +143,7 @@ class NetworkScanner:
         """Get hostname for IP address."""
         try:
             import socket
+
             return socket.gethostbyaddr(ip)[0]
         except Exception:
             return ""
@@ -169,7 +166,7 @@ class NetworkScanner:
             else:
                 ips = [network]
         except ValueError as e:
-            raise ValueError(f"Invalid network format: {e}")
+            raise ValueError(f"Invalid network format: {e}") from e
 
         logger.info(f"Scanning {len(ips)} hosts...")
 
@@ -202,8 +199,7 @@ def save_csv(devices: list[Device], output_path: Path) -> None:
     """Save devices to CSV file."""
     with output_path.open("w", newline="") as f:
         writer = csv.DictWriter(
-            f,
-            fieldnames=["ip", "alive", "ssh", "snmp", "mysql", "hostname", "errors"]
+            f, fieldnames=["ip", "alive", "ssh", "snmp", "mysql", "hostname", "errors"]
         )
         writer.writeheader()
         for device in devices:
@@ -238,7 +234,7 @@ def print_results(devices: list[Device]) -> None:
             "✅" if device.ssh else "❌",
             "✅" if device.snmp else "❌",
             "✅" if device.mysql else "❌",
-            "[green]UP[/green]" if device.alive else "[red]DOWN[/red]"
+            "[green]UP[/green]" if device.alive else "[red]DOWN[/red]",
         )
 
     console.print(table)
@@ -249,7 +245,7 @@ def print_results(devices: list[Device]) -> None:
     mysql_count = sum(1 for d in alive_devices if d.mysql)
 
     console.print()
-    console.print(f"[bold]Summary:[/bold]")
+    console.print("[bold]Summary:[/bold]")
     console.print(f"  • SSH servers: {ssh_count}")
     console.print(f"  • SNMP devices: {snmp_count}")
     console.print(f"  • MySQL servers: {mysql_count}")
@@ -259,25 +255,13 @@ def print_results(devices: list[Device]) -> None:
 def scan(
     network: str = typer.Argument(..., help="Network CIDR (e.g., 192.168.1.0/24) or single IP"),
     output: Path = typer.Option(
-        None,
-        "--output", "-o",
-        help="Output file (JSON or CSV, detected by extension)"
+        None, "--output", "-o", help="Output file (JSON or CSV, detected by extension)"
     ),
     format: Literal["json", "csv", "auto"] = typer.Option(
-        "auto",
-        "--format", "-f",
-        help="Output format (auto-detects from filename)"
+        "auto", "--format", "-f", help="Output format (auto-detects from filename)"
     ),
-    verbose: bool = typer.Option(
-        False,
-        "--verbose", "-v",
-        help="Enable verbose logging"
-    ),
-    quiet: bool = typer.Option(
-        False,
-        "--quiet", "-q",
-        help="Suppress table output"
-    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress table output"),
 ):
     """
     🔍 Scan network for SSH, SNMP, and MySQL services.

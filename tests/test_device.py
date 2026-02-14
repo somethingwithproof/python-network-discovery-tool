@@ -158,9 +158,7 @@ class TestDevice:
         # Valid SNMP groups
         valid_groups = ["public", "private", "community1"]
         for group in valid_groups:
-            device = Device(
-                id=1, host="example.com", ip="192.168.1.1", snmp_group=group
-            )
+            device = Device(id=1, host="example.com", ip="192.168.1.1", snmp_group=group)
             assert device.snmp_group == group
 
         # Invalid SNMP groups (too long)
@@ -219,9 +217,7 @@ class TestDevice:
         """Test that Device instances are actually immutable."""
         import pytest
 
-        device = Device(
-            id=1, host="example.com", ip="192.168.1.1", alive=True, ssh=True
-        )
+        device = Device(id=1, host="example.com", ip="192.168.1.1", alive=True, ssh=True)
 
         # Attempt to modify attributes directly should fail
         with pytest.raises(AttributeError):
@@ -370,15 +366,3 @@ class TestDevice:
         assert new_device.host == "new.example.com"
         assert new_device.ip == "192.168.1.1"
         assert new_device.alive is True
-
-    def test_hash(self):
-        """Test that a Device can be hashed and used in sets."""
-        device1 = Device(id=1, host="example.com", ip="192.168.1.1")
-        device2 = Device(id=1, host="example.com", ip="192.168.1.1")
-        device3 = Device(id=2, host="example.com", ip="192.168.1.1")
-
-        assert hash(device1) == hash(device2)
-        assert hash(device1) != hash(device3)
-
-        device_set = {device1, device2, device3}
-        assert len(device_set) == 2

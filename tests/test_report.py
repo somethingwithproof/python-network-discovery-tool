@@ -2,11 +2,9 @@
 
 import os
 import tempfile
-from unittest.mock import MagicMock
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 from network_discovery.domain.device import Device
 from network_discovery.infrastructure.report import ReportGenerator
 
@@ -50,9 +48,7 @@ class TestReportGenerator:
     def test_init(self):
         """Test that a ReportGenerator can be initialized."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            generator = ReportGenerator(
-                output_dir=temp_dir, template_dir="./templates"
-            )
+            generator = ReportGenerator(output_dir=temp_dir, template_dir="./templates")
             assert generator.output_dir == temp_dir
             assert generator.template_dir == "./templates"
 
@@ -62,9 +58,7 @@ class TestReportGenerator:
             output_dir = os.path.join(temp_dir, "output")
             assert not os.path.exists(output_dir)
 
-            generator = ReportGenerator(
-                output_dir=output_dir, template_dir="./templates"
-            )
+            generator = ReportGenerator(output_dir=output_dir, template_dir="./templates")
             generator._ensure_output_dir_exists()
 
             assert os.path.exists(output_dir)
@@ -84,19 +78,17 @@ class TestReportGenerator:
             report_path = report_generator.generate_html_report(devices)
 
             # Check that the template was loaded
-            mock_env.return_value.get_template.assert_called_once_with(
-                "html_report.html"
-            )
+            mock_env.return_value.get_template.assert_called_once_with("html_report.html")
 
             # Check that the template was rendered with the devices
             mock_template.render.assert_called_once()
-            args, kwargs = mock_template.render.call_args
+            _args, kwargs = mock_template.render.call_args
             assert "devices" in kwargs
             assert kwargs["devices"] == devices
 
             # Check that the report was written to a file
             assert os.path.exists(report_path)
-            with open(report_path, "r", encoding="utf-8") as f:
+            with open(report_path, encoding="utf-8") as f:
                 assert f.read() == "<html>Test Report</html>"
 
     def test_generate_csv_report(self, report_generator, devices):
@@ -108,14 +100,12 @@ class TestReportGenerator:
         assert os.path.exists(report_path)
 
         # Check that the file contains the expected content
-        with open(report_path, "r", encoding="utf-8") as f:
+        with open(report_path, encoding="utf-8") as f:
             content = f.read()
             assert "ID,Host,IP,Alive,SSH,SNMP,MySQL" in content
             assert "1,example1.com,192.168.1.1,True,True,False,True" in content
             assert "2,example2.com,192.168.1.2,True,False,True,False" in content
-            assert (
-                "3,example3.com,192.168.1.3,False,False,False,False" in content
-            )
+            assert "3,example3.com,192.168.1.3,False,False,False,False" in content
 
     def test_generate_json_report(self, report_generator, devices):
         """Test that a JSON report can be generated."""
@@ -128,7 +118,7 @@ class TestReportGenerator:
         # Check that the file contains valid JSON
         import json
 
-        with open(report_path, "r", encoding="utf-8") as f:
+        with open(report_path, encoding="utf-8") as f:
             data = json.load(f)
             assert len(data) == 3
             assert data[0]["id"] == 1
@@ -141,9 +131,7 @@ class TestReportGenerator:
 
     def test_generate_report_html(self, report_generator, devices):
         """Test that generate_report works with HTML format."""
-        with patch.object(
-            report_generator, "generate_html_report"
-        ) as mock_html:
+        with patch.object(report_generator, "generate_html_report") as mock_html:
             mock_html.return_value = "/path/to/report.html"
 
             # Generate the report
@@ -167,9 +155,7 @@ class TestReportGenerator:
 
     def test_generate_report_json(self, report_generator, devices):
         """Test that generate_report works with JSON format."""
-        with patch.object(
-            report_generator, "generate_json_report"
-        ) as mock_json:
+        with patch.object(report_generator, "generate_json_report") as mock_json:
             mock_json.return_value = "/path/to/report.json"
 
             # Generate the report

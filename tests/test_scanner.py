@@ -1,13 +1,10 @@
 """Tests for the NmapDeviceScanner class."""
 
 import gc
-from unittest.mock import AsyncMock
-from unittest.mock import MagicMock
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import nmap
 import pytest
-
 from network_discovery.domain.device import Device
 from network_discovery.infrastructure.scanner import NmapDeviceScanner
 
@@ -105,9 +102,7 @@ class TestNmapDeviceScanner:
             # Mock authentication error
             from paramiko.ssh_exception import AuthenticationException
 
-            mock_client.connect.side_effect = AuthenticationException(
-                "Authentication failed"
-            )
+            mock_client.connect.side_effect = AuthenticationException("Authentication failed")
 
             result, errors = await scanner.check_ssh(device)
 
@@ -126,9 +121,7 @@ class TestNmapDeviceScanner:
             mock_ssh_client.return_value = mock_client
 
             # Mock timeout error
-            mock_client.connect.side_effect = TimeoutError(
-                "Connection timed out"
-            )
+            mock_client.connect.side_effect = TimeoutError("Connection timed out")
 
             result, errors = await scanner.check_ssh(device)
 
@@ -146,9 +139,7 @@ class TestNmapDeviceScanner:
             mock_ssh_client.return_value = mock_client
 
             # Mock successful connection but command execution error
-            mock_client.exec_command.side_effect = Exception(
-                "Command execution failed"
-            )
+            mock_client.exec_command.side_effect = Exception("Command execution failed")
 
             result, errors = await scanner.check_ssh(device)
 
@@ -163,9 +154,7 @@ class TestNmapDeviceScanner:
         """Test SNMP check when snimpy is not available."""
         scanner.is_port_open = AsyncMock(return_value=(True, []))
 
-        with patch(
-            "network_discovery.infrastructure.scanner.SNMP_AVAILABLE", False
-        ):
+        with patch("network_discovery.infrastructure.scanner.SNMP_AVAILABLE", False):
             result, errors = await scanner.check_snmp(device)
 
             assert result is False
@@ -175,9 +164,7 @@ class TestNmapDeviceScanner:
     @pytest.mark.asyncio
     async def test_check_snmp_port_closed(self, scanner, device):
         """Test SNMP check when port 161 is closed."""
-        scanner.is_port_open = AsyncMock(
-            return_value=(False, ["Port 161 closed"])
-        )
+        scanner.is_port_open = AsyncMock(return_value=(False, ["Port 161 closed"]))
 
         result, errors = await scanner.check_snmp(device)
 
@@ -196,17 +183,10 @@ class TestNmapDeviceScanner:
 
         # Mock the SNMP functionality
         with (
-            patch(
-                "network_discovery.infrastructure.scanner.SNMP_AVAILABLE", True
-            ),
-            patch(
-                "network_discovery.infrastructure.scanner.snimpy_load"
-            ) as mock_load,
-            patch(
-                "network_discovery.infrastructure.scanner.SnimpyManager"
-            ) as mock_manager_cls,
+            patch("network_discovery.infrastructure.scanner.SNMP_AVAILABLE", True),
+            patch("network_discovery.infrastructure.scanner.snimpy_load") as mock_load,
+            patch("network_discovery.infrastructure.scanner.SnimpyManager") as mock_manager_cls,
         ):
-
             mock_manager = MagicMock()
             mock_manager_cls.return_value = mock_manager
             mock_manager.sysName = "Test Device"
@@ -225,14 +205,9 @@ class TestNmapDeviceScanner:
 
         # Mock the SNMP functionality with MIB loading error
         with (
-            patch(
-                "network_discovery.infrastructure.scanner.SNMP_AVAILABLE", True
-            ),
-            patch(
-                "network_discovery.infrastructure.scanner.snimpy_load"
-            ) as mock_load,
+            patch("network_discovery.infrastructure.scanner.SNMP_AVAILABLE", True),
+            patch("network_discovery.infrastructure.scanner.snimpy_load") as mock_load,
         ):
-
             mock_load.side_effect = Exception("Failed to load MIB")
 
             result, errors = await scanner.check_snmp(device)
@@ -248,22 +223,15 @@ class TestNmapDeviceScanner:
 
         # Mock the SNMP functionality with query error
         with (
-            patch(
-                "network_discovery.infrastructure.scanner.SNMP_AVAILABLE", True
-            ),
+            patch("network_discovery.infrastructure.scanner.SNMP_AVAILABLE", True),
             patch("network_discovery.infrastructure.scanner.snimpy_load"),
-            patch(
-                "network_discovery.infrastructure.scanner.SnimpyManager"
-            ) as mock_manager_cls,
+            patch("network_discovery.infrastructure.scanner.SnimpyManager") as mock_manager_cls,
         ):
-
             mock_manager = MagicMock()
             mock_manager_cls.return_value = mock_manager
 
             # Make accessing sysName raise an exception
-            type(mock_manager).sysName = property(
-                side_effect=Exception("Failed to query sysName")
-            )
+            type(mock_manager).sysName = property(side_effect=Exception("Failed to query sysName"))
 
             result, errors = await scanner.check_snmp(device)
 
@@ -277,9 +245,7 @@ class TestNmapDeviceScanner:
         """Test MySQL check when pymysql is not available."""
         scanner.is_port_open = AsyncMock(return_value=(True, []))
 
-        with patch(
-            "network_discovery.infrastructure.scanner.MYSQL_AVAILABLE", False
-        ):
+        with patch("network_discovery.infrastructure.scanner.MYSQL_AVAILABLE", False):
             result, errors = await scanner.check_mysql(device)
 
             assert result is False
@@ -292,20 +258,13 @@ class TestNmapDeviceScanner:
         scanner.is_port_open = AsyncMock(return_value=(True, []))
 
         # Set MySQL credentials
-        device = device.replace(
-            mysql_user="testuser", mysql_password="testpass"
-        )
+        device = device.replace(mysql_user="testuser", mysql_password="testpass")
 
         # Mock the MySQL functionality
         with (
-            patch(
-                "network_discovery.infrastructure.scanner.MYSQL_AVAILABLE", True
-            ),
-            patch(
-                "network_discovery.infrastructure.scanner.pymysql.connect"
-            ) as mock_connect,
+            patch("network_discovery.infrastructure.scanner.MYSQL_AVAILABLE", True),
+            patch("network_discovery.infrastructure.scanner.pymysql.connect") as mock_connect,
         ):
-
             mock_connection = MagicMock()
             mock_connect.return_value = mock_connection
             mock_cursor = MagicMock()
@@ -332,25 +291,16 @@ class TestNmapDeviceScanner:
         scanner.is_port_open = AsyncMock(return_value=(True, []))
 
         # Set MySQL credentials
-        device = device.replace(
-            mysql_user="testuser", mysql_password="testpass"
-        )
+        device = device.replace(mysql_user="testuser", mysql_password="testpass")
 
         # Mock the MySQL functionality with auth error
         with (
-            patch(
-                "network_discovery.infrastructure.scanner.MYSQL_AVAILABLE", True
-            ),
-            patch(
-                "network_discovery.infrastructure.scanner.pymysql.connect"
-            ) as mock_connect,
+            patch("network_discovery.infrastructure.scanner.MYSQL_AVAILABLE", True),
+            patch("network_discovery.infrastructure.scanner.pymysql.connect") as mock_connect,
         ):
-
             from network_discovery.infrastructure.scanner import pymysql
 
-            mock_connect.side_effect = pymysql.err.OperationalError(
-                1045, "Access denied"
-            )
+            mock_connect.side_effect = pymysql.err.OperationalError(1045, "Access denied")
 
             result, errors = await scanner.check_mysql(device)
 
@@ -364,25 +314,16 @@ class TestNmapDeviceScanner:
         scanner.is_port_open = AsyncMock(return_value=(True, []))
 
         # Set MySQL credentials
-        device = device.replace(
-            mysql_user="testuser", mysql_password="testpass"
-        )
+        device = device.replace(mysql_user="testuser", mysql_password="testpass")
 
         # Mock the MySQL functionality with connection error
         with (
-            patch(
-                "network_discovery.infrastructure.scanner.MYSQL_AVAILABLE", True
-            ),
-            patch(
-                "network_discovery.infrastructure.scanner.pymysql.connect"
-            ) as mock_connect,
+            patch("network_discovery.infrastructure.scanner.MYSQL_AVAILABLE", True),
+            patch("network_discovery.infrastructure.scanner.pymysql.connect") as mock_connect,
         ):
-
             from network_discovery.infrastructure.scanner import pymysql
 
-            mock_connect.side_effect = pymysql.err.OperationalError(
-                2003, "Can't connect"
-            )
+            mock_connect.side_effect = pymysql.err.OperationalError(2003, "Can't connect")
 
             result, errors = await scanner.check_mysql(device)
 
@@ -396,20 +337,13 @@ class TestNmapDeviceScanner:
         scanner.is_port_open = AsyncMock(return_value=(True, []))
 
         # Set MySQL credentials
-        device = device.replace(
-            mysql_user="testuser", mysql_password="testpass"
-        )
+        device = device.replace(mysql_user="testuser", mysql_password="testpass")
 
         # Mock the MySQL functionality with query error
         with (
-            patch(
-                "network_discovery.infrastructure.scanner.MYSQL_AVAILABLE", True
-            ),
-            patch(
-                "network_discovery.infrastructure.scanner.pymysql.connect"
-            ) as mock_connect,
+            patch("network_discovery.infrastructure.scanner.MYSQL_AVAILABLE", True),
+            patch("network_discovery.infrastructure.scanner.pymysql.connect") as mock_connect,
         ):
-
             mock_connection = MagicMock()
             mock_connect.return_value = mock_connection
             mock_cursor = MagicMock()
@@ -417,9 +351,7 @@ class TestNmapDeviceScanner:
 
             from network_discovery.infrastructure.scanner import pymysql
 
-            mock_cursor.execute.side_effect = pymysql.err.ProgrammingError(
-                "Query error"
-            )
+            mock_cursor.execute.side_effect = pymysql.err.ProgrammingError("Query error")
 
             result, errors = await scanner.check_mysql(device)
 
@@ -441,9 +373,7 @@ class TestNmapDeviceScanner:
         assert any("Exception: Nmap scan error" in err for err in result.errors)
 
     @pytest.mark.asyncio
-    async def test_scan_device_with_service_check_errors(
-        self, scanner, device, mock_nmap
-    ):
+    async def test_scan_device_with_service_check_errors(self, scanner, device, mock_nmap):
         """Test scan_device method when service checks return errors."""
         mock_nmap.hosts = [str(device.ip)]
 
@@ -586,9 +516,7 @@ class TestNmapDeviceScanner:
         with patch("nmap.PortScanner") as mock_port_scanner:
             mock_scanner = MagicMock()
             mock_scanner.all_hosts.return_value = [str(device.ip)]
-            mock_scanner.__getitem__.return_value = {
-                "tcp": {22: {"state": "open"}}
-            }
+            mock_scanner.__getitem__.return_value = {"tcp": {22: {"state": "open"}}}
             mock_port_scanner.return_value = mock_scanner
 
             result, errors = await scanner.is_port_open(device, 22)
@@ -600,9 +528,7 @@ class TestNmapDeviceScanner:
         with patch("nmap.PortScanner") as mock_port_scanner:
             mock_scanner = MagicMock()
             mock_scanner.all_hosts.return_value = [str(device.ip)]
-            mock_scanner.__getitem__.return_value = {
-                "tcp": {22: {"state": "closed"}}
-            }
+            mock_scanner.__getitem__.return_value = {"tcp": {22: {"state": "closed"}}}
             mock_port_scanner.return_value = mock_scanner
 
             result, errors = await scanner.is_port_open(device, 22)
