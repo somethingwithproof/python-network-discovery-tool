@@ -29,7 +29,7 @@ classifiers = [
 
 dependencies = [
     "python-nmap>=0.7.1",
-    "rich>=13.7.0",
+    "rich>=15.0.0",
     "typer>=0.24.1",
 ]
 
