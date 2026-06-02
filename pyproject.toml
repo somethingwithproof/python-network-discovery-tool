@@ -30,7 +30,7 @@ classifiers = [
 dependencies = [
     "python-nmap>=0.7.1",
     "rich>=15.0.0",
-    "typer>=0.24.1",
+    "typer>=0.25.1",
 ]
 
 [project.optional-dependencies]
