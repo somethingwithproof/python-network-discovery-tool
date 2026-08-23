@@ -16,7 +16,10 @@ echo ""
 
 # Create .env file if it doesn't exist
 ENV_FILE=".env"
-touch $ENV_FILE
+touch "$ENV_FILE"
+# The file ends up holding a plaintext MySQL password, so restrict it
+# before anything is written rather than leaving it at the umask default.
+chmod 600 "$ENV_FILE"
 
 # SSH User
 echo -e "${YELLOW}SSH User Configuration${NC}"
