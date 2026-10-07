@@ -25,7 +25,9 @@ repos:
     rev: v1.19.1
     hooks:
       - id: mypy
-        args: [--ignore-missing-imports]
+        # Settings live in pyproject.toml; check the package, not single files.
+        pass_filenames: false
+        additional_dependencies: [typer, rich]
 
   - repo: https://github.com/PyCQA/bandit
     rev: 1.9.4

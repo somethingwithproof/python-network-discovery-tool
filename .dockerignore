@@ -32,7 +32,6 @@ coverage.xml
 
 # Docker
 Dockerfile
-docker-compose.yml
 .dockerignore
 
 # Editor directories and files

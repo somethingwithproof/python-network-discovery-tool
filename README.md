@@ -3,15 +3,13 @@
 [![CI configuration](https://img.shields.io/badge/CI-configured-blue)](./.github/workflows/ci.yml)
 [![Python requirement](https://img.shields.io/badge/Python_requirement-%3E%3D3.12-blue)](./pyproject.toml)
 
-A Python network-discovery CLI with terminal, JSON, and CSV output. The checked-in [netprobe.py](netprobe.py) defines the scan orchestration, device representation, output writers, and CLI options.
+A Python network-discovery CLI with terminal, JSON, and CSV output. The package in [src/netprobe](src/netprobe) defines the scan orchestration, device representation, output writers, and CLI options.
 
 ## Architecture and scope
 
 - A Typer CLI provides `scan` and `version` commands.
 - Rich renders terminal output; dedicated functions write JSON and CSV.
 - The implementation uses network/service checks and the dependencies declared in [pyproject.toml](pyproject.toml).
-
-This repository also retains development tooling and historical modules. Earlier claims that the entire repository consists of one file, or that the rewrite has demonstrated performance improvements, do not describe the evidence available here.
 
 ## Install and inspect
 
@@ -53,6 +51,7 @@ Exit codes: `0` success, `1` nmap missing or the report could not be written, `2
 
 ```bash
 .venv/bin/python -m pytest
+.venv/bin/mypy
 ```
 
 The test configuration and dependencies are declared in [pyproject.toml](pyproject.toml). See [E2E-TESTING.md](E2E-TESTING.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [release scripts](scripts/README.md) for additional workflows.

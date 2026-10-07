@@ -56,7 +56,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --extra dev
-      - run: uv run pytest test_netprobe.py -v --cov=. --cov-report=xml
+      - run: uv run pytest -v --cov=netprobe --cov-report=xml --cov-fail-under=90
       - name: Upload coverage
         if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v5
@@ -74,7 +74,5 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.12"
-      - run: |
-          uv sync --extra dev
-          uv pip install mypy
-      - run: uv run mypy netprobe.py --ignore-missing-imports --explicit-package-bases
+      - run: uv sync --extra dev
+      - run: uv run mypy

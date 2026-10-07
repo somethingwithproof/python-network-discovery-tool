@@ -8,11 +8,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY pyproject.toml README.md netprobe.py ./
+COPY pyproject.toml README.md ./
+COPY src ./src
 RUN pip install --no-cache-dir .
 
-# Create directories for output and templates
-RUN mkdir -p /app/output /app/templates
+# Create directory for output
+RUN mkdir -p /app/output
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1

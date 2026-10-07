@@ -14,7 +14,6 @@ Makefile @thomasvincent
 
 # Docker files
 Dockerfile @thomasvincent
-docker-compose.yml @thomasvincent
 .dockerignore @thomasvincent
 
 # CI/CD and automation
@@ -23,5 +22,4 @@ docker-compose.yml @thomasvincent
 
 # Documentation
 README.md @thomasvincent
-docs/ @thomasvincent
 *.md @thomasvincent
