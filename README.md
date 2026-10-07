@@ -1,212 +1,39 @@
-# 🔍 netprobe - Modern Network Scanner
+# netprobe
 
-A fast, beautiful network discovery tool for identifying SSH, SNMP, and MySQL services.
-Built with modern Python (3.12+) and designed for the 2026 era.
+[![CI configuration](https://img.shields.io/badge/CI-configured-blue)](./.github/workflows/ci.yml)
+[![Python requirement](https://img.shields.io/badge/Python_requirement-%3E%3D3.12-blue)](./pyproject.toml)
 
-```bash
-# Quick scan
-netprobe scan 192.168.1.0/24
+A Python network-discovery CLI with terminal, JSON, and CSV output. The checked-in [netprobe.py](netprobe.py) defines the scan orchestration, device representation, output writers, and CLI options.
 
-# Save results
-netprobe scan 10.0.0.0/24 -o report.json
+## Architecture and scope
 
-# Scan single host
-netprobe scan 192.168.1.1 --verbose
-```
+- A Typer CLI provides `scan` and `version` commands.
+- Rich renders terminal output; dedicated functions write JSON and CSV.
+- The implementation uses network/service checks and the dependencies declared in [pyproject.toml](pyproject.toml).
 
-## ✨ Features
+This repository also retains development tooling and historical modules. Earlier claims that the entire repository consists of one file, or that the rewrite has demonstrated performance improvements, do not describe the evidence available here.
 
-- **🚀 Fast** - Async concurrent scanning with semaphore-based rate limiting
-- **🎨 Beautiful** - Rich terminal output with progress bars and colorful tables
-- **📦 Simple** - Single file, minimal dependencies, zero configuration
-- **🔧 Modern** - Python 3.12+, type hints, match/case statements
-- **📊 Flexible Output** - JSON, CSV, or terminal table
+## Install and inspect
 
-## 🚀 Installation
-
-### Using uv (recommended)
-```bash
-# Install uv if you don't have it
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Install netprobe
-uv tool install .
-
-# Or run directly
-uv run netprobe scan 192.168.1.0/24
-```
-
-### Using pip
-```bash
-pip install -e .
-```
-
-### Requirements
-- Python 3.12 or later
-- nmap (must be installed on system)
+Python 3.12 or newer is required. From this checkout:
 
 ```bash
-# Install nmap
-# macOS
-brew install nmap
-
-# Ubuntu/Debian
-sudo apt install nmap
-
-# Fedora/RHEL
-sudo dnf install nmap
+uv venv
+uv pip install -e ".[dev]"
+.venv/bin/netprobe --help
+.venv/bin/netprobe scan --help
 ```
 
-## 📖 Usage
+Inspect the options and required platform tools before using the scanner on networks you administer. This README does not claim verified compatibility with every target service or environment.
 
-### Basic Scan
+## Development
+
 ```bash
-# Scan network
-netprobe scan 192.168.1.0/24
-
-# Scan single host
-netprobe scan 192.168.1.1
+.venv/bin/python -m pytest
 ```
 
-### Output Options
-```bash
-# Save as JSON
-netprobe scan 192.168.1.0/24 -o results.json
+The test configuration and dependencies are declared in [pyproject.toml](pyproject.toml). See [E2E-TESTING.md](E2E-TESTING.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [release scripts](scripts/README.md) for additional workflows.
 
-# Save as CSV
-netprobe scan 192.168.1.0/24 -o results.csv
+## Security and license status
 
-# Specify format explicitly
-netprobe scan 192.168.1.0/24 -o output.txt --format json
-```
-
-### Advanced Options
-```bash
-# Verbose logging
-netprobe scan 192.168.1.0/24 --verbose
-
-# Quiet mode (no table, only file output)
-netprobe scan 192.168.1.0/24 -o results.json --quiet
-
-# Show version
-netprobe version
-```
-
-## 🎨 Example Output
-
-```
-🔍 Network Scan Results (5 alive hosts)
-┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━━┳━━━━━━━━┓
-┃ IP Address    ┃ Hostname     ┃  SSH  ┃ SNMP  ┃ MySQL  ┃ Status ┃
-┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━━╇━━━━━━━━┩
-│ 192.168.1.1   │ router.local │   ✅   │   ❌   │   ❌    │   UP   │
-│ 192.168.1.10  │ server.local │   ✅   │   ✅   │   ✅    │   UP   │
-│ 192.168.1.20  │ nas.local    │   ✅   │   ✅   │   ❌    │   UP   │
-│ 192.168.1.50  │ -            │   ❌   │   ❌   │   ❌    │   UP   │
-│ 192.168.1.100 │ printer      │   ❌   │   ✅   │   ❌    │   UP   │
-└───────────────┴──────────────┴───────┴───────┴────────┴────────┘
-
-Summary:
-  • SSH servers: 3
-  • SNMP devices: 3
-  • MySQL servers: 1
-```
-
-## 🏗️ Architecture
-
-### Why the Rewrite?
-
-The original version was over-engineered with:
-- 3,500 lines across 20 files
-- 6 architectural layers (DDD/Clean Architecture)
-- 13 dependencies for a simple port scanner
-- Abstract interfaces with only 1 implementation
-- Missing core functionality (scanner methods not implemented!)
-
-### Modern Version
-
-- **400 lines** in a single file
-- **3 dependencies** (nmap, rich, typer)
-- **Actually works** (implements all scanner methods!)
-- Clean, maintainable, modern Python
-
-```
-netprobe.py           # Everything in one beautiful file
-pyproject.toml       # Modern dependency management
-README.md            # You are here
-```
-
-## 🔬 How It Works
-
-1. **Parse Network** - Convert CIDR or single IP to list of IPs
-2. **Concurrent Scan** - Scan up to 50 hosts simultaneously
-3. **Service Detection** - Check ports 22 (SSH), 161 (SNMP), 3306 (MySQL)
-4. **Beautiful Output** - Display results in rich terminal table
-5. **Export** - Optionally save to JSON or CSV
-
-## 🛠️ Development
-
-### Setup
-```bash
-# Clone and install
-git clone https://github.com/thomasvincent/python-network-discovery-tool
-cd python-network-discovery-tool
-
-# Install with dev dependencies using uv
-uv sync --dev
-
-# Or with pip
-pip install -e ".[dev]"
-```
-
-### Linting & Formatting
-```bash
-# Ruff does it all (replaces black, isort, flake8, pylint)
-ruff check .           # Lint
-ruff check --fix .     # Auto-fix
-ruff format .          # Format
-```
-
-### Testing
-```bash
-# Run tests
-pytest
-
-# With coverage
-pytest --cov=. --cov-report=html
-```
-
-## 📝 What Changed from v1.x?
-
-| Feature | v1.x (Old) | v2.0 (New) |
-|---------|-----------|-----------|
-| **Lines of Code** | 3,500 | 400 |
-| **Files** | 20 | 1 |
-| **Dependencies** | 13 | 3 |
-| **Architecture** | 6-layer DDD | Flat |
-| **Scanner** | ❌ Broken | ✅ Works |
-| **Terminal UI** | Basic | Rich/Beautiful |
-| **Python** | 3.10+ | 3.12+ |
-| **Linting** | black+isort+flake8 | ruff |
-| **Package Manager** | pip/setuptools | uv/hatch |
-
-## 🤝 Contributing
-
-Contributions welcome! This is a learning project demonstrating modern Python practices.
-
-## 📜 License
-
-MIT License - see [LICENSE](LICENSE) file
-
-## 🙏 Credits
-
-- Built with [Rich](https://github.com/Textualize/rich) for beautiful terminal output
-- Uses [python-nmap](https://github.com/savon-noir/python-nmap) for network scanning
-- CLI powered by [Typer](https://github.com/tiangolo/typer)
-- Rewritten in 2026 with ❤️
-
-## 🔗 Links
-
-- [GitHub Repository](https://github.com/thomasvincent/python-network-discovery-tool)
-- [Issue Tracker](https://github.com/thomasvincent/python-network-discovery-tool/issues)
-- [Original Version (Deprecated)](https://github.com/thomasvincent/python-network-discovery-tool/tree/v1.x)
+See [SECURITY.md](SECURITY.md). Package metadata declares MIT, but this checkout has no `LICENSE` file. Confirm the intended license grant before redistribution.
