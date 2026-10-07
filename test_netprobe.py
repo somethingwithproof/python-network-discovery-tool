@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -159,17 +160,17 @@ class FakeNmap:
         return self.hosts[ip]
 
 
-def make_host(state="up", tcp=None):
+def make_host(state="up", tcp=None, udp=None):
     host = MagicMock()
     host.state.return_value = state
-    host.get.side_effect = lambda key, default=None: (
-        tcp if key == "tcp" and tcp is not None else default
-    )
+    protocols = {"tcp": tcp, "udp": udp}
+    host.get.side_effect = lambda key, default=None: protocols.get(key) or default
     return host
 
 
 def scanner_with(fake):
     scanner = NetworkScanner.__new__(NetworkScanner)
+    scanner._new_scanner = lambda: fake
     scanner.nm = fake
     return scanner
 
@@ -224,10 +225,13 @@ async def test_scan_device_down_records_error():
 
 @pytest.mark.asyncio
 async def test_scan_device_reports_services_and_hostname():
-    host = make_host(tcp={22: {"state": "open"}, 161: {"state": "open"}})
+    host = make_host(tcp={22: {"state": "open"}}, udp={161: {"state": "open"}})
     scanner = scanner_with(FakeNmap({"10.0.0.1": host}))
 
-    with patch.object(scanner, "_get_hostname", return_value="box.example"):
+    with (
+        patch.object(netprobe.os, "geteuid", return_value=0),
+        patch.object(scanner, "_get_hostname", return_value="box.example"),
+    ):
         device = await scanner.scan_device("10.0.0.1")
 
     assert device.alive
@@ -245,6 +249,7 @@ async def test_scan_device_records_port_errors_and_hostname_failure():
         raise RuntimeError(f"bad {port}")
 
     with (
+        patch.object(netprobe.os, "geteuid", return_value=0),
         patch.object(scanner, "_check_port", side_effect=boom),
         patch.object(scanner, "_get_hostname", side_effect=OSError("no dns")),
     ):
@@ -347,3 +352,168 @@ def test_cli_scan_prints_table_without_output_file():
 
     assert result.exit_code == 0
     assert "10.0.0.1" in result.output
+
+
+@pytest.mark.parametrize(
+    "target", ["127.0.0.1", "::1", "example.com", "host-1.lab.example", "localhost"]
+)
+def test_validate_target_accepts(target):
+    assert netprobe.validate_target(target) == target
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "",
+        "-oN/tmp/out",
+        "--script=banner",
+        "host name",
+        "a;b",
+        "999.999.999.999",
+        "1.2.3",
+        "-bad.example",
+        "bad-.example",
+        "a" * 64 + ".example",
+        ("a." * 130) + "com",
+    ],
+)
+def test_validate_target_rejects(target):
+    with pytest.raises(ValueError, match="Invalid target"):
+        netprobe.validate_target(target)
+
+
+@pytest.mark.asyncio
+async def test_scan_device_rejects_option_like_target_without_running_nmap():
+    scanner = scanner_with(FakeNmap())
+    device = await scanner.scan_device("--script=banner")
+
+    assert not device.alive
+    assert "Invalid target" in device.errors[0]
+    assert scanner.nm.scans == []
+
+
+@pytest.mark.asyncio
+async def test_scan_network_rejects_option_like_target():
+    with pytest.raises(ValueError, match="Invalid network format"):
+        await scanner_with(FakeNmap()).scan_network("-sS")
+
+
+@pytest.mark.asyncio
+async def test_scan_network_rejects_oversized_network():
+    with pytest.raises(ValueError, match="Network too large"):
+        await scanner_with(FakeNmap()).scan_network("10.0.0.0/8")
+
+
+@pytest.mark.asyncio
+async def test_scan_network_accepts_largest_allowed_network():
+    scanner = scanner_with(FakeNmap())
+
+    async def fake_scan(ip):
+        return Device(ip)
+
+    with patch.object(scanner, "scan_device", side_effect=fake_scan):
+        devices = await scanner.scan_network("10.0.0.0/16")
+
+    assert len(devices) == 65534
+
+
+class PerCallPortScanner:
+    """Fake nmap whose result lives on the instance, like python-nmap's PortScanner."""
+
+    # Both scans must have written before either returns, so a shared instance
+    # always shows the last write to whichever caller reads second.
+    barrier = threading.Barrier(2, timeout=5)
+
+    def __init__(self):
+        self.open_port = None
+
+    def scan(self, hosts=None, arguments=None):
+        self.open_port = int(arguments.split("-p ")[1].split()[0])
+        self.barrier.wait()
+
+    def all_hosts(self):
+        return ["10.0.0.1"]
+
+    def __getitem__(self, ip):
+        host = MagicMock()
+        host.get.return_value = {self.open_port: {"state": "open"}}
+        return host
+
+
+@pytest.mark.asyncio
+async def test_concurrent_port_checks_do_not_share_scan_state():
+    """Each port must be judged from its own nmap result, not the last one written."""
+    scanner = NetworkScanner.__new__(NetworkScanner)
+    scanner._new_scanner = PerCallPortScanner
+
+    results = await asyncio.gather(
+        scanner._check_port("10.0.0.1", 22),
+        scanner._check_port("10.0.0.1", 3306),
+    )
+
+    assert results == [True, True]
+
+
+@pytest.mark.asyncio
+async def test_udp_check_uses_udp_scan_and_results():
+    fake = FakeNmap({"10.0.0.1": make_host(udp={161: {"state": "open"}})})
+    scanner = scanner_with(fake)
+
+    assert await scanner._check_port("10.0.0.1", 161, "udp") is True
+    assert fake.scans[0][1].startswith("-sU -p 161")
+    assert await scanner._check_port("10.0.0.1", 161, "tcp") is False
+
+
+@pytest.mark.asyncio
+async def test_snmp_skipped_without_root():
+    scanner = scanner_with(FakeNmap({"10.0.0.1": make_host(tcp={22: {"state": "open"}})}))
+
+    with (
+        patch.object(netprobe.os, "geteuid", return_value=1000),
+        patch.object(scanner, "_get_hostname", return_value=""),
+    ):
+        device = await scanner.scan_device("10.0.0.1")
+
+    assert device.ssh
+    assert not device.snmp
+    assert "SNMP check skipped: UDP scan requires root" in device.errors
+    assert all("-sU" not in args for _, args in scanner.nm.scans)
+
+
+def test_hostname_target_matches_single_result_by_ip():
+    scanner = scanner_with(FakeNmap({"93.184.216.34": make_host("up")}))
+
+    assert scanner._check_alive("example.com") is True
+
+
+def test_ip_target_never_falls_back_to_a_different_host():
+    scanner = scanner_with(FakeNmap({"10.0.0.9": make_host("up")}))
+
+    assert scanner._check_alive("10.0.0.1") is False
+
+
+def test_cli_invalid_network_exits_2_with_message():
+    result = runner.invoke(app, ["scan", "999.1.1.1/24"])
+
+    assert result.exit_code == 2
+    assert "Invalid network format" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_cli_missing_nmap_exits_1():
+    with patch.object(
+        netprobe, "NetworkScanner", side_effect=netprobe.nmap.PortScannerError("nmap not found")
+    ):
+        result = runner.invoke(app, ["scan", "127.0.0.1"])
+
+    assert result.exit_code == 1
+    assert "nmap is not available" in result.output
+
+
+def test_cli_unwritable_output_exits_1(tmp_path):
+    out = tmp_path / "missing-dir" / "report.json"
+    with patched_scanner([Device(ip="10.0.0.1", alive=True)]):
+        result = runner.invoke(app, ["scan", "10.0.0.1", "--quiet", "-o", str(out)])
+
+    assert result.exit_code == 1
+    assert "cannot write" in result.output
