@@ -12,6 +12,9 @@ import csv
 import ipaddress
 import json
 import logging
+import os
+import re
+import socket
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -32,6 +35,48 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 console = Console()
+
+# Largest network accepted in one run. A /8 would otherwise queue 16M scan tasks.
+MAX_HOSTS = 65536
+# Per-nmap-invocation cap so one unresponsive host cannot hang a scan.
+NMAP_HOST_TIMEOUT = "30s"
+
+_HOSTNAME_LABEL = re.compile(r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$")
+
+
+def _host_key(nm: nmap.PortScanner, target: str) -> str | None:
+    """Find the result entry for target; nmap keys results by IP, not hostname."""
+    hosts = nm.all_hosts()
+    if target in hosts:
+        return target
+    try:
+        ipaddress.ip_address(target)
+    except ValueError:
+        return hosts[0] if len(hosts) == 1 else None
+    return None
+
+
+def validate_target(target: str) -> str:
+    """Return target if it is an IP address or a DNS name, else raise ValueError.
+
+    The value is later passed to the nmap command line, so anything that could
+    be read as an option (leading "-") or contains whitespace is rejected.
+    """
+    try:
+        return str(ipaddress.ip_address(target))
+    except ValueError:
+        pass
+
+    labels = target.split(".")
+    # A purely numeric last label means a malformed IPv4 address, not a hostname.
+    if (
+        len(target) > 253
+        or not all(_HOSTNAME_LABEL.match(label) for label in labels)
+        or labels[-1].isdigit()
+    ):
+        raise ValueError(f"Invalid target: {target!r}")
+    return target
+
 
 # Typer app for modern CLI
 app = typer.Typer(
@@ -58,18 +103,33 @@ class NetworkScanner:
     """Fast async network scanner using nmap."""
 
     def __init__(self) -> None:
-        self.nm = nmap.PortScanner()
+        # Constructed once up front so a missing nmap binary fails here.
+        self.nm = self._new_scanner()
+
+    def _new_scanner(self) -> nmap.PortScanner:
+        """Return a fresh PortScanner.
+
+        PortScanner keeps the last result on the instance, so sharing one
+        across concurrent scans lets threads overwrite each other's output.
+        """
+        return nmap.PortScanner()
 
     async def scan_device(self, ip: str) -> Device:
         """Scan a single device for services.
 
         Args:
-            ip: IP address to scan
+            ip: IP address or hostname to scan
 
         Returns:
             Device object with scan results
         """
         device = Device(ip=ip)
+
+        try:
+            validate_target(ip)
+        except ValueError as e:
+            device.errors.append(str(e))
+            return device
 
         try:
             # Check if host is alive (faster than port scan)
@@ -80,24 +140,35 @@ class NetworkScanner:
                 device.errors.append("Host is down")
                 return device
 
-            # Scan common ports concurrently
             ports_to_check = {
-                22: "ssh",
-                161: "snmp",
-                3306: "mysql",
+                22: ("ssh", "tcp"),
+                161: ("snmp", "udp"),
+                3306: ("mysql", "tcp"),
             }
 
-            # Run port scans concurrently
-            port_results = await asyncio.gather(
-                *[self._check_port(ip, port) for port in ports_to_check], return_exceptions=True
-            )
+            if os.name == "posix" and os.geteuid() != 0:
+                # nmap refuses UDP scans without raw-socket privileges.
+                del ports_to_check[161]
+                device.errors.append("SNMP check skipped: UDP scan requires root")
 
-            # Update device with results
-            for port, result in zip(ports_to_check.keys(), port_results, strict=False):
+            results: dict[int, bool | Exception] = {}
+
+            async def check(port: int, proto: str) -> None:
+                try:
+                    results[port] = await self._check_port(ip, port, proto)
+                except Exception as e:
+                    results[port] = e
+
+            async with asyncio.TaskGroup() as tg:
+                for port, (_, proto) in ports_to_check.items():
+                    tg.create_task(check(port, proto))
+
+            for port, (attr, _) in ports_to_check.items():
+                result = results[port]
                 if isinstance(result, Exception):
                     device.errors.append(f"Error checking port {port}: {result}")
                 else:
-                    setattr(device, ports_to_check[port], result)
+                    setattr(device, attr, result)
 
             # Try to get hostname
             try:
@@ -114,21 +185,30 @@ class NetworkScanner:
     def _check_alive(self, ip: str) -> bool:
         """Check if host is alive using nmap ping scan."""
         try:
-            self.nm.scan(hosts=ip, arguments="-sn -T4")
-            return ip in self.nm.all_hosts() and self.nm[ip].state() == "up"
-        except Exception:
+            nm = self._new_scanner()
+            nm.scan(hosts=ip, arguments=f"-sn -T4 --host-timeout {NMAP_HOST_TIMEOUT}")
+            key = _host_key(nm, ip)
+            return key is not None and nm[key].state() == "up"
+        except Exception as e:
+            logger.warning(f"Alive check failed for {ip}: {e}")
             return False
 
-    async def _check_port(self, ip: str, port: int) -> bool:
+    async def _check_port(self, ip: str, port: int, proto: str = "tcp") -> bool:
         """Check if a specific port is open."""
         try:
-            await asyncio.to_thread(self.nm.scan, hosts=ip, arguments=f"-p {port} -T4 --open")
+            nm = self._new_scanner()
+            udp = "-sU " if proto == "udp" else ""
+            await asyncio.to_thread(
+                nm.scan,
+                hosts=ip,
+                arguments=f"{udp}-p {port} -T4 --open --host-timeout {NMAP_HOST_TIMEOUT}",
+            )
 
-            if ip not in self.nm.all_hosts():
+            key = _host_key(nm, ip)
+            if key is None:
                 return False
 
-            tcp_ports = self.nm[ip].get("tcp", {})
-            port_info = tcp_ports.get(port, {})
+            port_info = nm[key].get(proto, {}).get(port, {})
             return port_info.get("state") == "open"
 
         except Exception as e:
@@ -138,8 +218,6 @@ class NetworkScanner:
     def _get_hostname(self, ip: str) -> str:
         """Get hostname for IP address."""
         try:
-            import socket
-
             return socket.gethostbyaddr(ip)[0]
         except Exception:
             return ""
@@ -148,19 +226,25 @@ class NetworkScanner:
         """Scan an entire network.
 
         Args:
-            network: Network in CIDR notation (e.g., "192.168.1.0/24") or single IP
+            network: Network in CIDR notation (e.g., "192.168.1.0/24"), IP, or hostname
             progress: Optional Rich progress bar
 
         Returns:
             List of scanned devices
+
+        Raises:
+            ValueError: if the target is malformed or larger than MAX_HOSTS
         """
-        # Parse network
         try:
             if "/" in network:
                 net = ipaddress.ip_network(network, strict=False)
+                if net.num_addresses > MAX_HOSTS:
+                    raise ValueError(
+                        f"Network too large: {net.num_addresses} addresses (max {MAX_HOSTS})"
+                    )
                 ips = [str(ip) for ip in net.hosts()]
             else:
-                ips = [network]
+                ips = [validate_target(network)]
         except ValueError as e:
             raise ValueError(f"Invalid network format: {e}") from e
 
@@ -169,8 +253,8 @@ class NetworkScanner:
         # Create progress task if progress bar provided
         task = progress.add_task("[cyan]Scanning network...", total=len(ips)) if progress else None
 
-        # Scan all IPs concurrently with semaphore to limit concurrency
-        semaphore = asyncio.Semaphore(50)  # Max 50 concurrent scans
+        # Limit concurrency: each device scan spawns several nmap processes
+        semaphore = asyncio.Semaphore(20)
 
         async def scan_with_progress(ip: str) -> Device:
             async with semaphore:
@@ -179,9 +263,10 @@ class NetworkScanner:
                     progress.update(task, advance=1)
                 return result
 
-        devices = await asyncio.gather(*[scan_with_progress(ip) for ip in ips])
+        async with asyncio.TaskGroup() as tg:
+            tasks = [tg.create_task(scan_with_progress(ip)) for ip in ips]
 
-        return devices
+        return [t.result() for t in tasks]
 
 
 def save_json(devices: list[Device], output_path: Path) -> None:
@@ -280,8 +365,14 @@ def scan(
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    # Run scan
-    scanner = NetworkScanner()
+    try:
+        scanner = NetworkScanner()
+    except nmap.PortScannerError as e:
+        typer.echo(f"Error: nmap is not available: {e}", err=True)
+        raise typer.Exit(1) from e
+
+    if format != "auto" and output is None:
+        logger.warning("--format has no effect without --output")
 
     with Progress(
         SpinnerColumn(),
@@ -290,7 +381,11 @@ def scan(
         TaskProgressColumn(),
         console=console,
     ) as progress:
-        devices = asyncio.run(scanner.scan_network(network, progress))
+        try:
+            devices = asyncio.run(scanner.scan_network(network, progress))
+        except ValueError as e:
+            typer.echo(f"Error: {e}", err=True)
+            raise typer.Exit(2) from e
 
     # Print results (unless quiet)
     if not quiet:
@@ -309,12 +404,15 @@ def scan(
                 logger.warning(f"Unknown extension {ext}, defaulting to JSON")
                 format = "json"
 
-        # Save based on format
-        match format:
-            case "json":
-                save_json(devices, output)
-            case "csv":
-                save_csv(devices, output)
+        try:
+            match format:
+                case "json":
+                    save_json(devices, output)
+                case "csv":
+                    save_csv(devices, output)
+        except OSError as e:
+            typer.echo(f"Error: cannot write {output}: {e}", err=True)
+            raise typer.Exit(1) from e
 
 
 @app.command()

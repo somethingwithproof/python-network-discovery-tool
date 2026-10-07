@@ -106,4 +106,7 @@ exclude_lines = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["."]
+include = ["netprobe.py"]
+
+[tool.hatch.build.targets.sdist]
+include = ["netprobe.py", "test_netprobe.py", "README.md", "pyproject.toml"]
