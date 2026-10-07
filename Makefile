@@ -4,10 +4,10 @@ help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 install:
-	pip install python-nmap rich typer pytest pytest-asyncio
+	pip install -e ".[dev]"
 
 test-unit:
-	pytest test_netprobe.py -v
+	pytest tests -v
 
 test-e2e:
 	@echo "🐳 Starting Docker test environment..."
@@ -20,10 +20,10 @@ test-e2e:
 	docker-compose -f docker-compose.test.yml down
 
 test-all:
-	pytest test_netprobe.py test_e2e.py -v
+	pytest tests test_e2e.py -v
 
 test:
-	pytest -v --cov=. --cov-report=html
+	pytest -v --cov=netprobe --cov-report=html
 
 docker-up:
 	docker-compose -f docker-compose.test.yml up -d
@@ -39,5 +39,5 @@ clean:
 
 demo:
 	@make docker-up
-	python netprobe.py scan 172.20.0.0/28
+	python -m netprobe scan 172.20.0.0/28
 	@make docker-down

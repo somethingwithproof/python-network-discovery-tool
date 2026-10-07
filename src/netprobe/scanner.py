@@ -1,40 +1,20 @@
-#!/usr/bin/env python3
-"""Modern Network Scanner - 2026 Edition
-
-A clean, fast network discovery tool for identifying SSH, SNMP, and MySQL services.
-Built with modern Python practices and beautiful terminal output.
-"""
+"""Host discovery and port checks driven by nmap."""
 
 from __future__ import annotations
 
 import asyncio
-import csv
 import ipaddress
-import json
 import logging
 import os
 import re
 import socket
-from dataclasses import asdict, dataclass, field
-from pathlib import Path
-from typing import Literal
 
 import nmap
-import typer
-from rich import print as rprint
-from rich.console import Console
-from rich.logging import RichHandler
-from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
-from rich.table import Table
+from rich.progress import Progress
 
-# Modern logger with Rich
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(message)s",
-    handlers=[RichHandler(rich_tracebacks=True, show_time=False)],
-)
+from netprobe.models import Device
+
 logger = logging.getLogger(__name__)
-console = Console()
 
 # Largest network accepted in one run. A /8 would otherwise queue 16M scan tasks.
 MAX_HOSTS = 65536
@@ -76,27 +56,6 @@ def validate_target(target: str) -> str:
     ):
         raise ValueError(f"Invalid target: {target!r}")
     return target
-
-
-# Typer app for modern CLI
-app = typer.Typer(
-    name="netprobe",
-    help="🔍 Modern network scanner for SSH/SNMP/MySQL discovery",
-    add_completion=False,
-)
-
-
-@dataclass
-class Device:
-    """Network device with scan results."""
-
-    ip: str
-    alive: bool = False
-    ssh: bool = False
-    snmp: bool = False
-    mysql: bool = False
-    hostname: str = ""
-    errors: list[str] = field(default_factory=list)
 
 
 class NetworkScanner:
@@ -209,7 +168,7 @@ class NetworkScanner:
                 return False
 
             port_info = nm[key].get(proto, {}).get(port, {})
-            return port_info.get("state") == "open"
+            return bool(port_info.get("state") == "open")
 
         except Exception as e:
             logger.debug(f"Error checking port {port} on {ip}: {e}")
@@ -267,160 +226,3 @@ class NetworkScanner:
             tasks = [tg.create_task(scan_with_progress(ip)) for ip in ips]
 
         return [t.result() for t in tasks]
-
-
-def save_json(devices: list[Device], output_path: Path) -> None:
-    """Save devices to JSON file."""
-    data = [asdict(d) for d in devices]
-    output_path.write_text(json.dumps(data, indent=2))
-    logger.info(f"Saved JSON report to {output_path}")
-
-
-def save_csv(devices: list[Device], output_path: Path) -> None:
-    """Save devices to CSV file."""
-    with output_path.open("w", newline="") as f:
-        writer = csv.DictWriter(
-            f, fieldnames=["ip", "alive", "ssh", "snmp", "mysql", "hostname", "errors"]
-        )
-        writer.writeheader()
-        for device in devices:
-            row = asdict(device)
-            row["errors"] = "; ".join(row["errors"]) if row["errors"] else ""
-            writer.writerow(row)
-    logger.info(f"Saved CSV report to {output_path}")
-
-
-def print_results(devices: list[Device]) -> None:
-    """Print scan results in a beautiful table."""
-    # Filter to only show alive devices by default
-    alive_devices = [d for d in devices if d.alive]
-
-    if not alive_devices:
-        console.print("[yellow]No alive hosts found[/yellow]")
-        return
-
-    table = Table(title=f"🔍 Network Scan Results ({len(alive_devices)} alive hosts)")
-
-    table.add_column("IP Address", style="cyan", no_wrap=True)
-    table.add_column("Hostname", style="blue")
-    table.add_column("SSH", justify="center")
-    table.add_column("SNMP", justify="center")
-    table.add_column("MySQL", justify="center")
-    table.add_column("Status")
-
-    for device in alive_devices:
-        table.add_row(
-            device.ip,
-            device.hostname or "-",
-            "✅" if device.ssh else "❌",
-            "✅" if device.snmp else "❌",
-            "✅" if device.mysql else "❌",
-            "[green]UP[/green]" if device.alive else "[red]DOWN[/red]",
-        )
-
-    console.print(table)
-
-    # Summary
-    ssh_count = sum(1 for d in alive_devices if d.ssh)
-    snmp_count = sum(1 for d in alive_devices if d.snmp)
-    mysql_count = sum(1 for d in alive_devices if d.mysql)
-
-    console.print()
-    console.print("[bold]Summary:[/bold]")
-    console.print(f"  • SSH servers: {ssh_count}")
-    console.print(f"  • SNMP devices: {snmp_count}")
-    console.print(f"  • MySQL servers: {mysql_count}")
-
-
-@app.command()
-def scan(
-    network: str = typer.Argument(..., help="Network CIDR (e.g., 192.168.1.0/24) or single IP"),
-    output: Path = typer.Option(
-        None, "--output", "-o", help="Output file (JSON or CSV, detected by extension)"
-    ),
-    format: Literal["json", "csv", "auto"] = typer.Option(
-        "auto", "--format", "-f", help="Output format (auto-detects from filename)"
-    ),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
-    quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress table output"),
-) -> None:
-    """
-    🔍 Scan network for SSH, SNMP, and MySQL services.
-
-    Examples:
-
-        # Scan entire network
-        netprobe scan 192.168.1.0/24
-
-        # Scan single host with JSON output
-        netprobe scan 192.168.1.1 -o results.json
-
-        # Scan and save to CSV
-        netprobe scan 10.0.0.0/24 --output report.csv
-
-        # Quiet mode (no table, only file output)
-        netprobe scan 192.168.1.0/24 -o results.json --quiet
-    """
-    # Set logging level
-    if verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
-
-    try:
-        scanner = NetworkScanner()
-    except nmap.PortScannerError as e:
-        typer.echo(f"Error: nmap is not available: {e}", err=True)
-        raise typer.Exit(1) from e
-
-    if format != "auto" and output is None:
-        logger.warning("--format has no effect without --output")
-
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        TaskProgressColumn(),
-        console=console,
-    ) as progress:
-        try:
-            devices = asyncio.run(scanner.scan_network(network, progress))
-        except ValueError as e:
-            typer.echo(f"Error: {e}", err=True)
-            raise typer.Exit(2) from e
-
-    # Print results (unless quiet)
-    if not quiet:
-        print_results(devices)
-
-    # Save to file if requested
-    if output:
-        # Auto-detect format from extension
-        if format == "auto":
-            ext = output.suffix.lower()
-            if ext == ".json":
-                format = "json"
-            elif ext == ".csv":
-                format = "csv"
-            else:
-                logger.warning(f"Unknown extension {ext}, defaulting to JSON")
-                format = "json"
-
-        try:
-            match format:
-                case "json":
-                    save_json(devices, output)
-                case "csv":
-                    save_csv(devices, output)
-        except OSError as e:
-            typer.echo(f"Error: cannot write {output}: {e}", err=True)
-            raise typer.Exit(1) from e
-
-
-@app.command()
-def version() -> None:
-    """Show version information."""
-    rprint("[bold cyan]netprobe[/bold cyan] [green]v2.0.0[/green]")
-    rprint("Modern network scanner built with Python 3.12+")
-
-
-if __name__ == "__main__":
-    app()

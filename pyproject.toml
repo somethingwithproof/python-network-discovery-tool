@@ -39,10 +39,11 @@ dev = [
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.1.0",
     "ruff>=0.15.14",
+    "mypy>=1.19.1",
 ]
 
 [project.scripts]
-netprobe = "netprobe:app"
+netprobe = "netprobe.cli:app"
 
 [project.urls]
 Homepage = "https://github.com/thomasvincent/python-network-discovery-tool"
@@ -73,13 +74,23 @@ ignore = [
     "N999",   # invalid module name (directory name, not changeable)
 ]
 
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src/netprobe"]
+
+[[tool.mypy.overrides]]
+# python-nmap ships no type information.
+module = ["nmap"]
+ignore_missing_imports = true
+
 [tool.ruff.format]
 # Use ruff as formatter (replaces black)
 quote-style = "double"
 indent-style = "space"
 
 [tool.pytest.ini_options]
-testpaths = ["test_netprobe.py"]
+testpaths = ["tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
@@ -91,8 +102,7 @@ addopts = [
 ]
 
 [tool.coverage.run]
-source = ["."]
-omit = ["tests/*", "*/site-packages/*"]
+source = ["netprobe"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -106,7 +116,11 @@ exclude_lines = [
 ]
 
 [tool.hatch.build.targets.wheel]
-include = ["netprobe.py"]
+packages = ["src/netprobe"]
 
 [tool.hatch.build.targets.sdist]
-include = ["netprobe.py", "test_netprobe.py", "README.md", "pyproject.toml"]
+include = ["src/netprobe", "tests", "README.md", "pyproject.toml"]
+
+[tool.bandit]
+# pytest relies on bare asserts.
+exclude_dirs = ["tests"]

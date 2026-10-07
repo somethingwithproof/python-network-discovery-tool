@@ -10,7 +10,8 @@ from rich.progress import Progress
 from typer.testing import CliRunner
 
 import netprobe
-from netprobe import Device, NetworkScanner, app, print_results, save_csv, save_json
+from netprobe import Device, NetworkScanner, app, cli, print_results, save_csv, save_json
+from netprobe import scanner as scanner_module
 
 
 def test_device_creation():
@@ -229,7 +230,7 @@ async def test_scan_device_reports_services_and_hostname():
     scanner = scanner_with(FakeNmap({"10.0.0.1": host}))
 
     with (
-        patch.object(netprobe.os, "geteuid", return_value=0),
+        patch.object(scanner_module.os, "geteuid", return_value=0),
         patch.object(scanner, "_get_hostname", return_value="box.example"),
     ):
         device = await scanner.scan_device("10.0.0.1")
@@ -249,7 +250,7 @@ async def test_scan_device_records_port_errors_and_hostname_failure():
         raise RuntimeError(f"bad {port}")
 
     with (
-        patch.object(netprobe.os, "geteuid", return_value=0),
+        patch.object(scanner_module.os, "geteuid", return_value=0),
         patch.object(scanner, "_check_port", side_effect=boom),
         patch.object(scanner, "_get_hostname", side_effect=OSError("no dns")),
     ):
@@ -319,7 +320,7 @@ def patched_scanner(devices):
         return devices
 
     scanner.scan_network = scan_network
-    return patch.object(netprobe, "NetworkScanner", return_value=scanner)
+    return patch.object(cli, "NetworkScanner", return_value=scanner)
 
 
 def test_cli_version():
@@ -469,7 +470,7 @@ async def test_snmp_skipped_without_root():
     scanner = scanner_with(FakeNmap({"10.0.0.1": make_host(tcp={22: {"state": "open"}})}))
 
     with (
-        patch.object(netprobe.os, "geteuid", return_value=1000),
+        patch.object(scanner_module.os, "geteuid", return_value=1000),
         patch.object(scanner, "_get_hostname", return_value=""),
     ):
         device = await scanner.scan_device("10.0.0.1")
@@ -502,7 +503,7 @@ def test_cli_invalid_network_exits_2_with_message():
 
 def test_cli_missing_nmap_exits_1():
     with patch.object(
-        netprobe, "NetworkScanner", side_effect=netprobe.nmap.PortScannerError("nmap not found")
+        cli, "NetworkScanner", side_effect=cli.nmap.PortScannerError("nmap not found")
     ):
         result = runner.invoke(app, ["scan", "127.0.0.1"])
 

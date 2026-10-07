@@ -40,93 +40,26 @@ If you are proposing a feature:
 
 ## Get Started!
 
-Ready to contribute? Here's how to set up `network-discovery` for local development.
-
-### Using Docker (Recommended)
-
-1. Fork the `python-network-discovery-tool` repo on GitHub.
-2. Clone your fork locally:
+1. Fork the `python-network-discovery-tool` repo on GitHub and clone your fork.
+2. Create a virtualenv with the development extras:
    ```bash
-   git clone git@github.com:your_name_here/python-network-discovery-tool.git
+   uv venv
+   uv pip install -e ".[dev]"
    ```
-3. Use Docker Compose to set up the development environment:
-   ```bash
-   cd python-network-discovery-tool/
-   docker-compose run dev
-   ```
-   This will start a development shell with all dependencies installed.
-
-4. Create a branch for local development:
+3. Create a branch for your change:
    ```bash
    git checkout -b name-of-your-bugfix-or-feature
    ```
-   Now you can make your changes locally.
-
-5. When you're done making changes, check that your changes pass the tests and linters:
+4. Before pushing, run the same checks as CI:
    ```bash
-   # Run tests
-   docker-compose run test
-
-   # Run linters
-   docker-compose run dev bash -c "flake8 src tests && black src tests && isort src tests && mypy src tests"
-
-   # Run tox
-   docker-compose run dev tox
+   uv run ruff check .
+   uv run ruff format --check .
+   uv run mypy
+   uv run pytest --cov=netprobe
    ```
+5. Commit with `git commit -s`, push, and open a pull request.
 
-6. Commit your changes and push your branch to GitHub:
-   ```bash
-   git add .
-   git commit -m "Your detailed description of your changes."
-   git push origin name-of-your-bugfix-or-feature
-   ```
-
-7. Submit a pull request through the GitHub website.
-
-### Traditional Setup
-
-1. Fork the `python-network-discovery-tool` repo on GitHub.
-2. Clone your fork locally:
-   ```bash
-   git clone git@github.com:your_name_here/python-network-discovery-tool.git
-   ```
-3. Install your local copy into a virtualenv:
-   ```bash
-   cd python-network-discovery-tool/
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -e ".[dev]"
-   ```
-
-4. Create a branch for local development:
-   ```bash
-   git checkout -b name-of-your-bugfix-or-feature
-   ```
-   Now you can make your changes locally.
-
-5. When you're done making changes, check that your changes pass the tests and linters:
-   ```bash
-   # Run tests
-   pytest
-
-   # Run linters
-   flake8 src tests
-   black src tests
-   isort src tests
-   mypy src tests
-
-   # Run tox
-   tox
-   ```
-
-6. Commit your changes and push your branch to GitHub:
-   ```bash
-   git add .
-   git commit -m "Your detailed description of your changes."
-   git push origin name-of-your-bugfix-or-feature
-   ```
-
-7. Submit a pull request through the GitHub website.
+The code lives in `src/netprobe/`; tests live in `tests/`.
 
 ## Pull Request Guidelines
 
@@ -134,40 +67,7 @@ Before you submit a pull request, check that it meets these guidelines:
 
 1. The pull request should include tests.
 2. If the pull request adds functionality, the docs should be updated. Put your new functionality into a function with a docstring, and add the feature to the list in README.md.
-3. The pull request should work for Python 3.7, 3.8, 3.9, 3.10, 3.11, and 3.12. Check the GitHub Actions workflow and make sure that the tests pass for all supported Python versions.
-
-## Tips
-
-### Testing with Docker
-
-To run a subset of tests:
-```bash
-docker-compose run test test_netprobe.py
-```
-
-To run a specific test:
-```bash
-docker-compose run test test_netprobe.py::test_scan_device_down_records_error
-```
-
-### Development Workflow with Docker
-
-1. Start the development container:
-   ```bash
-   docker-compose run dev
-   ```
-
-2. Make your changes inside the container.
-
-3. Run tests to verify your changes:
-   ```bash
-   pytest
-   ```
-
-4. Exit the container when done:
-   ```bash
-   exit
-   ```
+3. The pull request should work for Python 3.12 and 3.13. Check the GitHub Actions workflow and make sure that the tests pass for all supported Python versions.
 
 ## Code of Conduct
 
