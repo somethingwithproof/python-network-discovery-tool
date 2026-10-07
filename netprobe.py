@@ -12,7 +12,7 @@ import csv
 import ipaddress
 import json
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Literal
 
@@ -51,17 +51,13 @@ class Device:
     snmp: bool = False
     mysql: bool = False
     hostname: str = ""
-    errors: list[str] | None = None
-
-    def __post_init__(self):
-        if self.errors is None:
-            self.errors = []
+    errors: list[str] = field(default_factory=list)
 
 
 class NetworkScanner:
     """Fast async network scanner using nmap."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.nm = nmap.PortScanner()
 
     async def scan_device(self, ip: str) -> Device:
@@ -262,7 +258,7 @@ def scan(
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress table output"),
-):
+) -> None:
     """
     🔍 Scan network for SSH, SNMP, and MySQL services.
 
@@ -322,7 +318,7 @@ def scan(
 
 
 @app.command()
-def version():
+def version() -> None:
     """Show version information."""
     rprint("[bold cyan]netprobe[/bold cyan] [green]v2.0.0[/green]")
     rprint("Modern network scanner built with Python 3.12+")

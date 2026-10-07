@@ -69,7 +69,7 @@ Ready to contribute? Here's how to set up `network-discovery` for local developm
 
    # Run linters
    docker-compose run dev bash -c "flake8 src tests && black src tests && isort src tests && mypy src tests"
-   
+
    # Run tox
    docker-compose run dev tox
    ```
@@ -114,7 +114,7 @@ Ready to contribute? Here's how to set up `network-discovery` for local developm
    black src tests
    isort src tests
    mypy src tests
-   
+
    # Run tox
    tox
    ```
@@ -142,12 +142,12 @@ Before you submit a pull request, check that it meets these guidelines:
 
 To run a subset of tests:
 ```bash
-docker-compose run test tests/test_scanner.py
+docker-compose run test test_netprobe.py
 ```
 
 To run a specific test:
 ```bash
-docker-compose run test tests/test_scanner.py::TestNmapDeviceScanner::test_scan_device
+docker-compose run test test_netprobe.py::test_scan_device_down_records_error
 ```
 
 ### Development Workflow with Docker
