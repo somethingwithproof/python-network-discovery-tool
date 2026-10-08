@@ -115,6 +115,16 @@ artifacts before promotion; published release contents should remain unchanged.
 
 ## Checksums and build provenance
 
+The release job installs locked dependencies from wheels, builds the project once
+with its locked build backend, and installs that wheel for regression testing.
+It does not run dependency source builds. The optional source-only Nmap wrapper is
+covered by the regular CI jobs; release tests use the mocked system boundary.
+
+Release helper artifact paths must stay inside the selected `--root` (the current
+directory by default). Relative artifact paths are resolved against that root;
+checksum manifests must stay beside their distributions. Parent traversal and
+symlinks that resolve outside these boundaries are rejected.
+
 Every draft includes checksums. Download the assets from a published release and
 run `sha256sum -c SHA256SUMS` in the download directory to detect accidental changes.
 Checksums alone do not authenticate a publisher.
