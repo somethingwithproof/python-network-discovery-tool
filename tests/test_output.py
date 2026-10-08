@@ -56,6 +56,20 @@ def test_print_results_no_alive_hosts(capsys):
     assert "No alive hosts found" in capsys.readouterr().out
 
 
+def test_print_results_lists_other_open_services(capsys):
+    device = Device(
+        ip="10.0.0.1",
+        alive=True,
+        services=[Service("https", 443, "tcp", "open"), Service("http", 80, "tcp", "closed")],
+    )
+    print_results([device])
+    out = capsys.readouterr().out
+
+    assert "https:443" in out
+    assert "http:80" not in out
+    assert "https: 1" in out
+
+
 def test_print_results_summary(capsys):
     print_results([Device(ip="10.0.0.1", alive=True, ssh=True, mysql=True, hostname="db")])
     out = capsys.readouterr().out

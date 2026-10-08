@@ -5,7 +5,10 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Literal
+
+from netprobe.models import Protocol
 
 logger = logging.getLogger(__name__)
 
@@ -126,3 +129,17 @@ def snmp_engine_id(message: bytes) -> str | None:
     if tag != 0x04 or not engine_id:
         return None
     return engine_id.hex()
+
+
+Probe = Callable[[str, int, float], Awaitable[PortState]]
+
+# Every probe a service can name in the config, and the transport it uses.
+# Adding a service type means adding a function and a row here.
+PROBES: dict[str, tuple[Probe, Protocol]] = {
+    "tcp": (tcp_state, "tcp"),
+    "ssh": (tcp_state, "tcp"),
+    "mysql": (tcp_state, "tcp"),
+    "http": (tcp_state, "tcp"),
+    "https": (tcp_state, "tcp"),
+    "snmp": (snmp_state, "udp"),
+}

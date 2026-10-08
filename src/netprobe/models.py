@@ -7,14 +7,18 @@ from typing import Literal
 
 Protocol = Literal["tcp", "udp"]
 
+# Services that have a boolean field of their own in the original output.
+LEGACY_FLAGS = ("ssh", "snmp", "mysql")
+
 
 @dataclass(frozen=True)
 class ServiceSpec:
-    """A service to look for: a name and where it listens."""
+    """A service to look for: its name, where it listens and how to probe it."""
 
     name: str
     port: int
     protocol: Protocol = "tcp"
+    probe: str = "tcp"
 
 
 @dataclass
