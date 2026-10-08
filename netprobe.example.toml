@@ -1,0 +1,13 @@
+# Copy to netprobe.toml and set networks you administer.
+[profiles.office]
+network = "192.168.1.0/24"
+exclusions = ["192.168.1.1", "192.168.1.128/25"]
+services = "ssh,http,https,mysql"
+concurrency = 32
+timeout = 1.0
+max_hosts = 256
+backend = "asyncio"
+
+[profiles.loopback]
+network = "127.0.0.1"
+services = "ssh"

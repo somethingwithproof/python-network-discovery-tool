@@ -249,7 +249,7 @@ class FakePortScanner:
     hosts: ClassVar[dict[str, str]] = {}
     calls: ClassVar[list[tuple[str, str]]] = []
 
-    def scan(self, hosts, arguments):
+    def scan(self, hosts, arguments, timeout=None):
         self.calls.append((hosts, arguments))
 
     def all_hosts(self):

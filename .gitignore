@@ -60,4 +60,9 @@ devices.json
 .DS_Store
 Thumbs.db
 
-**/.claude/settings.local.json
+**/.*/settings.local.json
+
+# Local inventory settings and default history
+netprobe.toml
+netprobe-history.sqlite3
+netprobe-history.sqlite3-*

@@ -22,6 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: System :: Networking :: Monitoring",
     "Topic :: System :: Systems Administration",
     "Topic :: Security",
@@ -127,7 +128,7 @@ exclude_lines = [
 packages = ["src/netprobe"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/netprobe", "tests", "README.md", "pyproject.toml"]
+include = ["src/netprobe", "tests", "README.md", "pyproject.toml", "netprobe.example.toml", "uv.lock"]
 
 [tool.bandit]
 # pytest relies on bare asserts.
