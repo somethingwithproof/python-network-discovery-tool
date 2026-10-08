@@ -46,6 +46,8 @@ dev = [
     "pytest-cov>=7.1.0",
     "ruff>=0.15.14",
     "mypy>=1.19.1",
+    "hatchling>=1.27.0",
+    "twine>=6.2.0",
 ]
 
 [project.scripts]
@@ -83,7 +85,7 @@ ignore = [
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["src/netprobe"]
+files = ["src/netprobe", "scripts/release.py"]
 
 [[tool.mypy.overrides]]
 # python-nmap and pysnmp ship no type information.
@@ -128,7 +130,7 @@ exclude_lines = [
 packages = ["src/netprobe"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/netprobe", "tests", "README.md", "pyproject.toml", "netprobe.example.toml", "uv.lock"]
+include = ["src/netprobe", "tests", "README.md", "pyproject.toml", "netprobe.example.toml", "uv.lock", "scripts/release.py", "docs/releasing.md"]
 
 [tool.bandit]
 # pytest relies on bare asserts.

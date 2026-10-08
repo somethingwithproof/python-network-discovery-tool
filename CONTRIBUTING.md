@@ -43,8 +43,7 @@ If you are proposing a feature:
 1. Fork the `python-network-discovery-tool` repo on GitHub and clone your fork.
 2. Create a virtualenv with the development extras:
    ```bash
-   uv venv
-   uv pip install -e ".[dev]"
+   mise exec python@3.14 -- uv sync --locked --extra dev
    ```
 3. Create a branch for your change:
    ```bash
@@ -67,8 +66,12 @@ Before you submit a pull request, check that it meets these guidelines:
 
 1. The pull request should include tests.
 2. If the pull request adds functionality, the docs should be updated. Put your new functionality into a function with a docstring, and add the feature to the list in README.md.
-3. The pull request should work for Python 3.12 and 3.13. Check the GitHub Actions workflow and make sure that the tests pass for all supported Python versions.
+3. The pull request should work for Python 3.12, 3.13, and 3.14. Check the GitHub Actions workflow and make sure that the tests pass for all supported Python versions.
 
 ## Code of Conduct
 
 Please note that the Network Discovery Tool project is released with a Contributor Code of Conduct. By participating in this project you agree to abide by its terms.
+
+## Versioning and releases
+
+Add user-visible changes under `## Unreleased` in `CHANGES.md`. Use conventional PR titles and choose release bumps based on the documented compatibility contract. See [Versioning and releases](docs/releasing.md) for preparation, tag validation, GitHub draft releases, and optional PyPI trusted publishing.

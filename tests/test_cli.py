@@ -171,7 +171,8 @@ def test_cli_snmp_secrets_reach_probe_but_never_output(tmp_path, monkeypatch, ca
         result = runner.invoke(
             cli.app,
             [
-                *("scan", "127.0.0.1", "-v", "-o", str(out), "--timeout", "0.2"),
+                # Allow pysnmp's initial MIB load before the outer probe deadline.
+                *("scan", "127.0.0.1", "-v", "-o", str(out), "--timeout", "1.0"),
                 *(
                     "--services",
                     "snmp",

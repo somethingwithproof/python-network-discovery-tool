@@ -1,63 +1,144 @@
 name: Release
 
 on:
+  push:
+    tags: ["v*"]
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version to release (e.g., 0.3.0)'
+      tag:
+        description: "Existing release tag, for example v3.1.0 or v3.2.0-rc.1"
         required: true
-      dry_run:
-        description: 'Dry run (no actual changes)'
-        type: boolean
-        default: false
-      publish_to_pypi:
-        description: 'Publish to PyPI'
-        type: boolean
-        default: true
-      bump_dev_version:
-        description: 'Bump version for development after release'
-        type: boolean
-        default: true
+        type: string
+  pull_request:
+    paths:
+      - ".github/workflows/release.yml"
+      - ".github/workflows/publish.yml"
+      - "scripts/release.py"
+      - "tests/test_release.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "CHANGES.md"
+      - "README.md"
 
-# Define permissions
 permissions:
-  contents: write  # Needed to push changes to the repository
-  packages: write  # Needed if publishing packages
+  contents: read
+
+concurrency:
+  group: release-${{ github.event_name }}-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  release:
+  build:
+    name: Validate and build distributions
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      tag: ${{ steps.metadata.outputs.tag }}
+      prerelease: ${{ steps.metadata.outputs.prerelease }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          fetch-depth: 0  # Fetch all history for tags and branches
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
         with:
-          python-version: '3.12'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install build twine pytest pytest-cov
-          pip install -e ".[dev]"
-
-      - name: Configure Git
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-
-      - name: Run release script
+          tool_versions: |
+            python 3.14
+            uv 0.12.23
+      - name: Install locked build and test tools
+        run: uv sync --locked --extra dev
+      - name: Validate version, notes, and release source
+        id: metadata
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          python scripts/release.py ${{ github.event.inputs.version }} \
-            ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }} \
-            ${{ github.event.inputs.publish_to_pypi != 'true' && '--no-publish' || '' }} \
-            ${{ github.event.inputs.bump_dev_version == 'true' && '--bump-dev' || '' }}
+          args=()
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            git show "$BASE_SHA:pyproject.toml" > "$RUNNER_TEMP/base-project.toml"
+            previous=$(python -c 'import sys,tomllib; print(tomllib.load(open(sys.argv[1], "rb"))["project"]["version"])' "$RUNNER_TEMP/base-project.toml")
+            args+=(--previous-version "$previous")
+          else
+            git show-ref --verify "refs/tags/$RELEASE_TAG"
+            git merge-base --is-ancestor HEAD origin/main
+            args+=(--tag "$RELEASE_TAG")
+          fi
+          python scripts/release.py check "${args[@]}" --notes release-notes.md > release-metadata.json
+          jq -r '"tag=" + .tag, "prerelease=" + (.prerelease | tostring)' release-metadata.json >> "$GITHUB_OUTPUT"
+      - name: Run quality and regression checks
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy
+          uv run pytest --cov=netprobe --cov-fail-under=90
+      - name: Build once and validate package contents
+        run: |
+          uv build --no-build-isolation
+          uv run twine check --strict dist/*.whl dist/*.tar.gz
+          python scripts/release.py check --dist dist --checksums dist/SHA256SUMS
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-distributions
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/SHA256SUMS
+            release-notes.md
+            release-metadata.json
+          if-no-files-found: error
+          retention-days: 30
 
-      - name: Push changes
-        if: ${{ github.event.inputs.dry_run != 'true' }}
-        run: git push origin main
+  attest:
+    name: Attest release artifacts
+    needs: build
+    if: >-
+      github.event_name != 'pull_request' &&
+      (!github.event.repository.private || vars.ARTIFACT_ATTESTATIONS_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: release-distributions
+          path: artifacts
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: "artifacts/dist/*"
+
+  draft:
+    name: Create draft GitHub release
+    needs: [build, attest]
+    if: >-
+      always() && github.event_name != 'pull_request' && needs.build.result == 'success' &&
+      (needs.attest.result == 'success' || needs.attest.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: release-distributions
+          path: artifacts
+      - name: Create release with the tested artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.build.outputs.tag }}
+          PRERELEASE: ${{ needs.build.outputs.prerelease }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release already exists; refusing to replace its assets."
+            exit 1
+          fi
+          args=()
+          if [ "$PRERELEASE" = "true" ]; then args+=(--prerelease); fi
+          gh release create "$RELEASE_TAG" artifacts/dist/*.whl artifacts/dist/*.tar.gz artifacts/dist/SHA256SUMS \
+            --repo "$GH_REPO" --verify-tag --draft --latest=false --title "$RELEASE_TAG" \
+            --notes-file artifacts/release-notes.md "${args[@]}"
