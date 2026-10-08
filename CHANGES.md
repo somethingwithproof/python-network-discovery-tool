@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Define the SemVer compatibility contract and stable/prerelease tag mapping.
+- Replace legacy release helpers and duplicate upload workflows with reviewed version preparation, validated tag builds, draft GitHub releases, checksums, and optional trusted publishing.
+- Add offline release-integrity regression tests and locked build/metadata-validation tools.
+- Update the README with accurate workflow badges, setup commands, inventory contracts, and operation limits.
+
 - Add named TOML inventory profiles with network scope, additive exclusions, and resource settings.
 - Add local preflight checks and a standalone JSON preflight command.
 - Add opt-in transactional SQLite history and comparisons that preserve uncertain observations.
