@@ -28,13 +28,16 @@ classifiers = [
 ]
 
 dependencies = [
-    "python-nmap>=0.7.1",
     "rich>=15.0.0",
     "typer>=0.25.1",
 ]
 
 [project.optional-dependencies]
+nmap = [
+    "python-nmap>=0.7.1",
+]
 dev = [
+    "python-nmap>=0.7.1",
     "pytest>=9.0.3",
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.1.0",
@@ -95,6 +98,9 @@ python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
 asyncio_mode = "auto"
+markers = [
+    "integration: scans the docker compose lab (tests/integration/compose.yml)",
+]
 addopts = [
     "--strict-markers",
     "--strict-config",

@@ -1,46 +1,59 @@
-"""Host discovery and port checks driven by nmap."""
+"""Host discovery and service checks.
+
+The default backend uses plain asyncio sockets: TCP connects and an SNMPv3
+discovery datagram, so it needs neither nmap nor root. The optional nmap
+backend only replaces host discovery with an nmap ping sweep, which can find
+hosts that expose none of the probed ports.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import ipaddress
 import logging
-import os
 import re
 import socket
+from collections.abc import Awaitable, Callable, Iterable
+from typing import Any, Literal
 
-import nmap
 from rich.progress import Progress
 
-from netprobe.models import Device
+from netprobe.models import Device, Service, ServiceSpec
+from netprobe.probes import PortState, snmp_state, tcp_state
 
 logger = logging.getLogger(__name__)
 
+Backend = Literal["asyncio", "nmap"]
+
 # Largest network accepted in one run. A /8 would otherwise queue 16M scan tasks.
 MAX_HOSTS = 65536
-# Per-nmap-invocation cap so one unresponsive host cannot hang a scan.
+# Per-nmap-invocation cap so one unresponsive host cannot hang a sweep.
 NMAP_HOST_TIMEOUT = "30s"
+DEFAULT_TIMEOUT = 1.0
+DEFAULT_CONCURRENCY = 256
+HOSTNAME_TIMEOUT = 2.0
+
+DEFAULT_SERVICES: tuple[ServiceSpec, ...] = (
+    ServiceSpec("ssh", 22),
+    ServiceSpec("snmp", 161, "udp"),
+    ServiceSpec("mysql", 3306),
+)
+# Services that have a boolean column of their own in the legacy output.
+LEGACY_FLAGS = ("ssh", "snmp", "mysql")
 
 _HOSTNAME_LABEL = re.compile(r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$")
 
 
-def _host_key(nm: nmap.PortScanner, target: str) -> str | None:
-    """Find the result entry for target; nmap keys results by IP, not hostname."""
-    hosts = nm.all_hosts()
-    if target in hosts:
-        return target
-    try:
-        ipaddress.ip_address(target)
-    except ValueError:
-        return hosts[0] if len(hosts) == 1 else None
-    return None
+class BackendUnavailableError(RuntimeError):
+    """The requested backend cannot run on this machine."""
 
 
 def validate_target(target: str) -> str:
     """Return target if it is an IP address or a DNS name, else raise ValueError.
 
-    The value is later passed to the nmap command line, so anything that could
-    be read as an option (leading "-") or contains whitespace is rejected.
+    The nmap backend passes the value to the nmap command line, so anything
+    that could be read as an option (leading "-") or contains whitespace is
+    rejected for every backend.
     """
     try:
         return str(ipaddress.ip_address(target))
@@ -58,128 +71,145 @@ def validate_target(target: str) -> str:
     return target
 
 
-class NetworkScanner:
-    """Fast async network scanner using nmap."""
+def expand_targets(network: str) -> list[str]:
+    """Expand a CIDR, IP or hostname into the list of hosts to scan."""
+    try:
+        if "/" in network:
+            net = ipaddress.ip_network(network, strict=False)
+            if net.num_addresses > MAX_HOSTS:
+                raise ValueError(
+                    f"Network too large: {net.num_addresses} addresses (max {MAX_HOSTS})"
+                )
+            return [str(ip) for ip in net.hosts()]
+        return [validate_target(network)]
+    except ValueError as e:
+        raise ValueError(f"Invalid network format: {e}") from e
 
-    def __init__(self) -> None:
-        # Constructed once up front so a missing nmap binary fails here.
-        self.nm = self._new_scanner()
 
-    def _new_scanner(self) -> nmap.PortScanner:
-        """Return a fresh PortScanner.
+def _host_key(hosts: list[str], target: str) -> str | None:
+    """Find the result entry for target; nmap keys results by IP, not hostname."""
+    if target in hosts:
+        return target
+    try:
+        ipaddress.ip_address(target)
+    except ValueError:
+        return hosts[0] if len(hosts) == 1 else None
+    return None
 
-        PortScanner keeps the last result on the instance, so sharing one
-        across concurrent scans lets threads overwrite each other's output.
-        """
+
+def _nmap_scanner() -> Any:
+    try:
+        import nmap
+    except ImportError as e:
+        raise BackendUnavailableError(
+            "the nmap backend needs python-nmap: pip install 'netprobe[nmap]'"
+        ) from e
+    try:
         return nmap.PortScanner()
+    except nmap.PortScannerError as e:
+        raise BackendUnavailableError(f"nmap is not available: {e}") from e
 
-    async def scan_device(self, ip: str) -> Device:
-        """Scan a single device for services.
+
+def nmap_sweep(targets: list[str], network: str) -> set[str]:
+    """Return the targets that answer an nmap ping sweep.
+
+    Without root, nmap substitutes TCP connects to ports 80 and 443 for ICMP.
+    """
+    nm = _nmap_scanner()
+    arguments = f"-sn -T4 --host-timeout {NMAP_HOST_TIMEOUT}"
+    nm.scan(hosts=network if "/" in network else targets[0], arguments=arguments)
+    up = [h for h in nm.all_hosts() if nm[h].state() == "up"]
+    if "/" in network:
+        return set(up)
+    return {targets[0]} if _host_key(up, targets[0]) else set()
+
+
+async def resolve_hostname(ip: str) -> str:
+    try:
+        async with asyncio.timeout(HOSTNAME_TIMEOUT):
+            name, _, _ = await asyncio.to_thread(socket.gethostbyaddr, ip)
+    except (TimeoutError, OSError) as e:
+        logger.debug(f"Could not resolve hostname for {ip}: {e}")
+        return ""
+    return name
+
+
+Probe = Callable[[str, int, float], Awaitable[PortState]]
+
+
+def probe_for(spec: ServiceSpec) -> Probe:
+    if spec.protocol == "udp":
+        return snmp_state
+    return tcp_state
+
+
+class NetworkScanner:
+    """Async network scanner."""
+
+    def __init__(
+        self,
+        *,
+        backend: Backend = "asyncio",
+        timeout: float = DEFAULT_TIMEOUT,
+        concurrency: int = DEFAULT_CONCURRENCY,
+        services: Iterable[ServiceSpec] = DEFAULT_SERVICES,
+    ) -> None:
+        if concurrency < 1:
+            raise ValueError("concurrency must be at least 1")
+        if timeout <= 0:
+            raise ValueError("timeout must be positive")
+        self.backend = backend
+        self.timeout = timeout
+        self.concurrency = concurrency
+        self.services = tuple(services)
+        if backend == "nmap":
+            # Fail before any scanning starts if nmap cannot be driven.
+            _nmap_scanner()
+
+    async def scan_device(
+        self, ip: str, *, probes: asyncio.Semaphore | None = None, known_up: bool = False
+    ) -> Device:
+        """Probe every configured service on one host.
 
         Args:
             ip: IP address or hostname to scan
+            probes: shared limit on probes in flight across hosts
+            known_up: host discovery already saw the host, even if no probe answers
 
         Returns:
             Device object with scan results
         """
         device = Device(ip=ip)
-
         try:
             validate_target(ip)
         except ValueError as e:
             device.errors.append(str(e))
             return device
 
-        try:
-            # Check if host is alive (faster than port scan)
-            alive = await asyncio.to_thread(self._check_alive, ip)
-            device.alive = alive
+        limit = probes or asyncio.Semaphore(self.concurrency)
 
-            if not alive:
-                device.errors.append("Host is down")
-                return device
-
-            ports_to_check = {
-                22: ("ssh", "tcp"),
-                161: ("snmp", "udp"),
-                3306: ("mysql", "tcp"),
-            }
-
-            if os.name == "posix" and os.geteuid() != 0:
-                # nmap refuses UDP scans without raw-socket privileges.
-                del ports_to_check[161]
-                device.errors.append("SNMP check skipped: UDP scan requires root")
-
-            results: dict[int, bool | Exception] = {}
-
-            async def check(port: int, proto: str) -> None:
+        async def run(spec: ServiceSpec) -> Service:
+            async with limit:
                 try:
-                    results[port] = await self._check_port(ip, port, proto)
+                    state = await probe_for(spec)(ip, spec.port, self.timeout)
                 except Exception as e:
-                    results[port] = e
+                    device.errors.append(f"Error checking port {spec.port}: {e}")
+                    state = "filtered"
+            return Service(spec.name, spec.port, spec.protocol, state)
 
-            async with asyncio.TaskGroup() as tg:
-                for port, (_, proto) in ports_to_check.items():
-                    tg.create_task(check(port, proto))
+        async with asyncio.TaskGroup() as tg:
+            tasks = [tg.create_task(run(spec)) for spec in self.services]
 
-            for port, (attr, _) in ports_to_check.items():
-                result = results[port]
-                if isinstance(result, Exception):
-                    device.errors.append(f"Error checking port {port}: {result}")
-                else:
-                    setattr(device, attr, result)
-
-            # Try to get hostname
-            try:
-                device.hostname = await asyncio.to_thread(self._get_hostname, ip)
-            except Exception as e:
-                logger.debug(f"Could not resolve hostname for {ip}: {e}")
-
-        except Exception as e:
-            device.errors.append(f"Scan error: {e}")
-            logger.error(f"Error scanning {ip}: {e}")
-
+        device.services = [t.result() for t in tasks]
+        open_names = {s.name for s in device.open_services}
+        for flag in LEGACY_FLAGS:
+            setattr(device, flag, flag in open_names)
+        device.alive = known_up or any(s.state != "filtered" for s in device.services)
+        if device.alive:
+            device.hostname = await resolve_hostname(ip)
+        else:
+            device.errors.append("Host is down")
         return device
-
-    def _check_alive(self, ip: str) -> bool:
-        """Check if host is alive using nmap ping scan."""
-        try:
-            nm = self._new_scanner()
-            nm.scan(hosts=ip, arguments=f"-sn -T4 --host-timeout {NMAP_HOST_TIMEOUT}")
-            key = _host_key(nm, ip)
-            return key is not None and nm[key].state() == "up"
-        except Exception as e:
-            logger.warning(f"Alive check failed for {ip}: {e}")
-            return False
-
-    async def _check_port(self, ip: str, port: int, proto: str = "tcp") -> bool:
-        """Check if a specific port is open."""
-        try:
-            nm = self._new_scanner()
-            udp = "-sU " if proto == "udp" else ""
-            await asyncio.to_thread(
-                nm.scan,
-                hosts=ip,
-                arguments=f"{udp}-p {port} -T4 --open --host-timeout {NMAP_HOST_TIMEOUT}",
-            )
-
-            key = _host_key(nm, ip)
-            if key is None:
-                return False
-
-            port_info = nm[key].get(proto, {}).get(port, {})
-            return bool(port_info.get("state") == "open")
-
-        except Exception as e:
-            logger.debug(f"Error checking port {port} on {ip}: {e}")
-            return False
-
-    def _get_hostname(self, ip: str) -> str:
-        """Get hostname for IP address."""
-        try:
-            return socket.gethostbyaddr(ip)[0]
-        except Exception:
-            return ""
 
     async def scan_network(self, network: str, progress: Progress | None = None) -> list[Device]:
         """Scan an entire network.
@@ -189,40 +219,36 @@ class NetworkScanner:
             progress: Optional Rich progress bar
 
         Returns:
-            List of scanned devices
+            List of scanned devices, in address order
 
         Raises:
             ValueError: if the target is malformed or larger than MAX_HOSTS
         """
-        try:
-            if "/" in network:
-                net = ipaddress.ip_network(network, strict=False)
-                if net.num_addresses > MAX_HOSTS:
-                    raise ValueError(
-                        f"Network too large: {net.num_addresses} addresses (max {MAX_HOSTS})"
-                    )
-                ips = [str(ip) for ip in net.hosts()]
-            else:
-                ips = [validate_target(network)]
-        except ValueError as e:
-            raise ValueError(f"Invalid network format: {e}") from e
+        targets = expand_targets(network)
+        logger.info(f"Scanning {len(targets)} hosts...")
+        task = (
+            progress.add_task("[cyan]Scanning network...", total=len(targets)) if progress else None
+        )
 
-        logger.info(f"Scanning {len(ips)} hosts...")
+        swept: set[str] | None = None
+        if self.backend == "nmap":
+            swept = await asyncio.to_thread(nmap_sweep, targets, network)
 
-        # Create progress task if progress bar provided
-        task = progress.add_task("[cyan]Scanning network...", total=len(ips)) if progress else None
+        probes = asyncio.Semaphore(self.concurrency)
+        # Bounds hosts in flight so a /16 does not hold 65k sockets' worth of tasks.
+        hosts = asyncio.Semaphore(max(1, self.concurrency // max(1, len(self.services))))
 
-        # Limit concurrency: each device scan spawns several nmap processes
-        semaphore = asyncio.Semaphore(20)
-
-        async def scan_with_progress(ip: str) -> Device:
-            async with semaphore:
-                result = await self.scan_device(ip)
-                if progress and task is not None:
-                    progress.update(task, advance=1)
-                return result
+        async def scan_one(ip: str) -> Device:
+            async with hosts:
+                if swept is not None and ip not in swept:
+                    device = Device(ip=ip, errors=["Host is down"])
+                else:
+                    device = await self.scan_device(ip, probes=probes, known_up=swept is not None)
+            if progress and task is not None:
+                progress.update(task, advance=1)
+            return device
 
         async with asyncio.TaskGroup() as tg:
-            tasks = [tg.create_task(scan_with_progress(ip)) for ip in ips]
+            tasks = [tg.create_task(scan_one(ip)) for ip in targets]
 
         return [t.result() for t in tasks]
