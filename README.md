@@ -45,12 +45,28 @@ netprobe scan 10.0.0.0/24 -q -o out.json  # no table, file only
 | `--backend asyncio\|nmap` | Host discovery. `asyncio` (default) probes the service ports directly; `nmap` runs an nmap ping sweep first and needs `pip install 'netprobe[nmap]'` plus the `nmap` binary. |
 | `--timeout SECONDS` | Wait per probe (default 1.0). |
 | `--concurrency N` | Probes in flight at once (default 256). |
+| `--config PATH` | TOML file whose `[services]` table adds or replaces services. |
+| `--services NAMES` | Comma list of service names to check, in that order (default: all). |
+| `--ports SPEC` | Comma list of `NAME=PORT` (move a service) or `PORT` (add a plain TCP check named `tcp-PORT`). |
 
-Each host is checked for SSH (TCP 22), MySQL (TCP 3306) and SNMP (UDP 161). TCP ports are tested with a full connect. SNMP is tested with an SNMPv3 engine-discovery request, which any SNMPv3 agent must answer without credentials; agents that only speak v1/v2c will not be detected by this probe. With the asyncio backend a host counts as alive when any probe gets an answer, including a refused connection, so a host that drops every probe is reported down. With `--backend nmap`, nmap decides which hosts are alive (ICMP as root, TCP 80/443 otherwise).
+By default each host is checked for SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) and HTTPS (TCP 443). TCP ports are tested with a full connect. SNMP is tested with an SNMPv3 engine-discovery request, which any SNMPv3 agent must answer without credentials; agents that only speak v1/v2c will not be detected by this probe. With the asyncio backend a host counts as alive when any probe gets an answer, including a refused connection, so a host that drops every probe is reported down. With `--backend nmap`, nmap decides which hosts are alive (ICMP as root, TCP 80/443 otherwise).
 
-Results keep the original `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` and `errors` fields and add a `services` list with each probe's `name`, `port`, `protocol` and `state` (`open`, `closed` or `filtered`). CSV output gains a trailing `services` column listing the open ones.
+Services can be changed with a TOML file:
 
-Exit codes: `0` success, `1` the nmap backend is unavailable or the report could not be written, `2` invalid target or option.
+```toml
+[services.ssh]          # same name as a built-in: replaces it
+port = 2222
+
+[services.admin-ui]     # a new service, probed like HTTPS
+port = 8443
+probe = "https"
+```
+
+`probe` is one of `tcp`, `ssh`, `mysql`, `http`, `https` or `snmp` and defaults to the service name when that is a probe, else `tcp`. Only `snmp` uses UDP. Service names are lowercase letters, digits, `-` and `_`.
+
+Results keep the original `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` and `errors` fields and add a `services` list with each probe's `name`, `port`, `protocol` and `state` (`open`, `closed` or `filtered`). CSV output gains a trailing `services` column listing the open ones. The `ssh`, `snmp` and `mysql` booleans follow the services with exactly those names.
+
+Exit codes: `0` success, `1` the nmap backend is unavailable or the report could not be written, `2` invalid target, option or config file.
 
 ## Development
 

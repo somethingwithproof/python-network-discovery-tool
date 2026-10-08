@@ -47,3 +47,16 @@ def test_lab_services_found(tmp_path, backend):
     assert devices[QUIET]["alive"] is True
     assert open_names(devices[QUIET]) == set()
     assert devices["172.30.57.13"]["alive"] is False
+
+
+def test_lab_config_and_port_selection(tmp_path):
+    config = tmp_path / "netprobe.toml"
+    config.write_text('[services.db]\nport = 3306\nprobe = "mysql"\n')
+    devices = scan(
+        tmp_path, "--config", str(config), "--services", "ssh,db", "--ports", "ssh=2222,8080"
+    )
+
+    db = devices[DB]
+    assert [s["name"] for s in db["services"]] == ["ssh", "db", "tcp-8080"]
+    assert open_names(db) == {"db"}
+    assert open_names(devices[SSH]) == set()  # sshd listens on 22, not 2222

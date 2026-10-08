@@ -13,13 +13,14 @@ import ipaddress
 import logging
 import re
 import socket
-from collections.abc import Awaitable, Callable, Iterable
+from collections.abc import Iterable
 from typing import Any, Literal
 
 from rich.progress import Progress
 
-from netprobe.models import Device, Service, ServiceSpec
-from netprobe.probes import PortState, snmp_state, tcp_state
+from netprobe.config import DEFAULT_SERVICES
+from netprobe.models import LEGACY_FLAGS, Device, Service, ServiceSpec
+from netprobe.probes import PROBES
 
 logger = logging.getLogger(__name__)
 
@@ -33,13 +34,6 @@ DEFAULT_TIMEOUT = 1.0
 DEFAULT_CONCURRENCY = 256
 HOSTNAME_TIMEOUT = 2.0
 
-DEFAULT_SERVICES: tuple[ServiceSpec, ...] = (
-    ServiceSpec("ssh", 22),
-    ServiceSpec("snmp", 161, "udp"),
-    ServiceSpec("mysql", 3306),
-)
-# Services that have a boolean column of their own in the legacy output.
-LEGACY_FLAGS = ("ssh", "snmp", "mysql")
 
 _HOSTNAME_LABEL = re.compile(r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$")
 
@@ -134,15 +128,6 @@ async def resolve_hostname(ip: str) -> str:
     return name
 
 
-Probe = Callable[[str, int, float], Awaitable[PortState]]
-
-
-def probe_for(spec: ServiceSpec) -> Probe:
-    if spec.protocol == "udp":
-        return snmp_state
-    return tcp_state
-
-
 class NetworkScanner:
     """Async network scanner."""
 
@@ -191,7 +176,8 @@ class NetworkScanner:
         async def run(spec: ServiceSpec) -> Service:
             async with limit:
                 try:
-                    state = await probe_for(spec)(ip, spec.port, self.timeout)
+                    probe, _ = PROBES[spec.probe]
+                    state = await probe(ip, spec.port, self.timeout)
                 except Exception as e:
                     device.errors.append(f"Error checking port {spec.port}: {e}")
                     state = "filtered"

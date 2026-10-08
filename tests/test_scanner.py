@@ -7,7 +7,7 @@ import pytest
 from conftest import closed_port, fixture_bytes
 from rich.progress import Progress
 
-from netprobe import scanner
+from netprobe import probes, scanner
 from netprobe.models import Device, ServiceSpec
 from netprobe.scanner import BackendUnavailableError, NetworkScanner
 
@@ -23,10 +23,16 @@ async def lab_services(tcp_server, udp_server, *, ssh=True, mysql=False, snmp=Fa
     else:
         snmp_port, _ = await udp_server(b"")
     return [
-        ServiceSpec("ssh", ssh_port),
-        ServiceSpec("snmp", snmp_port, "udp"),
-        ServiceSpec("mysql", mysql_port),
+        ServiceSpec("ssh", ssh_port, "tcp", "ssh"),
+        ServiceSpec("snmp", snmp_port, "udp", "snmp"),
+        ServiceSpec("mysql", mysql_port, "tcp", "mysql"),
     ]
+
+
+def stub_probes(monkeypatch, fn):
+    """Replace every probe in the registry; the network is the boundary here."""
+    for name, (_, protocol) in list(probes.PROBES.items()):
+        monkeypatch.setitem(probes.PROBES, name, (fn, protocol))
 
 
 @pytest.fixture(autouse=True)
@@ -64,7 +70,7 @@ async def test_no_answer_means_down(monkeypatch):
     async def silent(host, port, timeout):
         return "filtered"
 
-    monkeypatch.setattr(scanner, "tcp_state", silent)
+    stub_probes(monkeypatch, silent)
     device = await NetworkScanner(services=[ServiceSpec("ssh", 22)]).scan_device("10.0.0.1")
 
     assert not device.alive
@@ -76,7 +82,7 @@ async def test_probe_exception_is_recorded(monkeypatch):
     async def boom(host, port, timeout):
         raise RuntimeError("bad socket")
 
-    monkeypatch.setattr(scanner, "tcp_state", boom)
+    stub_probes(monkeypatch, boom)
     device = await NetworkScanner(services=[ServiceSpec("ssh", 22)]).scan_device("10.0.0.1")
 
     assert device.errors[0] == "Error checking port 22: bad socket"
@@ -226,8 +232,7 @@ async def test_nmap_backend_only_probes_swept_hosts(fake_nmap, monkeypatch):
         probed.append(host)
         return "filtered"
 
-    monkeypatch.setattr(scanner, "tcp_state", closed)
-    monkeypatch.setattr(scanner, "snmp_state", closed)
+    stub_probes(monkeypatch, closed)
     devices = await NetworkScanner(backend="nmap").scan_network("10.0.0.0/30")
 
     assert [d.alive for d in devices] == [True, False]
@@ -243,8 +248,7 @@ async def test_nmap_backend_hostname_target_matches_by_ip(fake_nmap, monkeypatch
     async def filtered(host, port, timeout):
         return "filtered"
 
-    monkeypatch.setattr(scanner, "tcp_state", filtered)
-    monkeypatch.setattr(scanner, "snmp_state", filtered)
+    stub_probes(monkeypatch, filtered)
     devices = await NetworkScanner(backend="nmap").scan_network("example.com")
 
     assert devices[0].alive

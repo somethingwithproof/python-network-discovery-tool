@@ -64,7 +64,46 @@ def test_cli_passes_engine_options():
         )
 
     assert result.exit_code == 0, result.output
-    factory.assert_called_once_with(backend="nmap", timeout=0.5, concurrency=8)
+    kwargs = factory.call_args.kwargs
+    assert (kwargs["backend"], kwargs["timeout"], kwargs["concurrency"]) == ("nmap", 0.5, 8)
+    assert [s.name for s in kwargs["services"]] == ["ssh", "snmp", "mysql", "http", "https"]
+
+
+def test_cli_service_selection_reaches_scanner(tmp_path):
+    config = tmp_path / "netprobe.toml"
+    config.write_text("[services.redis]\nport = 6379\n")
+    with patched_scanner([]) as factory:
+        result = runner.invoke(
+            cli.app,
+            [
+                "scan",
+                "10.0.0.1",
+                "--config",
+                str(config),
+                "--services",
+                "ssh,redis",
+                "--ports",
+                "ssh=2222,8080",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    specs = factory.call_args.kwargs["services"]
+    assert [(s.name, s.port, s.probe) for s in specs] == [
+        ("ssh", 2222, "ssh"),
+        ("redis", 6379, "tcp"),
+        ("tcp-8080", 8080, "tcp"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "args", [["--services", "telnet"], ["--ports", "ssh=0"], ["--config", "/nonexistent.toml"]]
+)
+def test_cli_bad_service_options_exit_2(args):
+    result = runner.invoke(cli.app, ["scan", "10.0.0.1", *args])
+
+    assert result.exit_code == 2
+    assert "Error:" in result.output
 
 
 def test_cli_rejects_zero_concurrency():

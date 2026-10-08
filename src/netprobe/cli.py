@@ -13,6 +13,7 @@ from rich import print as rprint
 from rich.logging import RichHandler
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
+from netprobe.config import DEFAULT_SERVICES, ConfigError, load_services, select_services
 from netprobe.output import console, print_results, save_csv, save_json
 from netprobe.scanner import (
     DEFAULT_CONCURRENCY,
@@ -31,7 +32,7 @@ logger = logging.getLogger(__name__)
 # Typer app for modern CLI
 app = typer.Typer(
     name="netprobe",
-    help="🔍 Modern network scanner for SSH/SNMP/MySQL discovery",
+    help="🔍 Network scanner for SSH, SNMP, MySQL, HTTP and HTTPS discovery",
     add_completion=False,
 )
 
@@ -58,9 +59,18 @@ def scan(
     concurrency: int = typer.Option(
         DEFAULT_CONCURRENCY, "--concurrency", min=1, help="Maximum probes in flight"
     ),
+    config: Path | None = typer.Option(
+        None, "--config", help="TOML file whose [services] table extends the defaults"
+    ),
+    services: str | None = typer.Option(
+        None, "--services", help="Comma list of service names to check (default: all)"
+    ),
+    ports: str | None = typer.Option(
+        None, "--ports", help="Comma list of NAME=PORT overrides or extra TCP PORTs"
+    ),
 ) -> None:
     """
-    🔍 Scan network for SSH, SNMP, and MySQL services.
+    🔍 Scan network for SSH, SNMP, MySQL, HTTP and HTTPS services.
 
     Examples:
 
@@ -75,13 +85,26 @@ def scan(
 
         # Quiet mode (no table, only file output)
         netprobe scan 192.168.1.0/24 -o results.json --quiet
+
+        # Only SSH, on a non-standard port, plus a plain check of 8080
+        netprobe scan 10.0.0.0/24 --services ssh --ports ssh=2222,8080
     """
     # Set logging level
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
     try:
-        scanner = NetworkScanner(backend=backend, timeout=timeout, concurrency=concurrency)
+        specs = select_services(
+            load_services(config) if config else DEFAULT_SERVICES, services, ports
+        )
+    except ConfigError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(2) from e
+
+    try:
+        scanner = NetworkScanner(
+            backend=backend, timeout=timeout, concurrency=concurrency, services=specs
+        )
     except BackendUnavailableError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1) from e

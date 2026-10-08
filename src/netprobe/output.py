@@ -5,13 +5,14 @@ from __future__ import annotations
 import csv
 import json
 import logging
+from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
 
 from rich.console import Console
 from rich.table import Table
 
-from netprobe.models import Device
+from netprobe.models import LEGACY_FLAGS, Device
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -58,15 +59,18 @@ def print_results(devices: list[Device]) -> None:
     table.add_column("SSH", justify="center")
     table.add_column("SNMP", justify="center")
     table.add_column("MySQL", justify="center")
+    table.add_column("Other open")
     table.add_column("Status")
 
     for device in alive_devices:
+        others = [f"{s.name}:{s.port}" for s in device.open_services if s.name not in LEGACY_FLAGS]
         table.add_row(
             device.ip,
             device.hostname or "-",
             "✅" if device.ssh else "❌",
             "✅" if device.snmp else "❌",
             "✅" if device.mysql else "❌",
+            ", ".join(others) or "-",
             "[green]UP[/green]" if device.alive else "[red]DOWN[/red]",
         )
 
@@ -82,3 +86,8 @@ def print_results(devices: list[Device]) -> None:
     console.print(f"  • SSH servers: {ssh_count}")
     console.print(f"  • SNMP devices: {snmp_count}")
     console.print(f"  • MySQL servers: {mysql_count}")
+    other_counts = Counter(
+        s.name for d in alive_devices for s in d.open_services if s.name not in LEGACY_FLAGS
+    )
+    for name, count in sorted(other_counts.items()):
+        console.print(f"  • {name}: {count}")
