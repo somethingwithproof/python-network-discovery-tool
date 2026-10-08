@@ -3,14 +3,22 @@
 [![CI](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/ci.yml)
 [![Docker](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/docker-build.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/docker-build.yml)
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
-[![GitHub releases](https://img.shields.io/badge/releases-GitHub-blue)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
+[![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
+[![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
 [![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
 [![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
 
-netprobe is a Python CLI for inventorying services on networks you administer,
-tracking observations over time, and exporting devices for Kadupul. It uses asyncio
-sockets as an ordinary user; optional Nmap discovery can find hosts that expose
-none of the configured services.
+netprobe is a Python CLI for repeatable service inventory on networks you administer.
+It records what devices expose, compares observations over time, and generates
+Kadupul import scripts. The default backend uses asyncio sockets without root;
+optional Nmap discovery can identify hosts beyond the configured service ports.
+
+## Why netprobe
+
+A one-off port report does not explain whether the next observation changed or
+simply failed. netprobe combines explicit service states, bounded probes, reusable
+scan profiles, and local history. Operators can repeat the same scope, inspect
+errors, and distinguish uncertain observations from confirmed changes.
 
 - **Service evidence:** SSH identification, MySQL greetings, HTTP headers, TLS
   certificate observations, and SNMP discovery or credentialed system-MIB queries.
@@ -27,8 +35,14 @@ CI covers Python 3.12, 3.13 and 3.14 on Linux and macOS, plus a controlled Compo
 integration lab. The code uses modern type aliases, typed preflight results,
 keyword-only slotted profiles and structured async cleanup while retaining those
 runtime versions. See [Versioning and releases](docs/releasing.md) for the SemVer
-compatibility contract and GitHub release process. The Releases link points to
-published artifacts; a checkout can contain changes awaiting release.
+compatibility contract and GitHub release process. The release badge describes
+published artifacts, not the checkout: the latest published tag is currently
+`v0.3.0`, while this checkout uses package version `3.0.0`. Install from the checkout
+to use the inventory features documented here.
+
+Start with [installation](#install), then [profiles and history](#inventory-profiles-preflight-and-local-history).
+For integration details, see [service fingerprints](#fingerprints),
+[file comparisons](#inventory-diff), and [Kadupul export](#kadupul-export).
 
 ## Install
 
@@ -95,7 +109,8 @@ add --description=netprobe-it-web-1.netprobe-it_lab --ip=172.30.57.13 --template
 Each service observation records its state separately from its advertised identity.
 Reads and deadlines are bounded; probe exceptions remain in host errors. SQLite
 history uses transactions, explicit connection cleanup, and read-only listing and
-comparison paths. Credentials stay in the existing runtime credential contract.
+comparison paths. Credentials enter through runtime options or environment
+variables; inventory history stores the effective non-secret settings.
 
 
 ## Usage
@@ -305,8 +320,9 @@ PEP 440 package versions. Releases are never replaced.
 
 PyPI trusted publishing is opt-in and requires project ownership, a trusted
 publisher and the `pypi` environment. It publishes the same checked release artifacts
-without rebuilding or storing an API token. GitHub artifact attestations require a
-supported plan; private-repository attestations are explicitly opt-in. See the
+without rebuilding or storing an API token. Tagged releases in this public
+repository generate GitHub artifact attestations; private forks require a supported
+plan and explicit opt-in. See the
 [complete release guide](docs/releasing.md) for setup, exact commands and retries.
 
 ## Development
@@ -326,6 +342,13 @@ servers and offline profile/history/release-validator cases; the Compose lab run
 OpenSSH, MariaDB, nginx and net-snmp on an isolated bridge. Run it with
 `make test-integration`. See [CONTRIBUTING.md](CONTRIBUTING.md) and
 [release tooling](scripts/README.md).
+
+## Contributing
+
+Contributions should include a reproducible case, preserve the documented CLI and
+data-format contracts, and pass the quality checks above. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and
+[the release guide](docs/releasing.md) for compatibility and versioning decisions.
 
 ## Security and license status
 

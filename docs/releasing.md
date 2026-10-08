@@ -121,8 +121,8 @@ Checksums alone do not authenticate a publisher.
 
 GitHub artifact attestations are enabled for public repositories. Private
 repositories must have a GitHub plan that supports attestations and explicitly
-set `ARTIFACT_ATTESTATIONS_ENABLED=true`. The current repository is private, so
-attestation generation is off until that capability is configured. An enabled
+set `ARTIFACT_ATTESTATIONS_ENABLED=true`. This repository is public, so tagged
+releases generate attestations automatically. An enabled
 attestation failure blocks draft creation; it is not silently ignored.
 [GitHub documents the plan requirements and verification workflow](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations).
 
