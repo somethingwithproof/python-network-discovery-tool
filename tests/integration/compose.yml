@@ -86,6 +86,7 @@ services:
       ssh: {condition: service_healthy}
       db: {condition: service_healthy}
       snmp: {condition: service_healthy}
+      quiet: {condition: service_started}
 
 networks:
   lab:
