@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from netprobe import cli
+from netprobe import cli, preflight
 from netprobe.models import Device
 from netprobe.scanner import BackendUnavailableError
 
@@ -21,6 +21,14 @@ def patched_scanner(devices):
 
     scanner.scan_network = scan_network
     return patch.object(cli, "NetworkScanner", return_value=scanner)
+
+
+@pytest.fixture
+def available_nmap_preflight(monkeypatch):
+    """Mock the local tool check when testing scanner option/error plumbing."""
+    monkeypatch.setattr(preflight.shutil, "which", lambda _: "/mock/nmap")
+    monkeypatch.setattr(preflight.importlib.util, "find_spec", lambda _: object())
+    monkeypatch.setattr(preflight, "nmap_version", lambda _: "Nmap version 7.95")
 
 
 def test_cli_version():
@@ -57,7 +65,7 @@ def test_cli_scan_prints_table_without_output_file():
     assert "10.0.0.1" in result.output
 
 
-def test_cli_passes_engine_options():
+def test_cli_passes_engine_options(available_nmap_preflight):
     with patched_scanner([]) as factory:
         result = runner.invoke(
             cli.app,
@@ -120,7 +128,7 @@ def test_cli_invalid_network_exits_2_with_message():
     assert "Traceback" not in result.output
 
 
-def test_cli_unavailable_backend_exits_1():
+def test_cli_unavailable_backend_exits_1(available_nmap_preflight):
     with patch.object(
         cli, "NetworkScanner", side_effect=BackendUnavailableError("nmap is not available")
     ):
