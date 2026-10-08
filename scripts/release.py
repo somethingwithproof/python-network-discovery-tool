@@ -16,6 +16,10 @@ from pathlib import Path
 from typing import Literal
 from zipfile import BadZipFile, ZipFile
 
+PROJECT_FILE = "pyproject.toml"
+LOCK_FILE = "uv.lock"
+CHANGELOG_FILE = "CHANGES.md"
+
 _NUMBER = r"(0|[1-9][0-9]*)"
 _SEMVER = re.compile(rf"^{_NUMBER}\.{_NUMBER}\.{_NUMBER}(?:-(alpha|beta|rc)\.{_NUMBER})?$")
 _PACKAGE = re.compile(rf"^{_NUMBER}\.{_NUMBER}\.{_NUMBER}(?:(a|b|rc){_NUMBER})?$")
@@ -64,7 +68,7 @@ def parse_version(value: str, *, package: bool = False) -> ReleaseVersion:
 
 
 def project_version(root: Path) -> ReleaseVersion:
-    document = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    document = tomllib.loads((root / PROJECT_FILE).read_text(encoding="utf-8"))
     return parse_version(document["project"]["version"], package=True)
 
 
@@ -91,40 +95,56 @@ def release_notes(changelog: str, version: ReleaseVersion) -> str:
     return notes.strip() + "\n"
 
 
+def section_span(text: str, heading: str, following: str) -> tuple[int, int, int] | None:
+    """Locate a heading and its body without mixing lazy matches and alternatives."""
+    start = re.search(heading, text, re.MULTILINE)
+    if start is None:
+        return None
+    next_heading = re.search(following, text[start.end() :], re.MULTILINE)
+    end = start.end() + next_heading.start() if next_heading else len(text)
+    return start.start(), start.end(), end
+
+
 def _replace_project_version(text: str, value: str) -> str:
-    section = re.search(r"^\[project\]\s*\n.*?(?=^\[|\Z)", text, re.MULTILINE | re.DOTALL)
+    section = section_span(text, r"^\[project\][ \t]*\n", r"^\[")
     if section is None:
         raise ValueError("Missing [project] metadata")
     replacement, count = re.subn(
         r'^version\s*=\s*["\'][^"\']+["\']',
         f'version = "{value}"',
-        section.group(),
+        text[section[0] : section[2]],
         count=1,
         flags=re.MULTILINE,
     )
     if count != 1:
         raise ValueError("Expected one project version assignment")
-    return text[: section.start()] + replacement + text[section.end() :]
+    return text[: section[0]] + replacement + text[section[2] :]
 
 
 def _replace_lock_version(text: str, value: str) -> str:
-    entries = list(
-        re.finditer(
-            r"^\[\[package\]\]\s*\n.*?(?=^\[\[package\]\]|\Z)", text, re.MULTILINE | re.DOTALL
-        )
-    )
+    headers = list(re.finditer(r"^\[\[package\]\][ \t]*\n", text, re.MULTILINE))
+    entries = [
+        (header.start(), headers[index + 1].start() if index + 1 < len(headers) else len(text))
+        for index, header in enumerate(headers)
+    ]
     matches = [
-        entry for entry in entries if re.search(r'^name = "netprobe"$', entry.group(), re.MULTILINE)
+        entry
+        for entry in entries
+        if re.search(r'^name = "netprobe"$', text[entry[0] : entry[1]], re.MULTILINE)
     ]
     if len(matches) != 1:
         raise ValueError("uv.lock must contain exactly one netprobe entry")
     entry = matches[0]
     replacement, count = re.subn(
-        r'^version = "[^"]+"', f'version = "{value}"', entry.group(), count=1, flags=re.MULTILINE
+        r'^version = "[^"]+"',
+        f'version = "{value}"',
+        text[entry[0] : entry[1]],
+        count=1,
+        flags=re.MULTILINE,
     )
     if count != 1:
         raise ValueError("Missing netprobe lockfile version")
-    return text[: entry.start()] + replacement + text[entry.end() :]
+    return text[: entry[0]] + replacement + text[entry[1] :]
 
 
 def prepare(root: Path, version: ReleaseVersion, *, dry_run: bool = False) -> list[str]:
@@ -132,27 +152,25 @@ def prepare(root: Path, version: ReleaseVersion, *, dry_run: bool = False) -> li
     if version.precedence <= current.precedence:
         raise ValueError(f"New version must be greater than {current.semantic}")
     check_lock(root, current)
-    project = (root / "pyproject.toml").read_text(encoding="utf-8")
-    lock = (root / "uv.lock").read_text(encoding="utf-8")
-    changelog = (root / "CHANGES.md").read_text(encoding="utf-8")
-    match = re.search(r"^## Unreleased\s*\n(.*?)(?=^## |\Z)", changelog, re.MULTILINE | re.DOTALL)
-    if match is None or not match.group(1).strip():
+    project = (root / PROJECT_FILE).read_text(encoding="utf-8")
+    lock = (root / LOCK_FILE).read_text(encoding="utf-8")
+    changelog = (root / CHANGELOG_FILE).read_text(encoding="utf-8")
+    match = section_span(changelog, r"^## Unreleased[ \t]*\n", r"^## ")
+    if match is None or not changelog[match[1] : match[2]].strip():
         raise ValueError("Add nonempty release notes under ## Unreleased first")
     if re.search(rf"^## Version {re.escape(version.semantic)}(?: |$)", changelog, re.MULTILINE):
         raise ValueError("That release already has a changelog section")
     date = datetime.now(UTC).date().isoformat()
-    section = (
-        f"## Unreleased\n\n## Version {version.semantic} ({date})\n\n{match.group(1).strip()}\n\n"
-    )
+    section = f"## Unreleased\n\n## Version {version.semantic} ({date})\n\n{changelog[match[1] : match[2]].strip()}\n\n"
     changes = {
-        "pyproject.toml": _replace_project_version(project, version.package),
-        "uv.lock": _replace_lock_version(lock, version.package),
-        "CHANGES.md": changelog[: match.start()] + section + changelog[match.end() :],
+        PROJECT_FILE: _replace_project_version(project, version.package),
+        LOCK_FILE: _replace_lock_version(lock, version.package),
+        CHANGELOG_FILE: changelog[: match[0]] + section + changelog[match[2] :],
     }
     # Calculate and validate every replacement before writing any file.
-    parse_version(tomllib.loads(changes["pyproject.toml"])["project"]["version"], package=True)
-    tomllib.loads(changes["uv.lock"])
-    release_notes(changes["CHANGES.md"], version)
+    parse_version(tomllib.loads(changes[PROJECT_FILE])["project"]["version"], package=True)
+    tomllib.loads(changes[LOCK_FILE])
+    release_notes(changes[CHANGELOG_FILE], version)
     if not dry_run:
         for filename, content in changes.items():
             (root / filename).write_text(content, encoding="utf-8")
@@ -160,7 +178,7 @@ def prepare(root: Path, version: ReleaseVersion, *, dry_run: bool = False) -> li
 
 
 def check_lock(root: Path, version: ReleaseVersion) -> None:
-    document = tomllib.loads((root / "uv.lock").read_text(encoding="utf-8"))
+    document = tomllib.loads((root / LOCK_FILE).read_text(encoding="utf-8"))
     packages = [entry for entry in document["package"] if entry["name"] == "netprobe"]
     if len(packages) != 1 or packages[0]["version"] != version.package:
         raise ValueError("Package version and uv.lock disagree")
@@ -178,9 +196,9 @@ def check_release(
         and version.precedence < parse_version(previous, package=True).precedence
     ):
         raise ValueError("Package version must not move backwards")
-    changelog = (root / "CHANGES.md").read_text(encoding="utf-8")
-    pending = re.search(r"^## Unreleased\s*\n(.*?)(?=^## |\Z)", changelog, re.MULTILINE | re.DOTALL)
-    if tag is not None and pending is not None and pending.group(1).strip():
+    changelog = (root / CHANGELOG_FILE).read_text(encoding="utf-8")
+    pending = section_span(changelog, r"^## Unreleased[ \t]*\n", r"^## ")
+    if tag is not None and pending is not None and changelog[pending[1] : pending[2]].strip():
         raise ValueError("Move Unreleased notes into a new version section before tagging")
     release_notes(changelog, version)
     return version
@@ -217,7 +235,25 @@ def check_distributions(directory: Path, version: ReleaseVersion) -> list[Path]:
     return [wheel, source]
 
 
+def confined_path(path: Path, root: Path) -> Path:
+    """Return a canonical path within the explicitly selected project root."""
+    base = root.resolve(strict=True)
+    candidate = (base / path).resolve()
+    if not candidate.is_relative_to(base):
+        raise ValueError("Release artifact paths must stay within the project root")
+    return candidate
+
+
+def write_notes(root: Path, output: Path, version: ReleaseVersion) -> None:
+    destination = confined_path(output, root)
+    destination.write_text(
+        release_notes((root / CHANGELOG_FILE).read_text(encoding="utf-8"), version),
+        encoding="utf-8",
+    )
+
+
 def write_checksums(files: list[Path], output: Path) -> None:
+    output = confined_path(output, files[0].parent)
     lines = []
     for path in files:
         with path.open("rb") as stream:
@@ -226,10 +262,11 @@ def write_checksums(files: list[Path], output: Path) -> None:
 
 
 def verify_checksums(files: list[Path], source: Path) -> None:
+    source = confined_path(source, files[0].parent)
     entries = source.read_text(encoding="utf-8").splitlines()
     expected = {}
     for entry in entries:
-        match = re.fullmatch(r"([0-9a-f]{64})  ([A-Za-z0-9_.-]+)", entry)
+        match = re.fullmatch(r"([0-9a-f]{64}) {2}([A-Za-z0-9_.-]+)", entry)
         if match is None or match[2] in expected:
             raise ValueError("Invalid checksum manifest")
         expected[match[2]] = match[1]
@@ -239,6 +276,21 @@ def verify_checksums(files: list[Path], source: Path) -> None:
         with path.open("rb") as stream:
             if hashlib.file_digest(stream, "sha256").hexdigest() != expected[path.name]:
                 raise ValueError(f"Checksum mismatch: {path.name}")
+
+
+def validate_artifacts(args: argparse.Namespace, version: ReleaseVersion) -> None:
+    if args.notes:
+        write_notes(args.root, args.notes, version)
+    if args.dist is None:
+        if args.checksums or args.verify_checksums:
+            raise ValueError("Checksum options require --dist")
+        return
+    directory = confined_path(args.dist, args.root)
+    files = check_distributions(directory, version)
+    if args.checksums:
+        write_checksums(files, confined_path(args.checksums, args.root))
+    if args.verify_checksums:
+        verify_checksums(files, confined_path(args.verify_checksums, args.root))
 
 
 def main() -> None:
@@ -283,19 +335,7 @@ def main() -> None:
             )
         else:
             version = check_release(args.root, args.tag, args.previous_version)
-            if args.notes:
-                args.notes.write_text(
-                    release_notes((args.root / "CHANGES.md").read_text(encoding="utf-8"), version),
-                    encoding="utf-8",
-                )
-            if args.dist:
-                files = check_distributions(args.dist, version)
-                if args.checksums:
-                    write_checksums(files, args.checksums)
-                if args.verify_checksums:
-                    verify_checksums(files, args.verify_checksums)
-            elif args.checksums or args.verify_checksums:
-                raise ValueError("Checksum options require --dist")
+            validate_artifacts(args, version)
             print(
                 json.dumps(
                     {
