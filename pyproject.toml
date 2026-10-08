@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "netprobe"
-version = "2.0.0"
-description = "Modern network scanner for discovering SSH, SNMP, and MySQL services"
+version = "3.0.0"
+description = "Network service discovery with fingerprinting, inventory diffs and Kadupul export"
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "MIT"}

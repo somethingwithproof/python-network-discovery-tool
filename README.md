@@ -3,30 +3,57 @@
 [![CI configuration](https://img.shields.io/badge/CI-configured-blue)](./.github/workflows/ci.yml)
 [![Python requirement](https://img.shields.io/badge/Python_requirement-%3E%3D3.12-blue)](./pyproject.toml)
 
-A Python network-discovery CLI with terminal, JSON, and CSV output. The package in [src/netprobe](src/netprobe) defines the scan orchestration, device representation, output writers, and CLI options.
+netprobe finds hosts on a network you administer, identifies the services they run from what those services announce before login, records the result as JSON, CSV or a snapshot, reports what changed between two snapshots, and turns an inventory into a script that adds the devices to [Kadupul](https://github.com/kadupulhq/kadupul).
 
-## Architecture and scope
+It runs as an ordinary user with plain asyncio sockets. nmap is optional and only used for host discovery.
 
-- A Typer CLI provides `scan` and `version` commands.
-- Rich renders terminal output; dedicated functions write JSON and CSV.
-- The implementation uses network/service checks and the dependencies declared in [pyproject.toml](pyproject.toml).
-
-## Install and inspect
+## Install
 
 Python 3.12 or newer is required. From this checkout:
 
 ```bash
 uv venv
-uv pip install -e ".[dev]"
+uv pip install -e .            # add '.[nmap]' for --backend nmap (also needs the nmap binary)
 .venv/bin/netprobe --help
-.venv/bin/netprobe scan --help
 ```
 
-Inspect the options and required platform tools before using the scanner on networks you administer. This README does not claim verified compatibility with every target service or environment.
+## Quick example
+
+Run from the tester container of the integration lab described under Development; output trimmed:
+
+```console
+$ netprobe scan 172.30.57.8/29 --services ssh,http,snmp --save-snapshot after.json
+┃ IP Address   ┃ Hostname       ┃ SSH ┃ SNMP ┃ MySQL ┃ Open services  ┃ Status ┃
+│ 172.30.57.10 │ netprobe-it-s… │ ✅  │  ❌  │  ❌   │ ssh:22         │ UP     │
+│              │                │     │      │       │ OpenSSH_10.0   │        │
+│ 172.30.57.13 │ netprobe-it-w… │ ❌  │  ❌  │  ❌   │ http:80        │ UP     │
+│              │                │     │      │       │ nginx/1.28.3   │        │
+
+$ netprobe diff before.json after.json; echo "exit=$?"
+Warning: targets differ: 172.30.57.10 vs 172.30.57.8/29
+│ new host │ 172.30.57.13 │ http:80/tcp  │ netprobe-it-web-1.netprobe-it_lab   │
+exit=3
+
+$ netprobe export after.json -o kadupul-import.sh --template 1
+$ grep 57.13 kadupul-import.sh
+add --description=netprobe-it-web-1.netprobe-it_lab --ip=172.30.57.13 --template=1 --version=0 --avail=ping --ping_method=tcp --ping_port=80 '--notes=netprobe: http:80/tcp nginx/1.28.3'
+```
+
+## Exit codes
+
+| Command | 0 | 1 | 2 | 3 |
+| --- | --- | --- | --- | --- |
+| `scan` | success | nmap backend unavailable, or a report/snapshot could not be written | invalid target, option or config, or a scan over the size limits | |
+| `diff` | no changes | `-o` file could not be written | missing, unreadable or unsupported input | changes found |
+| `export` | script written | script could not be written | unreadable input, or data that cannot be exported safely | |
+
+## Layout
+
+`src/netprobe/` holds `cli.py` (Typer commands), `scanner.py` (target expansion, host discovery, limits), `probes.py` (one function per service type and the `PROBES` table), `config.py` (default services and TOML loading), `models.py`, `output.py` (table, JSON, CSV), `diff.py` (snapshots and comparison) and `export.py` (Kadupul script).
 
 ## Usage
 
-Requirements: permission to scan the target. Scan only networks you administer. No root and no nmap are needed by default.
+Scan only networks you administer.
 
 ```bash
 netprobe scan 192.168.1.0/24              # table of alive hosts
@@ -96,7 +123,6 @@ probe = "https"
 
 Results keep the original `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` and `errors` fields and add a `services` list with each probe's `name`, `port`, `protocol`, `state` (`open`, `closed` or `filtered`), `version` and `details`. CSV output gains trailing `services` and `versions` columns for the open ones. The `ssh`, `snmp` and `mysql` booleans follow the services with exactly those names.
 
-Exit codes: `0` success, `1` the nmap backend is unavailable or the report could not be written, `2` invalid target, option or config file.
 
 ## Inventory diff
 
@@ -140,8 +166,9 @@ Every value is validated and shell-quoted with `shlex.quote`. By default no SNMP
 ## Development
 
 ```bash
-.venv/bin/python -m pytest
-.venv/bin/mypy
+uv pip install -e ".[dev]"
+make lint        # ruff check, ruff format --check, mypy (strict)
+make test        # unit tests with coverage; CI fails under 90%
 ```
 
 Integration tests run against a docker compose lab (OpenSSH, MariaDB, nginx with a self-signed certificate, net-snmp) on the private subnet 172.30.57.0/24, from a tester container on the same network: `make test-integration`. See [CONTRIBUTING.md](CONTRIBUTING.md) and the [release scripts](scripts/README.md) for other workflows.

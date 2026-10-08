@@ -1,5 +1,45 @@
 # Changelog
 
+## Version 3.0.0 (2026-10-08)
+
+3.0.0 is a major release. The JSON report only gained fields, which alone
+would be a minor bump, but several behaviours that scripts can depend on
+changed: host liveness, the default service set, exit code 1, the Python API
+of `NetworkScanner`, and python-nmap is no longer installed by default.
+
+### Breaking changes
+- Probes use asyncio sockets instead of nmap. A host is alive when any probe
+  is answered (a refused connection counts); hosts that drop every probe are
+  now reported down where nmap's ICMP ping may have found them. Use
+  `--backend nmap` for an nmap ping sweep.
+- python-nmap moved to the optional `nmap` extra.
+- HTTP (80) and HTTPS (443) are probed by default alongside SSH, SNMP and MySQL.
+- SNMP is detected with an SNMPv3 discovery request and no longer needs root;
+  v1/v2c-only agents are found only when a community is given.
+- Exit code 1 from `scan` now means the nmap backend is unavailable (it used
+  to mean nmap was missing for every scan).
+- Scans over 524,288 probes (hosts x services) or 64 services, and
+  `--concurrency` above 4096, are refused with exit code 2.
+- `NetworkScanner` takes keyword options and no longer exposes the nmap
+  `PortScanner` or the `_check_alive`/`_check_port` helpers.
+
+### Features
+- `services` list in JSON (name, port, protocol, state, version, details) and
+  `services`/`versions` CSV columns; existing fields keep their names.
+- Fingerprints: SSH identification, MySQL/MariaDB handshake, HTTP `Server`,
+  TLS certificate with recorded verification result, SNMP system MIB with
+  v2c or v3 credentials from `NETPROBE_SNMP_*`.
+- `--config` TOML services, `--services`, `--ports`, `--timeout`,
+  `--concurrency`, `--tls-ca-file`.
+- `--save-snapshot` and `netprobe diff` (exit 3 on changes).
+- `netprobe export` and `scan -o file.sh`: Kadupul `cli/add_device.php` script.
+
+### Other
+- Code moved to `src/netprobe/`; `python -m netprobe` works.
+- Unused scripts, configs and docs for the removed `network_discovery`
+  package were deleted.
+- Docker compose integration lab and CI job.
+
 ## Version 0.4.0 (2025-04-23)
 
 ### Features
