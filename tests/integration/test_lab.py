@@ -158,3 +158,31 @@ def test_lab_snapshot_diff(tmp_path, monkeypatch):
     assert [h["ip"] for h in report["new_hosts"]] == [DB, SNMP, WEB, QUIET]
     snmp_host = report["new_hosts"][1]["services"]
     assert snmp_host[0]["name"] == "snmp" and snmp_host[0]["version"].startswith("Linux")
+
+
+def test_lab_kadupul_export(tmp_path, monkeypatch):
+    from test_export import run_script
+
+    monkeypatch.setenv("NETPROBE_SNMP_COMMUNITY", "netprobe-test")
+    runner = CliRunner()
+    snap = tmp_path / "lab.json"
+    scanned = runner.invoke(
+        app, ["scan", LAB, "-q", "--timeout", "2", "--save-snapshot", str(snap)]
+    )
+    assert scanned.exit_code == 0, scanned.output
+
+    script = tmp_path / "import.sh"
+    exported = runner.invoke(app, ["export", str(snap), "-o", str(script), "--template", "1"])
+    assert exported.exit_code == 0, exported.output
+    assert "netprobe-test" not in script.read_text()
+
+    result, calls = run_script(
+        tmp_path, script.read_text(), {"NETPROBE_SNMP_COMMUNITY": "netprobe-test"}
+    )
+    assert result.returncode == 0, result.stderr
+    by_ip = {next(a for a in c if a.startswith("--ip="))[5:]: c for c in calls}
+    assert sorted(by_ip) == sorted([SSH, DB, SNMP, WEB, QUIET])
+    assert "--community=netprobe-test" in by_ip[SNMP]
+    assert "--version=2" in by_ip[SNMP]
+    assert "--ping_port=22" in by_ip[SSH]
+    assert "--ping_method=icmp" in by_ip[QUIET]

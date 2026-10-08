@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
+from dataclasses import asdict
 from importlib.metadata import version as package_version
 from pathlib import Path
 from typing import Literal
@@ -16,6 +18,7 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn
 
 from netprobe.config import DEFAULT_SERVICES, ConfigError, load_services, select_services
 from netprobe.diff import SnapshotError, compare, load_inventory, print_diff, write_snapshot
+from netprobe.export import ExportError, KadupulOptions, kadupul_script, write_script
 from netprobe.output import console, print_results, save_csv, save_json
 from netprobe.probes import SnmpCredentials
 from netprobe.scanner import (
@@ -54,8 +57,11 @@ def scan(
     output: Path = typer.Option(
         None, "--output", "-o", help="Output file (JSON or CSV, detected by extension)"
     ),
-    format: Literal["json", "csv", "auto"] = typer.Option(
-        "auto", "--format", "-f", help="Output format (auto-detects from filename)"
+    format: Literal["json", "csv", "kadupul", "auto"] = typer.Option(
+        "auto",
+        "--format",
+        "-f",
+        help="Output format (auto-detects from filename; .sh means kadupul)",
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress table output"),
@@ -220,6 +226,8 @@ def scan(
                 format = "json"
             elif ext == ".csv":
                 format = "csv"
+            elif ext == ".sh":
+                format = "kadupul"
             else:
                 logger.warning(f"Unknown extension {ext}, defaulting to JSON")
                 format = "json"
@@ -230,6 +238,17 @@ def scan(
                     save_json(devices, output)
                 case "csv":
                     save_csv(devices, output)
+                case "kadupul":
+                    opts = KadupulOptions(
+                        snmp_user=snmp_user,
+                        auth_protocol=snmp_auth_protocol,
+                        priv_protocol=snmp_priv_protocol,
+                    )
+                    script = kadupul_script((asdict(d) for d in devices), opts, f"scan {network}")
+                    write_script(output, script, secret=False)
+        except ExportError as e:
+            typer.echo(f"Error: {e}", err=True)
+            raise typer.Exit(2) from e
         except OSError as e:
             typer.echo(f"Error: cannot write {output}: {e}", err=True)
             raise typer.Exit(1) from e
@@ -240,6 +259,62 @@ def scan(
         except OSError as e:
             typer.echo(f"Error: cannot write {save_snapshot}: {e}", err=True)
             raise typer.Exit(1) from e
+
+
+@app.command()
+def export(
+    source: Path = typer.Argument(..., help="Snapshot or scan -o JSON report"),
+    output: Path = typer.Option(..., "--output", "-o", help="Script to write"),
+    template: int = typer.Option(
+        0,
+        "--template",
+        min=0,
+        help="Kadupul host template id (see add_device.php --list-host-templates)",
+    ),
+    snmp_user: str | None = typer.Option(None, "--snmp-user", envvar="NETPROBE_SNMP_USER"),
+    snmp_auth_protocol: AuthProtocol = typer.Option(
+        "SHA", "--snmp-auth-protocol", envvar="NETPROBE_SNMP_AUTH_PROTOCOL"
+    ),
+    snmp_priv_protocol: PrivProtocol = typer.Option(
+        "AES", "--snmp-priv-protocol", envvar="NETPROBE_SNMP_PRIV_PROTOCOL"
+    ),
+    include_credentials: bool = typer.Option(
+        False,
+        "--include-credentials",
+        help="Write SNMP secrets from NETPROBE_SNMP_* into the script instead of env references",
+    ),
+) -> None:
+    """
+    Write a Kadupul import script: one `php cli/add_device.php` call per host.
+
+    Run the result on the Kadupul server: KADUPUL_ROOT=/path sh SCRIPT
+    """
+    try:
+        inventory = load_inventory(source)
+        opts = KadupulOptions(
+            template=template,
+            snmp_user=snmp_user,
+            auth_protocol=snmp_auth_protocol,
+            priv_protocol=snmp_priv_protocol,
+            # Secrets only ever come from the environment here, never argv.
+            community=os.environ.get("NETPROBE_SNMP_COMMUNITY") if include_credentials else None,
+            auth_key=os.environ.get("NETPROBE_SNMP_AUTH_KEY") if include_credentials else None,
+            priv_key=os.environ.get("NETPROBE_SNMP_PRIV_KEY") if include_credentials else None,
+            include_credentials=include_credentials,
+        )
+        script = kadupul_script(inventory.devices, opts, str(source))
+    except (SnapshotError, ExportError) as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(2) from e
+    if include_credentials:
+        logger.warning(
+            f"{output} contains SNMP credentials; keep it private and delete it after use"
+        )
+    try:
+        write_script(output, script, secret=include_credentials)
+    except OSError as e:
+        typer.echo(f"Error: cannot write {output}: {e}", err=True)
+        raise typer.Exit(1) from e
 
 
 # Distinct from 1 (error) and 2 (usage), so scripts can branch on "changed".

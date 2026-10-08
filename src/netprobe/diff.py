@@ -66,6 +66,8 @@ class Inventory:
     # None for plain reports, which do not record what was probed.
     probed: set[Port] | None
     hosts: dict[str, Host]
+    # The alive device entries as stored, for consumers such as the exporter.
+    devices: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _host(entry: Any) -> Host:
@@ -108,12 +110,13 @@ def load_inventory(path: Path) -> Inventory:
             created, target = str(document.get("created", "")), str(document.get("target", ""))
         else:
             raise SnapshotError(f"{path}: not a netprobe snapshot or JSON report")
-        hosts = [_host(d) for d in devices if not isinstance(d, dict) or d.get("alive", True)]
+        alive = [d for d in devices if not isinstance(d, dict) or d.get("alive", True)]
+        hosts = [_host(d) for d in alive]
     except SnapshotError:
         raise
     except (KeyError, TypeError, ValueError) as e:
         raise SnapshotError(f"{path}: malformed snapshot: {e}") from e
-    return Inventory(str(path), created, target, probed, {h.ip: h for h in hosts})
+    return Inventory(str(path), created, target, probed, {h.ip: h for h in hosts}, alive)
 
 
 @dataclass
