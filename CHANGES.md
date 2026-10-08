@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Add named TOML inventory profiles with network scope, additive exclusions, and resource settings.
+- Add local preflight checks and a standalone JSON preflight command.
+- Add opt-in transactional SQLite history and comparisons that preserve uncertain observations.
+- Apply exclusions to optional Nmap discovery as well as service probes; reject scoped IPv6 targets and bound Nmap subprocess duration.
+- Add Python 3.14 to CI and locked dependency installation.
+- Use modern type statements, typed preflight results, keyword-only slotted profiles, and bounded structured concurrency while retaining Python 3.12 compatibility.
+
 ## Version 3.0.0 (2026-10-08)
 
 3.0.0 is a major release. The JSON report only gained fields, which alone

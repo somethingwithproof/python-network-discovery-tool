@@ -227,7 +227,9 @@ def test_cli_rejects_scan_over_probe_cap():
     assert "Scan too large" in result.output
 
 
-def test_cli_scanner_receives_snmp_and_tls_settings(tmp_path):
+def test_cli_scanner_receives_snmp_and_tls_settings(tmp_path, monkeypatch):
+    # This test checks option plumbing; preflight CA validation has its own tests.
+    monkeypatch.setattr(cli, "check_plan", lambda *args, **kwargs: {"checks": []})
     with patched_scanner([]) as factory:
         result = runner.invoke(
             cli.app,

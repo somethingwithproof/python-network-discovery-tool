@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import os
+import sqlite3
 from dataclasses import asdict
 from importlib.metadata import version as package_version
 from pathlib import Path
@@ -19,12 +20,16 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn
 from netprobe.config import DEFAULT_SERVICES, ConfigError, load_services, select_services
 from netprobe.diff import SnapshotError, compare, load_inventory, print_diff, write_snapshot
 from netprobe.export import ExportError, KadupulOptions, kadupul_script, write_script
+from netprobe.history import HistoryStore, compare_scans, utc_now
 from netprobe.output import console, print_results, save_csv, save_json
+from netprobe.preflight import check_plan, paths_overlap
 from netprobe.probes import SnmpCredentials
+from netprobe.profiles import load_profiles, resolve_profile
 from netprobe.scanner import (
     DEFAULT_CONCURRENCY,
     DEFAULT_TIMEOUT,
     MAX_CONCURRENCY,
+    MAX_HOSTS,
     BackendUnavailableError,
     NetworkScanner,
 )
@@ -50,10 +55,17 @@ app = typer.Typer(
 )
 
 
+def explicit_option(ctx: typer.Context, name: str) -> bool:
+    source = ctx.get_parameter_source(name)
+    return source is not None and source.name == "COMMANDLINE"
+
+
 @app.command()
 def scan(
     ctx: typer.Context,
-    network: str = typer.Argument(..., help="Network CIDR (e.g., 192.168.1.0/24) or single IP"),
+    network: str | None = typer.Argument(
+        None, help="Network CIDR (e.g., 192.168.1.0/24) or single IP"
+    ),
     output: Path = typer.Option(
         None, "--output", "-o", help="Output file (JSON or CSV, detected by extension)"
     ),
@@ -122,6 +134,12 @@ def scan(
     save_snapshot: Path | None = typer.Option(
         None, "--save-snapshot", help="Also write a versioned snapshot for `netprobe diff`"
     ),
+    profile: str | None = typer.Option(None, "--profile", help="Named inventory profile"),
+    exclude: list[str] | None = typer.Option(
+        None, "--exclude", help="Excluded IP/CIDR; repeat as needed"
+    ),
+    max_hosts: int = typer.Option(MAX_HOSTS, "--max-hosts", min=1, max=MAX_HOSTS),
+    history: Path | None = typer.Option(None, "--history", help="Opt-in SQLite scan history"),
     tls_ca_file: Path | None = typer.Option(
         None,
         "--tls-ca-file",
@@ -177,12 +195,69 @@ def scan(
         raise typer.Exit(2) from e
 
     try:
+        if profile is not None and config is None:
+            config = Path("netprobe.toml")
+        settings = resolve_profile(
+            network,
+            config,
+            profile,
+            {
+                "backend": backend if explicit_option(ctx, "backend") else None,
+                "timeout": timeout if explicit_option(ctx, "timeout") else None,
+                "concurrency": concurrency if explicit_option(ctx, "concurrency") else None,
+                "max_hosts": max_hosts if explicit_option(ctx, "max_hosts") else None,
+                "services": services,
+                "ports": ports,
+                "exclusions": exclude,
+            },
+        )
+        network = str(settings["network"])
+        backend = settings.get("backend", backend)
+        timeout = settings.get("timeout", timeout)
+        concurrency = settings.get("concurrency", concurrency)
+        max_hosts = settings.get("max_hosts", max_hosts)
+        services, ports = settings.get("services", services), settings.get("ports", ports)
+        exclusions = settings.get("exclusions", [])
+    except ConfigError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(2) from e
+
+    try:
         specs = select_services(
             load_services(config) if config else DEFAULT_SERVICES, services, ports
         )
     except ConfigError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(2) from e
+
+    try:
+        preflight = check_plan(
+            network,
+            specs,
+            backend,
+            max_hosts,
+            exclusions,
+            [path for path in (output, save_snapshot, history) if path is not None],
+            config=config,
+            history=history,
+            tls_ca_file=tls_ca_file,
+        )
+    except ValueError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(2) from e
+    failed = [check for check in preflight["checks"] if check["status"] == "error"]
+    if failed:
+        for check in failed:
+            typer.echo(f"Preflight failed ({check['check']}): {check['detail']}", err=True)
+        raise typer.Exit(1)
+    store = HistoryStore(history) if history is not None else None
+    if store is not None:
+        try:
+            store.initialize()
+        except (OSError, ValueError, sqlite3.Error) as e:
+            typer.echo(f"History failed: {e}", err=True)
+            raise typer.Exit(1) from e
+    started_at = utc_now()
 
     try:
         scanner = NetworkScanner(
@@ -192,6 +267,8 @@ def scan(
             services=specs,
             snmp=snmp,
             tls_ca_file=str(tls_ca_file) if tls_ca_file else None,
+            max_hosts=max_hosts,
+            exclusions=exclusions,
         )
     except BackendUnavailableError as e:
         typer.echo(f"Error: {e}", err=True)
@@ -206,12 +283,53 @@ def scan(
         BarColumn(),
         TaskProgressColumn(),
         console=console,
+        disable=quiet,
     ) as progress:
         try:
             devices = asyncio.run(scanner.scan_network(network, progress))
-        except ValueError as e:
+        except (ValueError, BackendUnavailableError) as e:
             typer.echo(f"Error: {e}", err=True)
-            raise typer.Exit(2) from e
+            raise typer.Exit(1 if isinstance(e, BackendUnavailableError) else 2) from e
+
+    if store is not None:
+        observations = []
+        for device in devices:
+            record = asdict(device)
+            record["status"] = (
+                "up"
+                if device.alive
+                else (
+                    "unresponsive"
+                    if device.errors == ["Host is down"]
+                    else "error"
+                    if device.errors
+                    else "unknown"
+                )
+            )
+            record["port_states"] = {
+                f"{service.port}/{service.protocol}": service.state for service in device.services
+            }
+            observations.append(record)
+        metadata = {
+            "schema_version": 1,
+            "netprobe_version": package_version("netprobe"),
+            "profile": profile,
+            "target": network,
+            "backend": backend,
+            "timeout": timeout,
+            "concurrency": concurrency,
+            "max_hosts": max_hosts,
+            "exclusions": exclusions,
+            "services": [asdict(spec) for spec in specs],
+            "ports": sorted({f"{spec.port}/{spec.protocol}" for spec in specs}),
+        }
+        try:
+            scan_id = store.save(metadata, observations, started_at)
+        except (OSError, ValueError, sqlite3.Error) as e:
+            typer.echo(f"History failed: {e}", err=True)
+            raise typer.Exit(1) from e
+        if not quiet:
+            typer.echo(f"Saved history scan {scan_id}")
 
     # Print results (unless quiet)
     if not quiet:
@@ -357,8 +475,118 @@ def diff(
     raise typer.Exit(EXIT_CHANGED if result.changed else 0)
 
 
+@app.command(name="history")
+def history_command(
+    history_path: Path = typer.Option(Path("netprobe-history.sqlite3"), "--history"),
+    limit: int = typer.Option(20, min=1, max=1000),
+) -> None:
+    """List saved inventory IDs and summaries, newest first; never creates a database."""
+    try:
+        summaries = HistoryStore(history_path).list_summaries(limit)
+        typer.echo(json.dumps(summaries, indent=2))
+    except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as exc:
+        typer.echo(f"History failed: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+
+@app.command(name="compare")
+def history_compare(
+    before: int = typer.Argument(..., min=1, help="Earlier scan ID"),
+    after: int = typer.Argument(..., min=1, help="Later scan ID"),
+    history_path: Path = typer.Option(Path("netprobe-history.sqlite3"), "--history"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Write comparison JSON"),
+) -> None:
+    """Compare equal-scope snapshots without scanning or claiming failed hosts disappeared."""
+    try:
+        store = HistoryStore(history_path)
+        report = compare_scans(store.get(before), store.get(after))
+        rendered = json.dumps(report, indent=2)
+        if output is not None:
+            if paths_overlap(output, history_path):
+                raise ValueError("Comparison output must not overwrite history")
+            from netprobe.history import check_writable_path
+
+            check_writable_path(output)
+            output.write_text(rendered + "\n", encoding="utf-8")
+        else:
+            typer.echo(rendered)
+    except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as exc:
+        typer.echo(f"Comparison failed: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+
 @app.command()
 def version() -> None:
     """Show version information."""
     rprint(f"[bold cyan]netprobe[/bold cyan] [green]v{package_version('netprobe')}[/green]")
     rprint("Modern network scanner built with Python 3.12+")
+
+
+@app.command()
+def profiles(config: Path = typer.Option(Path("netprobe.toml"), "--config")) -> None:
+    """List validated named profiles without target traffic."""
+    try:
+        entries = load_profiles(config)
+        for profile in entries.values():
+            select_services(load_services(config), profile.services, profile.ports)
+        typer.echo(
+            json.dumps({name: asdict(profile) for name, profile in entries.items()}, indent=2)
+        )
+    except ConfigError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(2) from e
+
+
+@app.command()
+def preflight(
+    network: str | None = typer.Argument(None),
+    profile: str | None = typer.Option(None, "--profile"),
+    config: Path | None = typer.Option(None, "--config"),
+    backend: Literal["asyncio", "nmap"] | None = typer.Option(None, "--backend"),
+    services: str | None = typer.Option(None, "--services"),
+    ports: str | None = typer.Option(None, "--ports"),
+    exclude: list[str] | None = typer.Option(None, "--exclude"),
+    max_hosts: int | None = typer.Option(None, "--max-hosts", min=1, max=MAX_HOSTS),
+    output: Path | None = typer.Option(None, "--output", "-o"),
+    save_snapshot: Path | None = typer.Option(None, "--save-snapshot"),
+    history: Path | None = typer.Option(None, "--history"),
+    tls_ca_file: Path | None = typer.Option(None, "--tls-ca-file", envvar="NETPROBE_TLS_CA_FILE"),
+) -> None:
+    """Check target limits, backend availability and destinations without scanning."""
+    try:
+        if profile is not None and config is None:
+            config = Path("netprobe.toml")
+        settings = resolve_profile(
+            network,
+            config,
+            profile,
+            {
+                "backend": backend,
+                "services": services,
+                "ports": ports,
+                "exclusions": exclude,
+                "max_hosts": max_hosts,
+            },
+        )
+        specs = select_services(
+            load_services(config) if config else DEFAULT_SERVICES,
+            settings.get("services"),
+            settings.get("ports"),
+        )
+        result = check_plan(
+            settings["network"],
+            specs,
+            settings.get("backend", "asyncio"),
+            settings.get("max_hosts", MAX_HOSTS),
+            settings.get("exclusions", []),
+            [path for path in (output, save_snapshot, history) if path is not None],
+            config=config,
+            history=history,
+            tls_ca_file=tls_ca_file,
+        )
+    except ValueError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(2) from e
+    typer.echo(json.dumps(result, indent=2))
+    if any(check["status"] == "error" for check in result["checks"]):
+        raise typer.Exit(1)

@@ -124,6 +124,78 @@ probe = "https"
 Results keep the original `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` and `errors` fields and add a `services` list with each probe's `name`, `port`, `protocol`, `state` (`open`, `closed` or `filtered`), `version` and `details`. CSV output gains trailing `services` and `versions` columns for the open ones. The `ssh`, `snmp` and `mysql` booleans follow the services with exactly those names.
 
 
+## Inventory profiles, preflight, and local history
+
+Named profiles share a TOML file with the existing `[services]` definitions. Copy
+[netprobe.example.toml](netprobe.example.toml) to `netprobe.toml` and set networks
+that you administer:
+
+```toml
+[profiles.office]
+network = "192.168.1.0/24"
+exclusions = ["192.168.1.1"]
+services = "ssh,http,https,mysql"
+concurrency = 32
+timeout = 1.0
+max_hosts = 256
+backend = "asyncio"
+```
+
+```bash
+netprobe profiles --config netprobe.toml
+netprobe preflight --profile office --config netprobe.toml
+netprobe scan --profile office --config netprobe.toml -o report.json
+```
+
+Profiles accept `network`, `exclusions`, `services`, `ports`, `backend`, `timeout`,
+`concurrency`, and `max_hosts`. `services` and `ports` use the existing comma-list
+syntax. Explicit CLI options override profile settings; repeated `--exclude`
+options add to profile exclusions. An explicit network with `--profile` must be
+contained in that profile's IP/CIDR scope. Hostnames remain supported for direct
+scans, but cannot be combined with IP exclusions. Host limits apply before
+exclusions; the total probe cap still applies afterward. Excluded hosts are
+omitted from both service checks and optional Nmap discovery.
+
+Every scan performs local preflight checks before target traffic: target/probe
+limits, destination access, optional Nmap executable/wrapper availability, history
+schema, and a configured TLS CA bundle. `preflight` reports JSON and does not scan
+targets or create a history database. It temporarily writes a sibling file to test
+destination access without changing existing contents. The default asyncio backend
+still requires neither Nmap nor root. Destination paths must be distinct from each
+other and the input configuration, including hard links; destination symlinks are
+rejected. Failed checks return 1; invalid scope/configuration returns 2.
+
+History is opt-in and complements the existing JSON snapshots and `diff` command:
+
+```bash
+mkdir -p output
+netprobe scan --profile office --history output/inventory.sqlite3
+# Repeat later with the same targets and service selection.
+netprobe scan --profile office --history output/inventory.sqlite3
+netprobe history --history output/inventory.sqlite3 --limit 20
+netprobe compare 1 2 --history output/inventory.sqlite3
+netprobe compare 1 2 --history output/inventory.sqlite3 -o output/changes.json
+```
+
+Use IDs from `history`; the example assumes a new database. Snapshots are stored
+transactionally with UTC start/end times, package version, effective non-secret
+settings, summaries, and all host/service observations, including per-host errors.
+Incomplete host observations are retained. Cancelled runs are not saved. Existing
+report, snapshot, export, and scan exit-code contracts are preserved.
+
+`history` lists JSON summaries without reading all historical device payloads.
+`compare` reads two saved scans, requires identical target identities and selected
+ports, and reports responsiveness, status, and port-state changes. The earlier
+scan ID must precede the later ID. Scanner errors and unknown port observations
+are flagged as uncertain rather than treated as confirmed disappearance or closure.
+`no_longer_responding` means lack of a response, not proof of device removal.
+Comparison success returns 0 whether or not changes exist; existing file `diff`
+retains its exit code 3 contract. Unsupported or corrupt history returns 1.
+
+History stores inventory information, so choose an appropriately protected local
+directory. Profile files and stored settings do not contain SNMP credentials;
+credential handling continues through the existing runtime options/environment.
+
 ## Inventory diff
 
 ```bash

@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import logging
+import math
 import re
 import socket
 from collections.abc import Iterable
@@ -57,6 +58,8 @@ def validate_target(target: str) -> str:
     that could be read as an option (leading "-") or contains whitespace is
     rejected for every backend.
     """
+    if "%" in target:
+        raise ValueError("IPv6 scope identifiers are not supported")
     try:
         return str(ipaddress.ip_address(target))
     except ValueError:
@@ -73,17 +76,38 @@ def validate_target(target: str) -> str:
     return target
 
 
-def expand_targets(network: str) -> list[str]:
-    """Expand a CIDR, IP or hostname into the list of hosts to scan."""
+def expand_targets(
+    network: str, max_hosts: int = MAX_HOSTS, exclusions: Iterable[str] = ()
+) -> list[str]:
+    """Bound expansion before filtering; exclusions never justify expanding a huge range."""
     try:
+        if type(max_hosts) is not int or not 1 <= max_hosts <= MAX_HOSTS:
+            raise ValueError(f"host limit must be from 1 to {MAX_HOSTS}")
+        if "%" in network:
+            raise ValueError("IPv6 scope identifiers are not supported")
         if "/" in network:
             net = ipaddress.ip_network(network, strict=False)
-            if net.num_addresses > MAX_HOSTS:
+            if net.num_addresses > max_hosts:
                 raise ValueError(
-                    f"Network too large: {net.num_addresses} addresses (max {MAX_HOSTS})"
+                    f"Network too large: {net.num_addresses} addresses (max {max_hosts})"
                 )
-            return [str(ip) for ip in net.hosts()]
-        return [validate_target(network)]
+            targets = [str(ip) for ip in net.hosts()]
+        else:
+            targets = [validate_target(network)]
+        blocked = []
+        for value in exclusions:
+            if "%" in value:
+                raise ValueError("IPv6 scope identifiers are not supported")
+            blocked.append(ipaddress.ip_network(value, strict=False))
+        if blocked:
+            try:
+                addresses = [ipaddress.ip_address(target) for target in targets]
+            except ValueError as exc:
+                raise ValueError("IP exclusions require an IP or CIDR target") from exc
+            targets = [str(ip) for ip in addresses if not any(ip in net for net in blocked)]
+        if not targets:
+            raise ValueError("No targets remain after exclusions")
+        return targets
     except ValueError as e:
         raise ValueError(f"Invalid network format: {e}") from e
 
@@ -118,9 +142,19 @@ def nmap_sweep(targets: list[str], network: str) -> set[str]:
     Without root, nmap substitutes TCP connects to ports 80 and 443 for ICMP.
     """
     nm = _nmap_scanner()
-    arguments = f"-sn -T4 --host-timeout {NMAP_HOST_TIMEOUT}"
-    nm.scan(hosts=network if "/" in network else targets[0], arguments=arguments)
-    up = [h for h in nm.all_hosts() if nm[h].state() == "up"]
+    ipv6 = "-6 " if all(":" in target for target in targets) else ""
+    arguments = f"{ipv6}-sn -T4 --host-timeout {NMAP_HOST_TIMEOUT}"
+    if "/" in network and targets == expand_targets(network):
+        batches = [network]
+    else:
+        batches = [" ".join(targets[index : index + 256]) for index in range(0, len(targets), 256)]
+    up: list[str] = []
+    for batch in batches:
+        try:
+            nm.scan(hosts=batch, arguments=arguments, timeout=35)
+        except Exception as exc:
+            raise BackendUnavailableError(f"Nmap discovery failed: {exc}") from exc
+        up.extend(h for h in nm.all_hosts() if nm[h].state() == "up")
     if "/" in network:
         return set(up)
     return {targets[0]} if _host_key(up, targets[0]) else set()
@@ -148,11 +182,17 @@ class NetworkScanner:
         services: Iterable[ServiceSpec] = DEFAULT_SERVICES,
         snmp: SnmpCredentials | None = None,
         tls_ca_file: str | None = None,
+        max_hosts: int = MAX_HOSTS,
+        exclusions: Iterable[str] = (),
     ) -> None:
         if not 1 <= concurrency <= MAX_CONCURRENCY:
             raise ValueError(f"concurrency must be from 1 to {MAX_CONCURRENCY}")
-        if timeout <= 0:
+        if not math.isfinite(timeout) or timeout <= 0:
             raise ValueError("timeout must be positive")
+        if not 1 <= max_hosts <= MAX_HOSTS:
+            raise ValueError(f"host limit must be from 1 to {MAX_HOSTS}")
+        self.max_hosts = max_hosts
+        self.exclusions = tuple(exclusions)
         self.backend = backend
         self.timeout = timeout
         self.concurrency = concurrency
@@ -234,7 +274,7 @@ class NetworkScanner:
         Raises:
             ValueError: if the target is malformed or larger than MAX_HOSTS
         """
-        targets = expand_targets(network)
+        targets = expand_targets(network, self.max_hosts, self.exclusions)
         probes_needed = len(targets) * len(self.services)
         if probes_needed > MAX_PROBES:
             raise ValueError(
@@ -251,20 +291,23 @@ class NetworkScanner:
             swept = await asyncio.to_thread(nmap_sweep, targets, network)
 
         probes = asyncio.Semaphore(self.concurrency)
-        # Bounds hosts in flight so a /16 does not hold 65k sockets' worth of tasks.
-        hosts = asyncio.Semaphore(max(1, self.concurrency // max(1, len(self.services))))
+        results: list[Device | None] = [None] * len(targets)
+        pending = iter(enumerate(targets))
 
-        async def scan_one(ip: str) -> Device:
-            async with hosts:
+        async def worker() -> None:
+            for index, ip in pending:
                 if swept is not None and ip not in swept:
                     device = Device(ip=ip, errors=["Host is down"])
                 else:
                     device = await self.scan_device(ip, probes=probes, known_up=swept is not None)
-            if progress and task is not None:
-                progress.update(task, advance=1)
-            return device
+                results[index] = device
+                if progress and task is not None:
+                    progress.update(task, advance=1)
 
+        workers = max(1, min(len(targets), self.concurrency // max(1, len(self.services))))
         async with asyncio.TaskGroup() as tg:
-            tasks = [tg.create_task(scan_one(ip)) for ip in targets]
-
-        return [t.result() for t in tasks]
+            for _ in range(workers):
+                tg.create_task(worker())
+        if any(device is None for device in results):
+            raise asyncio.CancelledError("Inventory worker cancelled before completion")
+        return [device for device in results if device is not None]
