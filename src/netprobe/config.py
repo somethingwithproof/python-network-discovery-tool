@@ -26,6 +26,9 @@ DEFAULT_SERVICES: tuple[ServiceSpec, ...] = (
     _spec("https", 443, "https"),
 )
 
+# Each service is probed on every host; see scanner.MAX_PROBES for the total cap.
+MAX_SERVICES = 64
+
 # Names end up in CSV cells and in exported shell scripts, so keep them plain.
 _NAME = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 
@@ -75,6 +78,8 @@ def load_services(path: Path) -> tuple[ServiceSpec, ...]:
         if probe not in PROBES:
             raise ConfigError(f"{where}: unknown probe {probe!r} (known: {', '.join(PROBES)})")
         services[name] = _spec(name, _check_port(entry.get("port"), where), probe)
+    if len(services) > MAX_SERVICES:
+        raise ConfigError(f"{path}: {len(services)} services defined (max {MAX_SERVICES})")
     return tuple(services.values())
 
 
@@ -114,4 +119,6 @@ def select_services(
 
     if not by_name:
         raise ConfigError("no services selected")
+    if len(by_name) > MAX_SERVICES:
+        raise ConfigError(f"{len(by_name)} services selected (max {MAX_SERVICES})")
     return tuple(by_name.values())

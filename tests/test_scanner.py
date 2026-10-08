@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import types
 from typing import ClassVar
@@ -9,6 +10,7 @@ from rich.progress import Progress
 
 from netprobe import probes, scanner
 from netprobe.models import Device, ServiceSpec
+from netprobe.probes import ProbeResult, SnmpCredentials
 from netprobe.scanner import BackendUnavailableError, NetworkScanner
 
 
@@ -30,9 +32,13 @@ async def lab_services(tcp_server, udp_server, *, ssh=True, mysql=False, snmp=Fa
 
 
 def stub_probes(monkeypatch, fn):
-    """Replace every probe in the registry; the network is the boundary here."""
+    """Replace every probe in the registry with fn(host, port, timeout) -> state."""
+
+    async def probe(host, port, ctx):
+        return ProbeResult(await fn(host, port, ctx.timeout))
+
     for name, (_, protocol) in list(probes.PROBES.items()):
-        monkeypatch.setitem(probes.PROBES, name, (fn, protocol))
+        monkeypatch.setitem(probes.PROBES, name, (probe, protocol))
 
 
 @pytest.fixture(autouse=True)
@@ -51,11 +57,12 @@ async def test_scan_device_reports_services_and_legacy_flags(tcp_server, udp_ser
     assert (device.ssh, device.snmp, device.mysql) == (True, True, False)
     assert device.hostname == "box.example"
     assert device.errors == []
-    assert [(s.name, s.state) for s in device.services] == [
-        ("ssh", "open"),
-        ("snmp", "open"),
-        ("mysql", "closed"),
+    assert [(s.name, s.state, s.version) for s in device.services] == [
+        ("ssh", "open", "OpenSSH_10.0"),
+        ("snmp", "open", ""),
+        ("mysql", "closed", ""),
     ]
+    assert device.services[1].details == {"engine_id": "80001f88808aa1f93d7edcc66a00000000"}
 
 
 async def test_closed_ports_still_mean_alive():
@@ -87,6 +94,45 @@ async def test_probe_exception_is_recorded(monkeypatch):
 
     assert device.errors[0] == "Error checking port 22: bad socket"
     assert device.services[0].state == "filtered"
+
+
+async def test_probe_budget_stops_a_stalled_probe(monkeypatch):
+    async def stalls(host, port, timeout):
+        await asyncio.sleep(60)
+
+    stub_probes(monkeypatch, stalls)
+    scanner_ = NetworkScanner(services=[ServiceSpec("ssh", 22)], timeout=0.05)
+    device = await scanner_.scan_device("10.0.0.1")
+
+    assert device.errors[0] == "Error checking port 22: probe timed out"
+    assert device.services[0].state == "filtered"
+
+
+async def test_probe_errors_are_redacted(monkeypatch):
+    async def leaky(host, port, timeout):
+        raise RuntimeError("community s3cret-c rejected")
+
+    stub_probes(monkeypatch, leaky)
+    scanner_ = NetworkScanner(
+        services=[ServiceSpec("snmp", 161, "udp", "snmp")],
+        snmp=SnmpCredentials(community="s3cret-c"),
+    )
+    device = await scanner_.scan_device("10.0.0.1")
+
+    assert device.errors[0] == "Error checking port 161: community *** rejected"
+
+
+async def test_probe_cap_counts_hosts_times_services():
+    services = [ServiceSpec(f"tcp-{p}", p) for p in range(1, 10)]
+    with pytest.raises(ValueError, match="Scan too large: 65534 hosts x 9 services"):
+        await NetworkScanner(services=services).scan_network("10.0.0.0/16")
+
+
+async def test_probe_cap_also_applies_to_nmap_backend(fake_nmap):
+    services = [ServiceSpec(f"tcp-{p}", p) for p in range(1, 10)]
+    with pytest.raises(ValueError, match="Scan too large"):
+        await NetworkScanner(backend="nmap", services=services).scan_network("10.0.0.0/16")
+    assert FakePortScanner.calls == []  # refused before nmap ran
 
 
 async def test_scan_device_rejects_option_like_target():

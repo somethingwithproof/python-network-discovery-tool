@@ -48,8 +48,37 @@ netprobe scan 10.0.0.0/24 -q -o out.json  # no table, file only
 | `--config PATH` | TOML file whose `[services]` table adds or replaces services. |
 | `--services NAMES` | Comma list of service names to check, in that order (default: all). |
 | `--ports SPEC` | Comma list of `NAME=PORT` (move a service) or `PORT` (add a plain TCP check named `tcp-PORT`). |
+| `--snmp-community` | SNMPv2c community for the system MIB query. Env: `NETPROBE_SNMP_COMMUNITY`. |
+| `--snmp-user` | SNMPv3 user. Env: `NETPROBE_SNMP_USER`. |
+| `--snmp-auth-protocol`, `--snmp-auth-key` | `MD5`, `SHA` (default), `SHA224`, `SHA256`, `SHA384`, `SHA512` and the passphrase. Env: `NETPROBE_SNMP_AUTH_PROTOCOL`, `NETPROBE_SNMP_AUTH_KEY`. |
+| `--snmp-priv-protocol`, `--snmp-priv-key` | `DES`, `AES` (default), `AES128`, `AES192`, `AES192C`, `AES256`, `AES256C` and the passphrase. Env: `NETPROBE_SNMP_PRIV_PROTOCOL`, `NETPROBE_SNMP_PRIV_KEY`. |
+| `--tls-ca-file PATH` | Verify HTTPS certificates against this PEM bundle instead of the system store. Env: `NETPROBE_TLS_CA_FILE`. |
 
 By default each host is checked for SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) and HTTPS (TCP 443). TCP ports are tested with a full connect. SNMP is tested with an SNMPv3 engine-discovery request, which any SNMPv3 agent must answer without credentials; agents that only speak v1/v2c will not be detected by this probe. With the asyncio backend a host counts as alive when any probe gets an answer, including a refused connection, so a host that drops every probe is reported down. With `--backend nmap`, nmap decides which hosts are alive (ICMP as root, TCP 80/443 otherwise).
+
+### Fingerprints
+
+Each open service is fingerprinted from what it sends before any login. Nothing authenticates except the SNMP query, and only when you supply credentials.
+
+| Probe | Reads | `version` | `details` keys |
+| --- | --- | --- | --- |
+| `ssh` | RFC 4253 identification line | software, e.g. `OpenSSH_10.0` | `protocol`, `software`, `comments` |
+| `mysql` | MySQL/MariaDB initial handshake | server version | `server_version`, `flavor`, `auth_plugin`, or `error_code`/`error` |
+| `http` | `HEAD /` response | `Server` header | `status`, `server` |
+| `https` | TLS handshake, certificate, `HEAD /` | `Server` header | `tls_version`, `cert_verified`, `cert_verify_error`, `cert_subject`, `cert_issuer`, `cert_sans`, `cert_not_before`, `cert_not_after` (UTC ISO 8601), `cert_self_signed`, `status`, `server` |
+| `snmp` | SNMPv3 discovery; with credentials, GET of sysDescr, sysObjectID, sysName | sysDescr | `engine_id`; with credentials `snmp_version`, `sys_descr`, `sys_object_id`, `sys_name`, or `snmp_error` |
+
+HTTPS certificates are verified first, against the system store or `--tls-ca-file`. If verification fails, the failure is recorded in `cert_verified: false` and `cert_verify_error`, and the certificate is then read over an unverified connection so it can still be inventoried; such results carry `cert_read_unverified: true`. Nothing is sent over that connection except the `HEAD` request.
+
+SNMP credentials are read from options or environment variables. Prefer the environment variables: command-line values are visible to other local users in the process list. Credentials are never logged or written to any output. A community selects SNMPv2c; a user selects SNMPv3, with authentication when an auth key is given and privacy when both keys are given (`snmp_security_level` records which). netprobe refuses, with exit code 2, to combine a community with a v3 user, to use a privacy key without an auth key, or to use keys without a user, and it never retries a failed v3 query with v2c or a lower security level. Passing a secret as an option logs a warning naming the matching environment variable. Agents that only speak v1/v2c ignore the credential-free v3 discovery, so they show as open only when a community is supplied.
+
+Banner text is reduced to printable characters and capped at 256 characters before it is stored or shown. Reads are bounded too: 4 KiB per line, 4 KiB for a MySQL greeting, 16 KiB of HTTP headers.
+
+### Limits
+
+One run accepts at most 65,536 addresses, 64 services, and 524,288 probes (hosts times services); larger requests exit with code 2 before anything is sent. `--concurrency` is capped at 4096 sockets. Every probe, including the nmap-backend and SNMP paths, has a hard deadline of four times `--timeout`; a probe that hits it is reported as `filtered` with "probe timed out" in `errors`.
+
+### Configuring services
 
 Services can be changed with a TOML file:
 
@@ -64,7 +93,7 @@ probe = "https"
 
 `probe` is one of `tcp`, `ssh`, `mysql`, `http`, `https` or `snmp` and defaults to the service name when that is a probe, else `tcp`. Only `snmp` uses UDP. Service names are lowercase letters, digits, `-` and `_`.
 
-Results keep the original `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` and `errors` fields and add a `services` list with each probe's `name`, `port`, `protocol` and `state` (`open`, `closed` or `filtered`). CSV output gains a trailing `services` column listing the open ones. The `ssh`, `snmp` and `mysql` booleans follow the services with exactly those names.
+Results keep the original `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` and `errors` fields and add a `services` list with each probe's `name`, `port`, `protocol`, `state` (`open`, `closed` or `filtered`), `version` and `details`. CSV output gains trailing `services` and `versions` columns for the open ones. The `ssh`, `snmp` and `mysql` booleans follow the services with exactly those names.
 
 Exit codes: `0` success, `1` the nmap backend is unavailable or the report could not be written, `2` invalid target, option or config file.
 
@@ -75,7 +104,7 @@ Exit codes: `0` success, `1` the nmap backend is unavailable or the report could
 .venv/bin/mypy
 ```
 
-Integration tests run against a docker compose lab (OpenSSH, MariaDB, net-snmp) on the private subnet 172.30.57.0/24, from a tester container on the same network: `make test-integration`. See [CONTRIBUTING.md](CONTRIBUTING.md) and the [release scripts](scripts/README.md) for other workflows.
+Integration tests run against a docker compose lab (OpenSSH, MariaDB, nginx with a self-signed certificate, net-snmp) on the private subnet 172.30.57.0/24, from a tester container on the same network: `make test-integration`. See [CONTRIBUTING.md](CONTRIBUTING.md) and the [release scripts](scripts/README.md) for other workflows.
 
 ## Security and license status
 

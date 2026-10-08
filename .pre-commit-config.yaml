@@ -1,3 +1,6 @@
+# Captured protocol bytes must stay byte-for-byte.
+exclude: ^tests/fixtures/.*\.(bin|der)$
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0

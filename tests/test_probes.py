@@ -17,7 +17,7 @@ async def test_tcp_state_closed():
 
 
 async def test_tcp_state_filtered_on_timeout(monkeypatch):
-    async def never_connects(host, port):
+    async def never_connects(host, port, **kwargs):
         await asyncio.sleep(10)
 
     monkeypatch.setattr(asyncio, "open_connection", never_connects)
@@ -25,7 +25,7 @@ async def test_tcp_state_filtered_on_timeout(monkeypatch):
 
 
 async def test_tcp_state_filtered_on_unreachable(monkeypatch):
-    async def unreachable(host, port):
+    async def unreachable(host, port, **kwargs):
         raise OSError(113, "No route to host")
 
     monkeypatch.setattr(asyncio, "open_connection", unreachable)
@@ -44,49 +44,49 @@ async def test_udp_exchange_times_out(udp_server):
     assert await probes.udp_exchange("127.0.0.1", port, b"ping", 0.05) is None
 
 
-async def test_snmp_state_open_on_real_report(udp_server):
+ENGINE_ID = "80001f88808aa1f93d7edcc66a00000000"
+
+
+async def test_snmp_discover_open_on_real_report(udp_server):
     port, responder = await udp_server(fixture_bytes("snmpv3-report.bin"))
 
-    assert await probes.snmp_state("127.0.0.1", port, 1.0) == "open"
+    assert await probes.snmp_discover("127.0.0.1", port, 1.0) == ("open", ENGINE_ID)
     assert responder.received == [probes.SNMPV3_DISCOVERY]
 
 
-async def test_snmp_state_filtered_on_garbage_or_silence(udp_server):
+async def test_snmp_discover_filtered_on_garbage_or_silence(udp_server):
     garbage, _ = await udp_server(b"not snmp")
     silent, _ = await udp_server(b"")
 
-    assert await probes.snmp_state("127.0.0.1", garbage, 0.2) == "filtered"
-    assert await probes.snmp_state("127.0.0.1", silent, 0.05) == "filtered"
+    assert await probes.snmp_discover("127.0.0.1", garbage, 0.2) == ("filtered", None)
+    assert await probes.snmp_discover("127.0.0.1", silent, 0.05) == ("filtered", None)
 
 
-async def test_snmp_state_closed_on_icmp_unreachable(monkeypatch):
+async def test_snmp_discover_closed_on_icmp_unreachable(monkeypatch):
     async def refused(*args):
         raise ConnectionRefusedError
 
     monkeypatch.setattr(probes, "udp_exchange", refused)
-    assert await probes.snmp_state("127.0.0.1", 161, 1.0) == "closed"
+    assert await probes.snmp_discover("127.0.0.1", 161, 1.0) == ("closed", None)
 
 
-async def test_snmp_state_filtered_on_socket_error(monkeypatch):
+async def test_snmp_discover_filtered_on_socket_error(monkeypatch):
     async def broken(*args):
         raise OSError("network unreachable")
 
     monkeypatch.setattr(probes, "udp_exchange", broken)
-    assert await probes.snmp_state("127.0.0.1", 161, 1.0) == "filtered"
+    assert await probes.snmp_discover("127.0.0.1", 161, 1.0) == ("filtered", None)
 
 
-async def test_snmp_state_against_closed_udp_port():
+async def test_snmp_discover_against_closed_udp_port():
     # Loopback answers with ICMP port-unreachable on Linux (closed); macOS stays silent.
-    assert await probes.snmp_state("127.0.0.1", closed_port(socket.SOCK_DGRAM), 0.2) in {
-        "closed",
-        "filtered",
-    }
+    state, _ = await probes.snmp_discover("127.0.0.1", closed_port(socket.SOCK_DGRAM), 0.2)
+    assert state in {"closed", "filtered"}
 
 
 def test_snmp_engine_id_from_captured_net_snmp_report():
     # Captured from net-snmp 5.9 in the integration lab (tests/fixtures/capture.py).
-    report = fixture_bytes("snmpv3-report.bin")
-    assert probes.snmp_engine_id(report) == "80001f88808aa1f93d7edcc66a00000000"
+    assert probes.snmp_engine_id(fixture_bytes("snmpv3-report.bin")) == ENGINE_ID
 
 
 def test_snmp_engine_id_of_our_own_request_is_empty():

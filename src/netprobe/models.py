@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 Protocol = Literal["tcp", "udp"]
 
@@ -29,6 +29,9 @@ class Service:
     port: int
     protocol: Protocol
     state: str
+    # Product and version the service announced, e.g. "OpenSSH_9.6"; "" if none.
+    version: str = ""
+    details: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
