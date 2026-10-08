@@ -266,7 +266,7 @@ def verify_checksums(files: list[Path], source: Path) -> None:
     entries = source.read_text(encoding="utf-8").splitlines()
     expected = {}
     for entry in entries:
-        match = re.fullmatch(r"([0-9a-f]{64})[ ]{2}([A-Za-z0-9_.-]+)", entry)
+        match = re.fullmatch(r"([0-9a-f]{64}) {2}([A-Za-z0-9_.-]+)", entry)
         if match is None or match[2] in expected:
             raise ValueError("Invalid checksum manifest")
         expected[match[2]] = match[1]
