@@ -51,6 +51,32 @@ services:
       interval: 2s
       retries: 30
 
+  web:
+    build:
+      dockerfile_inline: |
+        FROM nginx:1.28-alpine
+        RUN apk add --no-cache openssl && openssl req -x509 -newkey ec \
+            -pkeyopt ec_paramgen_curve:P-256 -nodes -days 30 \
+            -subj "/O=netprobe lab/CN=web.lab" \
+            -addext "subjectAltName=DNS:web.lab,IP:172.30.57.13" \
+            -keyout /etc/nginx/lab.key -out /etc/nginx/lab.crt
+        COPY <<'CONF' /etc/nginx/conf.d/default.conf
+        server {
+            listen 80;
+            listen 443 ssl;
+            ssl_certificate /etc/nginx/lab.crt;
+            ssl_certificate_key /etc/nginx/lab.key;
+            location / { return 200 "lab\n"; }
+        }
+        CONF
+    networks:
+      lab:
+        ipv4_address: 172.30.57.13
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 2s
+      retries: 30
+
   quiet:
     image: alpine:3.22
     command: ["sleep", "infinity"]
@@ -86,6 +112,7 @@ services:
       ssh: {condition: service_healthy}
       db: {condition: service_healthy}
       snmp: {condition: service_healthy}
+      web: {condition: service_healthy}
       quiet: {condition: service_started}
 
 networks:

@@ -28,6 +28,8 @@ classifiers = [
 ]
 
 dependencies = [
+    "cryptography>=46.0.0",
+    "pysnmp>=7.1.0",
     "rich>=15.0.0",
     "typer>=0.25.1",
 ]
@@ -83,8 +85,8 @@ strict = true
 files = ["src/netprobe"]
 
 [[tool.mypy.overrides]]
-# python-nmap ships no type information.
-module = ["nmap"]
+# python-nmap and pysnmp ship no type information.
+module = ["nmap", "pysnmp.*"]
 ignore_missing_imports = true
 
 [tool.ruff.format]

@@ -11,7 +11,10 @@ def sample() -> list[Device]:
             alive=True,
             ssh=True,
             hostname="server",
-            services=[Service("ssh", 22, "tcp", "open"), Service("mysql", 3306, "tcp", "closed")],
+            services=[
+                Service("ssh", 22, "tcp", "open", "OpenSSH_10.0", {"protocol": "2.0"}),
+                Service("mysql", 3306, "tcp", "closed"),
+            ],
         ),
         Device(ip="192.168.1.2", alive=False, errors=["Host is down"]),
     ]
@@ -31,7 +34,14 @@ def test_save_json_keeps_legacy_fields_and_adds_services(tmp_path):
     data = json.loads(out.read_text())
     assert list(data[0])[:7] == ["ip", "alive", "ssh", "snmp", "mysql", "hostname", "errors"]
     assert data[0]["ssh"] is True
-    assert data[0]["services"][0] == {"name": "ssh", "port": 22, "protocol": "tcp", "state": "open"}
+    assert data[0]["services"][0] == {
+        "name": "ssh",
+        "port": 22,
+        "protocol": "tcp",
+        "state": "open",
+        "version": "OpenSSH_10.0",
+        "details": {"protocol": "2.0"},
+    }
 
 
 def test_save_csv(tmp_path):
@@ -39,9 +49,9 @@ def test_save_csv(tmp_path):
     save_csv(sample(), out)
 
     lines = out.read_text().splitlines()
-    assert lines[0] == "ip,alive,ssh,snmp,mysql,hostname,errors,services"
-    assert lines[1] == "192.168.1.1,True,True,False,False,server,,ssh:22/tcp"
-    assert lines[2] == "192.168.1.2,False,False,False,False,,Host is down,"
+    assert lines[0] == "ip,alive,ssh,snmp,mysql,hostname,errors,services,versions"
+    assert lines[1] == "192.168.1.1,True,True,False,False,server,,ssh:22/tcp,ssh=OpenSSH_10.0"
+    assert lines[2] == "192.168.1.2,False,False,False,False,,Host is down,,"
 
 
 def test_save_csv_joins_errors(tmp_path):
@@ -68,6 +78,20 @@ def test_print_results_lists_other_open_services(capsys):
     assert "https:443" in out
     assert "http:80" not in out
     assert "https: 1" in out
+
+
+def test_print_results_escapes_network_supplied_text(capsys):
+    device = Device(
+        ip="10.0.0.1",
+        alive=True,
+        hostname="[red]evil[/red]",
+        services=[Service("http", 80, "tcp", "open", "[bold]nginx[/bold]")],
+    )
+    print_results([device])
+    out = capsys.readouterr().out
+
+    assert "[red]evil" in out
+    assert "[bold]nginx" in out
 
 
 def test_print_results_summary(capsys):

@@ -1,4 +1,5 @@
 import json
+import socket
 from importlib.metadata import version
 from unittest.mock import MagicMock, patch
 
@@ -136,3 +137,64 @@ def test_cli_unwritable_output_exits_1(tmp_path):
 
     assert result.exit_code == 1
     assert "cannot write" in result.output
+
+
+def test_cli_snmp_secrets_reach_probe_but_never_output(tmp_path, monkeypatch, caplog):
+    secrets = {
+        "NETPROBE_SNMP_COMMUNITY": "community-s3cret",
+        "NETPROBE_SNMP_USER": "netprobe",
+        "NETPROBE_SNMP_AUTH_KEY": "auth-s3cret",
+        "NETPROBE_SNMP_PRIV_KEY": "priv-s3cret",
+    }
+    for name, value in secrets.items():
+        monkeypatch.setenv(name, value)
+    out = tmp_path / "scan.json"
+
+    # A bound UDP socket that never answers: the real SNMP GET runs and times out.
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as agent:
+        agent.bind(("127.0.0.1", 0))
+        port = agent.getsockname()[1]
+        result = runner.invoke(
+            cli.app,
+            [
+                *("scan", "127.0.0.1", "-v", "-o", str(out), "--timeout", "0.2"),
+                *(
+                    "--services",
+                    "snmp",
+                    "--ports",
+                    f"snmp={port}",
+                    "--snmp-priv-protocol",
+                    "AES256",
+                ),
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    service = json.loads(out.read_text())[0]["services"][0]
+    assert "No SNMP response" in service["details"]["snmp_error"]
+    everything = out.read_text() + result.output + caplog.text
+    for value in secrets.values():
+        if value != "netprobe":
+            assert value not in everything
+
+
+def test_cli_scanner_receives_snmp_and_tls_settings(tmp_path):
+    with patched_scanner([]) as factory:
+        result = runner.invoke(
+            cli.app,
+            [
+                *("scan", "10.0.0.1", "--snmp-user", "ops", "--snmp-auth-protocol", "SHA512"),
+                *("--tls-ca-file", str(tmp_path / "ca.pem")),
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    kwargs = factory.call_args.kwargs
+    assert kwargs["snmp"].user == "ops"
+    assert kwargs["snmp"].auth_protocol == "SHA512"
+    assert kwargs["tls_ca_file"] == str(tmp_path / "ca.pem")
+
+
+def test_cli_rejects_unknown_auth_protocol():
+    result = runner.invoke(cli.app, ["scan", "10.0.0.1", "--snmp-auth-protocol", "CRC32"])
+    assert result.exit_code == 2

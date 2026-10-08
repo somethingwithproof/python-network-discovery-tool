@@ -20,7 +20,7 @@ from rich.progress import Progress
 
 from netprobe.config import DEFAULT_SERVICES
 from netprobe.models import LEGACY_FLAGS, Device, Service, ServiceSpec
-from netprobe.probes import PROBES
+from netprobe.probes import PROBES, ProbeContext, ProbeResult, SnmpCredentials
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +138,8 @@ class NetworkScanner:
         timeout: float = DEFAULT_TIMEOUT,
         concurrency: int = DEFAULT_CONCURRENCY,
         services: Iterable[ServiceSpec] = DEFAULT_SERVICES,
+        snmp: SnmpCredentials | None = None,
+        tls_ca_file: str | None = None,
     ) -> None:
         if concurrency < 1:
             raise ValueError("concurrency must be at least 1")
@@ -147,6 +149,7 @@ class NetworkScanner:
         self.timeout = timeout
         self.concurrency = concurrency
         self.services = tuple(services)
+        self.context = ProbeContext(timeout=timeout, snmp=snmp, tls_ca_file=tls_ca_file)
         if backend == "nmap":
             # Fail before any scanning starts if nmap cannot be driven.
             _nmap_scanner()
@@ -177,11 +180,13 @@ class NetworkScanner:
             async with limit:
                 try:
                     probe, _ = PROBES[spec.probe]
-                    state = await probe(ip, spec.port, self.timeout)
+                    result = await probe(ip, spec.port, self.context)
                 except Exception as e:
                     device.errors.append(f"Error checking port {spec.port}: {e}")
-                    state = "filtered"
-            return Service(spec.name, spec.port, spec.protocol, state)
+                    result = ProbeResult("filtered")
+            return Service(
+                spec.name, spec.port, spec.protocol, result.state, result.version, result.details
+            )
 
         async with asyncio.TaskGroup() as tg:
             tasks = [tg.create_task(run(spec)) for spec in self.services]

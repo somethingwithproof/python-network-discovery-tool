@@ -9,6 +9,7 @@ from rich.progress import Progress
 
 from netprobe import probes, scanner
 from netprobe.models import Device, ServiceSpec
+from netprobe.probes import ProbeResult
 from netprobe.scanner import BackendUnavailableError, NetworkScanner
 
 
@@ -30,9 +31,13 @@ async def lab_services(tcp_server, udp_server, *, ssh=True, mysql=False, snmp=Fa
 
 
 def stub_probes(monkeypatch, fn):
-    """Replace every probe in the registry; the network is the boundary here."""
+    """Replace every probe in the registry with fn(host, port, timeout) -> state."""
+
+    async def probe(host, port, ctx):
+        return ProbeResult(await fn(host, port, ctx.timeout))
+
     for name, (_, protocol) in list(probes.PROBES.items()):
-        monkeypatch.setitem(probes.PROBES, name, (fn, protocol))
+        monkeypatch.setitem(probes.PROBES, name, (probe, protocol))
 
 
 @pytest.fixture(autouse=True)
@@ -51,11 +56,12 @@ async def test_scan_device_reports_services_and_legacy_flags(tcp_server, udp_ser
     assert (device.ssh, device.snmp, device.mysql) == (True, True, False)
     assert device.hostname == "box.example"
     assert device.errors == []
-    assert [(s.name, s.state) for s in device.services] == [
-        ("ssh", "open"),
-        ("snmp", "open"),
-        ("mysql", "closed"),
+    assert [(s.name, s.state, s.version) for s in device.services] == [
+        ("ssh", "open", "OpenSSH_10.0"),
+        ("snmp", "open", ""),
+        ("mysql", "closed", ""),
     ]
+    assert device.services[1].details == {"engine_id": "80001f88808aa1f93d7edcc66a00000000"}
 
 
 async def test_closed_ports_still_mean_alive():

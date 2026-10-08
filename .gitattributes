@@ -1,2 +1,3 @@
 # Captured protocol bytes; line-ending conversion would corrupt them.
 tests/fixtures/*.bin binary
+tests/fixtures/*.der binary
