@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from importlib.metadata import version as package_version
 from pathlib import Path
@@ -14,6 +15,7 @@ from rich.logging import RichHandler
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
 from netprobe.config import DEFAULT_SERVICES, ConfigError, load_services, select_services
+from netprobe.diff import SnapshotError, compare, load_inventory, print_diff, write_snapshot
 from netprobe.output import console, print_results, save_csv, save_json
 from netprobe.probes import SnmpCredentials
 from netprobe.scanner import (
@@ -110,6 +112,9 @@ def scan(
         envvar="NETPROBE_SNMP_PRIV_KEY",
         help="SNMPv3 privacy passphrase (prefer the env var)",
         show_default=False,
+    ),
+    save_snapshot: Path | None = typer.Option(
+        None, "--save-snapshot", help="Also write a versioned snapshot for `netprobe diff`"
     ),
     tls_ca_file: Path | None = typer.Option(
         None,
@@ -228,6 +233,53 @@ def scan(
         except OSError as e:
             typer.echo(f"Error: cannot write {output}: {e}", err=True)
             raise typer.Exit(1) from e
+
+    if save_snapshot:
+        try:
+            write_snapshot(save_snapshot, network, specs, devices)
+        except OSError as e:
+            typer.echo(f"Error: cannot write {save_snapshot}: {e}", err=True)
+            raise typer.Exit(1) from e
+
+
+# Distinct from 1 (error) and 2 (usage), so scripts can branch on "changed".
+EXIT_CHANGED = 3
+
+
+@app.command()
+def diff(
+    old: Path = typer.Argument(..., help="Earlier snapshot (or scan -o JSON report)"),
+    new: Path = typer.Argument(..., help="Later snapshot (or scan -o JSON report)"),
+    format: Literal["table", "json"] = typer.Option("table", "--format", "-f"),
+    output: Path | None = typer.Option(
+        None, "--output", "-o", help="Also write the diff as JSON here"
+    ),
+) -> None:
+    """
+    Compare two snapshots: new and vanished hosts, opened and closed ports,
+    changed service versions.
+
+    Exit status: 0 no changes, 3 changes found, 2 unreadable input, 1 write error.
+    """
+    try:
+        result = compare(load_inventory(old), load_inventory(new))
+    except SnapshotError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(2) from e
+
+    if format == "json":
+        text = json.dumps(result.to_dict(), indent=2) + "\n"
+        if output is None:
+            typer.echo(text, nl=False)
+    else:
+        print_diff(result, console)
+    if output is not None:
+        try:
+            output.write_text(json.dumps(result.to_dict(), indent=2) + "\n")
+        except OSError as e:
+            typer.echo(f"Error: cannot write {output}: {e}", err=True)
+            raise typer.Exit(1) from e
+    raise typer.Exit(EXIT_CHANGED if result.changed else 0)
 
 
 @app.command()

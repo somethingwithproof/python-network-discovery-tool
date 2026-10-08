@@ -136,3 +136,25 @@ def test_lab_snmp_wrong_key_is_reported(tmp_path, monkeypatch):
     snmp = json.loads(out.read_text())[0]["services"][0]
     assert snmp["state"] == "open"
     assert "digest" in snmp["details"]["snmp_error"].lower()
+
+
+def test_lab_snapshot_diff(tmp_path, monkeypatch):
+    monkeypatch.setenv("NETPROBE_SNMP_COMMUNITY", "netprobe-test")
+    runner = CliRunner()
+    small, full = tmp_path / "small.json", tmp_path / "full.json"
+    for target, path in ((SSH, small), (LAB, full)):
+        result = runner.invoke(
+            app,
+            ["scan", target, "-q", "--services", "ssh,http,snmp", "--save-snapshot", str(path)],
+        )
+        assert result.exit_code == 0, result.output
+    assert "netprobe-test" not in full.read_text()
+
+    assert runner.invoke(app, ["diff", str(full), str(full)]).exit_code == 0
+
+    changed = runner.invoke(app, ["diff", str(small), str(full), "--format", "json"])
+    assert changed.exit_code == 3
+    report = json.loads(changed.output)
+    assert [h["ip"] for h in report["new_hosts"]] == [DB, SNMP, WEB, QUIET]
+    snmp_host = report["new_hosts"][1]["services"]
+    assert snmp_host[0]["name"] == "snmp" and snmp_host[0]["version"].startswith("Linux")
