@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import types
 from typing import ClassVar
@@ -9,7 +10,7 @@ from rich.progress import Progress
 
 from netprobe import probes, scanner
 from netprobe.models import Device, ServiceSpec
-from netprobe.probes import ProbeResult
+from netprobe.probes import ProbeResult, SnmpCredentials
 from netprobe.scanner import BackendUnavailableError, NetworkScanner
 
 
@@ -93,6 +94,45 @@ async def test_probe_exception_is_recorded(monkeypatch):
 
     assert device.errors[0] == "Error checking port 22: bad socket"
     assert device.services[0].state == "filtered"
+
+
+async def test_probe_budget_stops_a_stalled_probe(monkeypatch):
+    async def stalls(host, port, timeout):
+        await asyncio.sleep(60)
+
+    stub_probes(monkeypatch, stalls)
+    scanner_ = NetworkScanner(services=[ServiceSpec("ssh", 22)], timeout=0.05)
+    device = await scanner_.scan_device("10.0.0.1")
+
+    assert device.errors[0] == "Error checking port 22: probe timed out"
+    assert device.services[0].state == "filtered"
+
+
+async def test_probe_errors_are_redacted(monkeypatch):
+    async def leaky(host, port, timeout):
+        raise RuntimeError("community s3cret-c rejected")
+
+    stub_probes(monkeypatch, leaky)
+    scanner_ = NetworkScanner(
+        services=[ServiceSpec("snmp", 161, "udp", "snmp")],
+        snmp=SnmpCredentials(community="s3cret-c"),
+    )
+    device = await scanner_.scan_device("10.0.0.1")
+
+    assert device.errors[0] == "Error checking port 161: community *** rejected"
+
+
+async def test_probe_cap_counts_hosts_times_services():
+    services = [ServiceSpec(f"tcp-{p}", p) for p in range(1, 10)]
+    with pytest.raises(ValueError, match="Scan too large: 65534 hosts x 9 services"):
+        await NetworkScanner(services=services).scan_network("10.0.0.0/16")
+
+
+async def test_probe_cap_also_applies_to_nmap_backend(fake_nmap):
+    services = [ServiceSpec(f"tcp-{p}", p) for p in range(1, 10)]
+    with pytest.raises(ValueError, match="Scan too large"):
+        await NetworkScanner(backend="nmap", services=services).scan_network("10.0.0.0/16")
+    assert FakePortScanner.calls == []  # refused before nmap ran
 
 
 async def test_scan_device_rejects_option_like_target():

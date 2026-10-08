@@ -202,6 +202,23 @@ def make_cert(tmp_path, *, sans=True):
         .not_valid_before(now - dt.timedelta(minutes=5))
         .not_valid_after(now + dt.timedelta(days=1))
         .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+        .add_extension(
+            x509.KeyUsage(
+                digital_signature=True,
+                content_commitment=False,
+                key_encipherment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                key_cert_sign=True,
+                crl_sign=True,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+        .add_extension(
+            x509.SubjectKeyIdentifier.from_public_key(ca_key.public_key()), critical=False
+        )
         .sign(ca_key, hashes.SHA256())
     )
     key = ec.generate_private_key(ec.SECP256R1())
@@ -213,6 +230,14 @@ def make_cert(tmp_path, *, sans=True):
         .serial_number(2)
         .not_valid_before(now - dt.timedelta(minutes=5))
         .not_valid_after(now + dt.timedelta(days=1))
+        # Python 3.13 verifies with VERIFY_X509_STRICT, which requires these.
+        .add_extension(
+            x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()),
+            critical=False,
+        )
+        .add_extension(
+            x509.ExtendedKeyUsage([x509.ExtendedKeyUsageOID.SERVER_AUTH]), critical=False
+        )
     )
     if sans:
         builder = builder.add_extension(
@@ -268,6 +293,7 @@ async def test_https_probe_verifies_against_given_ca(tls_server):
     assert result.version == "nginx/1.28.3"
     assert result.details["cert_verified"] is True
     assert "cert_verify_error" not in result.details
+    assert "cert_read_unverified" not in result.details
     assert result.details["cert_issuer"] == "CN=netprobe test CA"
     assert result.details["cert_sans"] == ["IP:127.0.0.1"]
     assert result.details["tls_version"].startswith("TLS")
@@ -278,6 +304,7 @@ async def test_https_probe_records_failed_verification(tls_server):
     result = await probes.https_probe("127.0.0.1", port, CTX)
 
     assert result.details["cert_verified"] is False
+    assert result.details["cert_read_unverified"] is True
     assert "unable to get local issuer certificate" in result.details["cert_verify_error"]
     # The certificate is still inventoried after the failure is recorded.
     assert result.details["cert_subject"] == "CN=localhost"
@@ -393,8 +420,88 @@ async def test_snmp_system_times_out_against_silent_agent(udp_server, creds):
 
 
 def test_credentials_repr_hides_secrets():
-    creds = SnmpCredentials(community="c0mm", user="u", auth_key="a-key-1", priv_key="p-key-1")
-    text = repr(creds)
+    v2c = SnmpCredentials(community="c0mm")
+    v3 = SnmpCredentials(user="u", auth_key="a-key-1", priv_key="p-key-1")
 
-    assert "c0mm" not in text and "a-key-1" not in text and "p-key-1" not in text
-    assert creds.version == "3"
+    assert "c0mm" not in repr(v2c)
+    assert "a-key-1" not in repr(v3) and "p-key-1" not in repr(v3)
+    assert (v2c.version, v3.version) == ("2c", "3")
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "level"),
+    [
+        ({"user": "u"}, "noAuthNoPriv"),
+        ({"user": "u", "auth_key": "authpass1"}, "authNoPriv"),
+        ({"user": "u", "auth_key": "authpass1", "priv_key": "privpass1"}, "authPriv"),
+        ({"community": "c"}, ""),
+    ],
+)
+def test_security_level_matches_configuration(kwargs, level):
+    assert SnmpCredentials(**kwargs).security_level == level
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"community": "c", "user": "u"}, "not both"),
+        ({"user": "u", "priv_key": "privpass1"}, "needs an authentication key"),
+        ({"auth_key": "authpass1"}, "need an SNMPv3 user"),
+        ({"user": "u", "auth_protocol": "CRC"}, "auth protocol"),
+        ({"user": "u", "priv_protocol": "ROT13"}, "privacy protocol"),
+    ],
+)
+def test_credentials_refuse_ambiguity_and_downgrades(kwargs, message):
+    with pytest.raises(ValueError, match=message):
+        SnmpCredentials(**kwargs)
+
+
+def test_redact_removes_every_secret():
+    creds = SnmpCredentials(user="u", auth_key="authpass1", priv_key="privpass1")
+    assert creds.redact("bad key authpass1 / privpass1") == "bad key *** / ***"
+
+
+async def test_snmp_error_text_is_redacted(udp_server, monkeypatch):
+    port, _ = await udp_server(b"")
+
+    async def leaky(host, port, creds, timeout):
+        raise RuntimeError(f"agent rejected community {creds.community}")
+
+    monkeypatch.setattr(probes, "snmp_system", leaky)
+    creds = SnmpCredentials(community="s3cret-c")
+    result = await probes.snmp_probe("127.0.0.1", port, ProbeContext(0.1, snmp=creds))
+
+    assert result.details["snmp_error"] == "agent rejected community ***"
+
+
+async def test_v3_failure_is_never_retried_with_weaker_settings(udp_server, monkeypatch):
+    port, _ = await udp_server(b"")
+    attempts = []
+
+    async def failing(host, port, creds, timeout):
+        attempts.append(creds)
+        raise RuntimeError("Wrong SNMP PDU digest")
+
+    monkeypatch.setattr(probes, "snmp_system", failing)
+    creds = SnmpCredentials(user="u", auth_key="authpass1", priv_key="privpass1")
+    result = await probes.snmp_probe("127.0.0.1", port, ProbeContext(0.1, snmp=creds))
+
+    assert attempts == [creds]
+    assert result.state == "filtered"
+    assert "snmp_version" not in result.details
+    assert "sys_descr" not in result.details
+
+
+async def test_mysql_probe_refuses_oversized_greeting(tcp_server):
+    port = await tcp_server(b"\xff\xff\xff\x00" + b"x" * 64)
+    result = await probes.mysql_probe("127.0.0.1", port, CTX)
+
+    assert "too large" in result.details["error"]
+
+
+async def test_ssh_probe_caps_line_length(tcp_server):
+    port = await tcp_server(b"A" * (probes.MAX_LINE_BYTES * 4))
+    result = await probes.ssh_probe("127.0.0.1", port, CTX)
+
+    assert result.state == "open"
+    assert result.details["error"].startswith("no banner")

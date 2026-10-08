@@ -32,6 +32,14 @@ MAX_HOSTS = 65536
 NMAP_HOST_TIMEOUT = "30s"
 DEFAULT_TIMEOUT = 1.0
 DEFAULT_CONCURRENCY = 256
+# Every socket in flight is a file descriptor.
+MAX_CONCURRENCY = 4096
+# Hosts x services in one run, so --ports and the config cannot multiply a
+# /16 into millions of probes.
+MAX_PROBES = 524288
+# A probe may connect twice (HTTPS retry) and read once; this is its hard
+# ceiling in units of --timeout, so no single probe can stall a scan.
+PROBE_BUDGET = 4
 HOSTNAME_TIMEOUT = 2.0
 
 
@@ -141,8 +149,8 @@ class NetworkScanner:
         snmp: SnmpCredentials | None = None,
         tls_ca_file: str | None = None,
     ) -> None:
-        if concurrency < 1:
-            raise ValueError("concurrency must be at least 1")
+        if not 1 <= concurrency <= MAX_CONCURRENCY:
+            raise ValueError(f"concurrency must be from 1 to {MAX_CONCURRENCY}")
         if timeout <= 0:
             raise ValueError("timeout must be positive")
         self.backend = backend
@@ -150,6 +158,10 @@ class NetworkScanner:
         self.concurrency = concurrency
         self.services = tuple(services)
         self.context = ProbeContext(timeout=timeout, snmp=snmp, tls_ca_file=tls_ca_file)
+        if snmp is not None:
+            # Load pysnmp now; its first import takes about a second and would
+            # otherwise count against the first SNMP probe's time budget.
+            import pysnmp.hlapi.v3arch.asyncio  # noqa: F401
         if backend == "nmap":
             # Fail before any scanning starts if nmap cannot be driven.
             _nmap_scanner()
@@ -180,9 +192,16 @@ class NetworkScanner:
             async with limit:
                 try:
                     probe, _ = PROBES[spec.probe]
-                    result = await probe(ip, spec.port, self.context)
+                    async with asyncio.timeout(self.timeout * PROBE_BUDGET):
+                        result = await probe(ip, spec.port, self.context)
+                except TimeoutError:
+                    device.errors.append(f"Error checking port {spec.port}: probe timed out")
+                    result = ProbeResult("filtered")
                 except Exception as e:
-                    device.errors.append(f"Error checking port {spec.port}: {e}")
+                    message = str(e)
+                    if self.context.snmp:
+                        message = self.context.snmp.redact(message)
+                    device.errors.append(f"Error checking port {spec.port}: {message}")
                     result = ProbeResult("filtered")
             return Service(
                 spec.name, spec.port, spec.protocol, result.state, result.version, result.details
@@ -216,6 +235,12 @@ class NetworkScanner:
             ValueError: if the target is malformed or larger than MAX_HOSTS
         """
         targets = expand_targets(network)
+        probes_needed = len(targets) * len(self.services)
+        if probes_needed > MAX_PROBES:
+            raise ValueError(
+                f"Scan too large: {len(targets)} hosts x {len(self.services)} services = "
+                f"{probes_needed} probes (max {MAX_PROBES}); narrow the range or the services"
+            )
         logger.info(f"Scanning {len(targets)} hosts...")
         task = (
             progress.add_task("[cyan]Scanning network...", total=len(targets)) if progress else None

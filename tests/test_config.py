@@ -104,3 +104,15 @@ def test_no_selection_returns_everything():
 def test_selection_errors(names, ports, message):
     with pytest.raises(ConfigError, match=message):
         select_services(DEFAULT_SERVICES, names, ports)
+
+
+def test_too_many_services_from_ports():
+    ports = ",".join(str(p) for p in range(1000, 1070))
+    with pytest.raises(ConfigError, match="max 64"):
+        select_services(DEFAULT_SERVICES, None, ports)
+
+
+def test_too_many_services_from_config(tmp_path):
+    text = "".join(f"[services.s{i}]\nport = {1000 + i}\n" for i in range(70))
+    with pytest.raises(ConfigError, match="max 64"):
+        load_services(write(tmp_path, text))

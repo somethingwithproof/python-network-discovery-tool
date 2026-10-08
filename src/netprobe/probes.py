@@ -27,6 +27,10 @@ Details = dict[str, Any]
 # Banners are attacker-controlled; keep stored strings short and printable.
 MAX_TEXT = 256
 MAX_HEADER_BYTES = 16384
+# StreamReader line limit; an SSH identification line is at most 255 bytes.
+MAX_LINE_BYTES = 4096
+# A real MySQL greeting is under 200 bytes; refuse to buffer a 16 MB "packet".
+MAX_MYSQL_PACKET = 4096
 
 # SNMPv3 GetRequest with an empty engine ID and user and the reportable flag.
 # RFC 3414 section 4 requires an agent to answer it with a Report carrying its
@@ -58,9 +62,38 @@ class SnmpCredentials:
     priv_protocol: str = "AES"
     priv_key: str | None = field(default=None, repr=False)
 
+    def __post_init__(self) -> None:
+        # Refuse ambiguous or weakened settings rather than quietly picking a
+        # lower security level than the caller asked for.
+        if self.community and self.user:
+            raise ValueError("give either an SNMP community (v2c) or an SNMPv3 user, not both")
+        if self.priv_key and not self.auth_key:
+            raise ValueError("an SNMPv3 privacy key needs an authentication key as well")
+        if (self.auth_key or self.priv_key) and not self.user:
+            raise ValueError("SNMPv3 keys need an SNMPv3 user")
+        if self.auth_protocol not in AUTH_PROTOCOLS:
+            raise ValueError(f"unknown SNMPv3 auth protocol {self.auth_protocol!r}")
+        if self.priv_protocol not in PRIV_PROTOCOLS:
+            raise ValueError(f"unknown SNMPv3 privacy protocol {self.priv_protocol!r}")
+
     @property
     def version(self) -> str:
         return "3" if self.user else "2c"
+
+    @property
+    def security_level(self) -> str:
+        if not self.user:
+            return ""
+        if self.priv_key:
+            return "authPriv"
+        return "authNoPriv" if self.auth_key else "noAuthNoPriv"
+
+    def redact(self, text: str) -> str:
+        """Remove any secret that might have been echoed into text."""
+        for secret in (self.community, self.auth_key, self.priv_key):
+            if secret:
+                text = text.replace(secret, "***")
+        return text
 
 
 @dataclass(frozen=True)
@@ -96,7 +129,7 @@ async def _open(
     try:
         async with asyncio.timeout(timeout):
             return await asyncio.open_connection(
-                host, port, ssl=tls, server_hostname=host if tls else None
+                host, port, ssl=tls, server_hostname=host if tls else None, limit=MAX_LINE_BYTES
             )
     except ConnectionRefusedError:
         return "closed"
@@ -206,9 +239,12 @@ async def mysql_probe(host: str, port: int, ctx: ProbeContext) -> ProbeResult:
     try:
         async with asyncio.timeout(ctx.timeout):
             header = await reader.readexactly(4)
-            body = await reader.readexactly(int.from_bytes(header[:3], "little"))
+            length = int.from_bytes(header[:3], "little")
+            if length > MAX_MYSQL_PACKET:
+                raise ValueError(f"greeting of {length} bytes is too large")
+            body = await reader.readexactly(length)
         details = parse_mysql_handshake(header + body)
-    except (TimeoutError, OSError, asyncio.IncompleteReadError) as e:
+    except (TimeoutError, OSError, ValueError, asyncio.IncompleteReadError) as e:
         details = {"error": f"no handshake: {clean(str(e)) or type(e).__name__}"}
     finally:
         await _close(writer)
@@ -300,7 +336,12 @@ async def https_probe(host: str, port: int, ctx: ProbeContext) -> ProbeResult:
     try:
         streams = await _open(host, port, ctx.timeout, verified_ctx)
     except ssl.SSLCertVerificationError as e:
-        details = {"cert_verified": False, "cert_verify_error": clean(e.verify_message or str(e))}
+        details = {
+            "cert_verified": False,
+            "cert_verify_error": clean(e.verify_message or str(e)),
+            # Everything below came over a connection that skipped verification.
+            "cert_read_unverified": True,
+        }
         try:
             streams = await _open(host, port, ctx.timeout, unverified_ctx)
         except ssl.SSLError as retry_error:
@@ -447,14 +488,14 @@ async def snmp_system(
             "AES192C": hlapi.USM_PRIV_CFB192_AES,
             "AES256C": hlapi.USM_PRIV_CFB256_AES,
         }
-        use_auth = bool(creds.auth_key)
-        use_priv = use_auth and bool(creds.priv_key)
+        # SnmpCredentials already refused a privacy key without an auth key,
+        # so the level used here is exactly the one the caller configured.
         auth = hlapi.UsmUserData(
             creds.user,
-            authKey=creds.auth_key if use_auth else None,
-            privKey=creds.priv_key if use_priv else None,
-            authProtocol=auth_map[creds.auth_protocol] if use_auth else hlapi.USM_AUTH_NONE,
-            privProtocol=priv_map[creds.priv_protocol] if use_priv else hlapi.USM_PRIV_NONE,
+            authKey=creds.auth_key,
+            privKey=creds.priv_key,
+            authProtocol=auth_map[creds.auth_protocol] if creds.auth_key else hlapi.USM_AUTH_NONE,
+            privProtocol=priv_map[creds.priv_protocol] if creds.priv_key else hlapi.USM_PRIV_NONE,
         )
     else:
         auth = hlapi.CommunityData(creds.community or "", mpModel=1)
@@ -472,9 +513,9 @@ async def snmp_system(
     finally:
         engine.close_dispatcher()
     if error:
-        raise RuntimeError(clean(str(error)))
+        raise RuntimeError(creds.redact(clean(str(error))))
     if status:
-        raise RuntimeError(clean(status.prettyPrint()))
+        raise RuntimeError(creds.redact(clean(status.prettyPrint())))
     values = {str(oid): clean(str(value)) for oid, value in binds}
     return {name: values.get(oid, "") for name, oid in SYSTEM_OIDS.items()}
 
@@ -488,13 +529,14 @@ async def snmp_probe(host: str, port: int, ctx: ProbeContext) -> ProbeResult:
     try:
         system = await snmp_system(host, port, creds, ctx.timeout)
     except Exception as e:
-        # Agents that only speak v1/v2c ignore the v3 discovery, so a failed
-        # GET keeps whatever state discovery found. pysnmp error text never
-        # includes the community or keys.
-        details["snmp_error"] = clean(str(e)) or type(e).__name__
+        # A failed GET keeps whatever state discovery found and is never
+        # retried with another SNMP version or a lower security level.
+        details["snmp_error"] = creds.redact(clean(str(e))) or type(e).__name__
         return ProbeResult(state, "", details)
     details.update(system)
     details["snmp_version"] = creds.version
+    if creds.security_level:
+        details["snmp_security_level"] = creds.security_level
     return ProbeResult("open", system["sys_descr"], details)
 
 

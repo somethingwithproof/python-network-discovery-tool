@@ -85,6 +85,7 @@ def test_lab_fingerprints_without_credentials(tmp_path):
     https = service(devices[WEB], "https")
     assert https["details"]["cert_verified"] is False
     assert "self-signed" in https["details"]["cert_verify_error"]
+    assert https["details"]["cert_read_unverified"] is True
     assert "IP:172.30.57.13" in https["details"]["cert_sans"]
     assert str(https["version"]).startswith("nginx/")
 
@@ -119,6 +120,8 @@ def test_lab_snmp_system_mib(tmp_path, monkeypatch, env):
     assert snmp["details"]["sys_name"] == "snmp-lab"
     assert snmp["details"]["sys_object_id"] == "1.3.6.1.4.1.8072.3.2.10"
     assert snmp["details"]["snmp_version"] == ("3" if "NETPROBE_SNMP_USER" in env else "2c")
+    if "NETPROBE_SNMP_USER" in env:
+        assert snmp["details"]["snmp_security_level"] == "authPriv"
     assert snmp["version"].startswith("Linux")
     for value in ("netprobe-test", "netprobe-auth", "netprobe-priv"):
         assert value not in out.read_text()

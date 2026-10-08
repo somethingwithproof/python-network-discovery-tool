@@ -139,13 +139,19 @@ def test_cli_unwritable_output_exits_1(tmp_path):
     assert "cannot write" in result.output
 
 
-def test_cli_snmp_secrets_reach_probe_but_never_output(tmp_path, monkeypatch, caplog):
-    secrets = {
-        "NETPROBE_SNMP_COMMUNITY": "community-s3cret",
-        "NETPROBE_SNMP_USER": "netprobe",
-        "NETPROBE_SNMP_AUTH_KEY": "auth-s3cret",
-        "NETPROBE_SNMP_PRIV_KEY": "priv-s3cret",
-    }
+@pytest.mark.parametrize(
+    "secrets",
+    [
+        {"NETPROBE_SNMP_COMMUNITY": "community-s3cret"},
+        {
+            "NETPROBE_SNMP_USER": "netprobe",
+            "NETPROBE_SNMP_AUTH_KEY": "auth-s3cret",
+            "NETPROBE_SNMP_PRIV_KEY": "priv-s3cret",
+        },
+    ],
+    ids=["v2c", "v3"],
+)
+def test_cli_snmp_secrets_reach_probe_but_never_output(tmp_path, monkeypatch, caplog, secrets):
     for name, value in secrets.items():
         monkeypatch.setenv(name, value)
     out = tmp_path / "scan.json"
@@ -173,9 +179,52 @@ def test_cli_snmp_secrets_reach_probe_but_never_output(tmp_path, monkeypatch, ca
     service = json.loads(out.read_text())[0]["services"][0]
     assert "No SNMP response" in service["details"]["snmp_error"]
     everything = out.read_text() + result.output + caplog.text
-    for value in secrets.values():
-        if value != "netprobe":
+    for name, value in secrets.items():
+        if name != "NETPROBE_SNMP_USER":
             assert value not in everything
+    assert "process list" not in caplog.text  # env vars do not trigger the warning
+
+
+def test_cli_warns_when_secret_given_as_option(caplog):
+    with patched_scanner([]):
+        result = runner.invoke(cli.app, ["scan", "10.0.0.1", "--snmp-community", "c0mmunity"])
+
+    assert result.exit_code == 0, result.output
+    assert "visible in the process list" in caplog.text
+    assert "NETPROBE_SNMP_COMMUNITY" in caplog.text
+    assert "c0mmunity" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--snmp-community", "c", "--snmp-user", "u"],
+        ["--snmp-user", "u", "--snmp-priv-key", "privpass1"],
+        ["--snmp-auth-key", "authpass1"],
+    ],
+    ids=["v2c-and-v3", "priv-without-auth", "key-without-user"],
+)
+def test_cli_refuses_ambiguous_or_weakened_snmp(args):
+    result = runner.invoke(cli.app, ["scan", "10.0.0.1", *args])
+
+    assert result.exit_code == 2
+    assert "Error:" in result.output
+
+
+def test_tracebacks_never_show_locals():
+    assert cli.app.pretty_exceptions_show_locals is False
+
+
+def test_cli_rejects_excessive_concurrency():
+    result = runner.invoke(cli.app, ["scan", "10.0.0.1", "--concurrency", "100000"])
+    assert result.exit_code == 2
+
+
+def test_cli_rejects_scan_over_probe_cap():
+    result = runner.invoke(cli.app, ["scan", "10.0.0.0/16", "--ports", "1,2,3,4,5"])
+
+    assert result.exit_code == 2
+    assert "Scan too large" in result.output
 
 
 def test_cli_scanner_receives_snmp_and_tls_settings(tmp_path):
