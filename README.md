@@ -39,7 +39,7 @@ netprobe scan 10.0.0.0/24 -q -o out.json  # no table, file only
 | --- | --- |
 | `NETWORK` | CIDR range, IP address, or hostname. Ranges over 65536 addresses are rejected. |
 | `-o, --output PATH` | Write a report. The format follows the extension (`.json`, `.csv`); other extensions fall back to JSON. |
-| `-f, --format json\|csv\|auto` | Force the report format. Has no effect without `--output`. |
+| `-f, --format json\|csv\|kadupul\|auto` | Force the report format. Has no effect without `--output`. `.sh` selects `kadupul`. |
 | `-v, --verbose` | Debug logging. |
 | `-q, --quiet` | Suppress the results table. |
 | `--backend asyncio\|nmap` | Host discovery. `asyncio` (default) probes the service ports directly; `nmap` runs an nmap ping sweep first and needs `pip install 'netprobe[nmap]'` plus the `nmap` binary. |
@@ -112,6 +112,30 @@ A snapshot is JSON with `format: "netprobe-snapshot"`, `version: 1`, the netprob
 `diff` reports new and vanished hosts, ports that opened or closed on hosts present in both, and services whose `version` changed. Ports that were probed in only one of the two scans are not compared, and a warning says so; a warning also appears when the targets differ. `-o PATH` writes the JSON form to a file as well.
 
 `diff` exit codes: `0` no changes, `3` changes found, `2` a file is missing, unreadable or not a supported snapshot, `1` the `-o` file could not be written.
+
+## Kadupul export
+
+[Kadupul](https://github.com/kadupulhq/kadupul) (a fork of Cacti 1.2.31) has no bulk device file import. Its supported way to add devices from a script is `cli/add_device.php`, one device per call, with `--option=value` arguments. `netprobe export` writes a POSIX `sh` script of those calls:
+
+```bash
+netprobe scan 10.0.0.0/24 -q --save-snapshot inventory.json
+netprobe export inventory.json -o kadupul-import.sh --template 1
+# or in one step, with template 0: netprobe scan 10.0.0.0/24 -q -o kadupul-import.sh
+
+# on the Kadupul server, as the user that owns the install:
+export NETPROBE_SNMP_COMMUNITY=...        # only if the script asks for it
+KADUPUL_ROOT=/var/www/html/kadupul sh kadupul-import.sh
+```
+
+Each alive host becomes `php "$KADUPUL_ROOT/cli/add_device.php" --description=... --ip=... --template=N ...`:
+
+- Hosts where the scan's SNMP query succeeded get `--version=2 --community=...` or `--version=3 --username=... --authproto=... --password=...` (plus `--privproto`/`--privpass` for authPriv), `--port` and `--avail=snmp`. SNMPv3 export needs `--snmp-user`, and noAuthNoPriv is refused because `add_device.php` requires a v3 password.
+- Other hosts get `--version=0 --avail=ping`, with `--ping_method=tcp --ping_port=` the first open TCP port, or ICMP if none.
+- `--notes` lists the open services and versions. `--description` is the reverse-DNS name when it is plain (letters, digits, `.`, `_`, `-`), else the IP, and is made unique, because `add_device.php` treats an existing description as an update to that device.
+
+Every value is validated and shell-quoted with `shlex.quote`. By default no SNMP secret is written: the script expands `NETPROBE_SNMP_COMMUNITY`, `NETPROBE_SNMP_AUTH_KEY` or `NETPROBE_SNMP_PRIV_KEY` at run time and stops if one is unset. `--include-credentials` writes the values from those environment variables into the script instead, creates it with mode 0600, and logs a warning. `add_device.php` itself prints the community and receives secrets as arguments, which are visible in the Kadupul server's process list while each call runs.
+
+`add_device.php` exits 1 for duplicates and errors; the script continues, counts failures, and exits 1 if any device was not added. Template ids come from `php cli/add_device.php --list-host-templates`. `export` exit codes: `0` written, `2` unreadable input or data that cannot be exported safely, `1` the script could not be written.
 
 ## Development
 
