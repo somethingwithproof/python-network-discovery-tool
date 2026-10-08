@@ -247,3 +247,25 @@ def test_cli_scanner_receives_snmp_and_tls_settings(tmp_path):
 def test_cli_rejects_unknown_auth_protocol():
     result = runner.invoke(cli.app, ["scan", "10.0.0.1", "--snmp-auth-protocol", "CRC32"])
     assert result.exit_code == 2
+
+
+def test_cli_scan_saves_snapshot(tmp_path):
+    out = tmp_path / "snap.json"
+    with patched_scanner([Device(ip="10.0.0.1", alive=True), Device(ip="10.0.0.2")]):
+        result = runner.invoke(
+            cli.app, ["scan", "10.0.0.0/30", "-q", "--services", "ssh", "--save-snapshot", str(out)]
+        )
+
+    assert result.exit_code == 0, result.output
+    document = json.loads(out.read_text())
+    assert document["target"] == "10.0.0.0/30"
+    assert [s["name"] for s in document["services"]] == ["ssh"]
+    assert [d["ip"] for d in document["devices"]] == ["10.0.0.1"]
+
+
+def test_cli_scan_unwritable_snapshot_exits_1(tmp_path):
+    with patched_scanner([]):
+        result = runner.invoke(
+            cli.app, ["scan", "10.0.0.1", "-q", "--save-snapshot", str(tmp_path / "no" / "s.json")]
+        )
+    assert result.exit_code == 1
