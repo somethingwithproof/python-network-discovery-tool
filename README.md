@@ -26,7 +26,7 @@ Inspect the options and required platform tools before using the scanner on netw
 
 ## Usage
 
-Requirements: the `nmap` binary on `PATH`, and permission to scan the target. Scan only networks you administer.
+Requirements: permission to scan the target. Scan only networks you administer. No root and no nmap are needed by default.
 
 ```bash
 netprobe scan 192.168.1.0/24              # table of alive hosts
@@ -42,10 +42,15 @@ netprobe scan 10.0.0.0/24 -q -o out.json  # no table, file only
 | `-f, --format json\|csv\|auto` | Force the report format. Has no effect without `--output`. |
 | `-v, --verbose` | Debug logging. |
 | `-q, --quiet` | Suppress the results table. |
+| `--backend asyncio\|nmap` | Host discovery. `asyncio` (default) probes the service ports directly; `nmap` runs an nmap ping sweep first and needs `pip install 'netprobe[nmap]'` plus the `nmap` binary. |
+| `--timeout SECONDS` | Wait per probe (default 1.0). |
+| `--concurrency N` | Probes in flight at once (default 256). |
 
-Each alive host is checked for SSH (TCP 22), MySQL (TCP 3306) and SNMP (UDP 161). The SNMP check is a UDP scan, which nmap only runs as root; without root it is skipped and the host's `errors` field says so. A port counts as open only when nmap reports state `open`; `open|filtered` UDP results are not counted.
+Each host is checked for SSH (TCP 22), MySQL (TCP 3306) and SNMP (UDP 161). TCP ports are tested with a full connect. SNMP is tested with an SNMPv3 engine-discovery request, which any SNMPv3 agent must answer without credentials; agents that only speak v1/v2c will not be detected by this probe. With the asyncio backend a host counts as alive when any probe gets an answer, including a refused connection, so a host that drops every probe is reported down. With `--backend nmap`, nmap decides which hosts are alive (ICMP as root, TCP 80/443 otherwise).
 
-Exit codes: `0` success, `1` nmap missing or the report could not be written, `2` invalid target.
+Results keep the original `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` and `errors` fields and add a `services` list with each probe's `name`, `port`, `protocol` and `state` (`open`, `closed` or `filtered`). CSV output gains a trailing `services` column listing the open ones.
+
+Exit codes: `0` success, `1` the nmap backend is unavailable or the report could not be written, `2` invalid target or option.
 
 ## Development
 
@@ -54,7 +59,7 @@ Exit codes: `0` success, `1` nmap missing or the report could not be written, `2
 .venv/bin/mypy
 ```
 
-The test configuration and dependencies are declared in [pyproject.toml](pyproject.toml). See [E2E-TESTING.md](E2E-TESTING.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [release scripts](scripts/README.md) for additional workflows.
+Integration tests run against a docker compose lab (OpenSSH, MariaDB, net-snmp) on the private subnet 172.30.57.0/24, from a tester container on the same network: `make test-integration`. See [CONTRIBUTING.md](CONTRIBUTING.md) and the [release scripts](scripts/README.md) for other workflows.
 
 ## Security and license status
 

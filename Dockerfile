@@ -1,6 +1,6 @@
 FROM python:3.15.0b1-slim
 
-# nmap is the scanner binary that python-nmap drives
+# nmap is only used by the optional --backend nmap host sweep
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nmap \
     && apt-get clean \
@@ -10,7 +10,7 @@ WORKDIR /app
 
 COPY pyproject.toml README.md ./
 COPY src ./src
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir ".[nmap]"
 
 # Create directory for output
 RUN mkdir -p /app/output

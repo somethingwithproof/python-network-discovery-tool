@@ -8,14 +8,18 @@ from importlib.metadata import version as package_version
 from pathlib import Path
 from typing import Literal
 
-import nmap
 import typer
 from rich import print as rprint
 from rich.logging import RichHandler
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
 from netprobe.output import console, print_results, save_csv, save_json
-from netprobe.scanner import NetworkScanner
+from netprobe.scanner import (
+    DEFAULT_CONCURRENCY,
+    DEFAULT_TIMEOUT,
+    BackendUnavailableError,
+    NetworkScanner,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,6 +47,17 @@ def scan(
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress table output"),
+    backend: Literal["asyncio", "nmap"] = typer.Option(
+        "asyncio",
+        "--backend",
+        help="Host discovery: asyncio probes only, or an nmap ping sweep first",
+    ),
+    timeout: float = typer.Option(
+        DEFAULT_TIMEOUT, "--timeout", min=0.05, help="Seconds to wait for each probe"
+    ),
+    concurrency: int = typer.Option(
+        DEFAULT_CONCURRENCY, "--concurrency", min=1, help="Maximum probes in flight"
+    ),
 ) -> None:
     """
     🔍 Scan network for SSH, SNMP, and MySQL services.
@@ -66,9 +81,9 @@ def scan(
         logging.getLogger().setLevel(logging.DEBUG)
 
     try:
-        scanner = NetworkScanner()
-    except nmap.PortScannerError as e:
-        typer.echo(f"Error: nmap is not available: {e}", err=True)
+        scanner = NetworkScanner(backend=backend, timeout=timeout, concurrency=concurrency)
+    except BackendUnavailableError as e:
+        typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1) from e
 
     if format != "auto" and output is None:

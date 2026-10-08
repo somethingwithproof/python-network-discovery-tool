@@ -1,43 +1,31 @@
-.PHONY: help test test-unit test-e2e test-all docker-up docker-down docker-logs lint format install clean
+.PHONY: install test lint lab-up lab-down test-integration demo clean
 
-help:
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+LAB = docker compose -f tests/integration/compose.yml --profile tester
 
 install:
-	pip install -e ".[dev]"
-
-test-unit:
-	pytest tests -v
-
-test-e2e:
-	@echo "🐳 Starting Docker test environment..."
-	docker-compose -f docker-compose.test.yml up -d
-	@echo "⏳ Waiting for services..."
-	@sleep 20
-	@echo "🧪 Running E2E tests..."
-	pytest test_e2e.py -v -m e2e || (docker-compose -f docker-compose.test.yml down && exit 1)
-	@echo "🧹 Cleaning up..."
-	docker-compose -f docker-compose.test.yml down
-
-test-all:
-	pytest tests test_e2e.py -v
+	uv pip install -e ".[dev]"
 
 test:
-	pytest -v --cov=netprobe --cov-report=html
+	uv run pytest --cov=netprobe --cov-report=term-missing
 
-docker-up:
-	docker-compose -f docker-compose.test.yml up -d
-	@sleep 20
-	@echo "✅ Test services ready at 172.20.0.10-14"
+lint:
+	uv run ruff check .
+	uv run ruff format --check .
+	uv run mypy
 
-docker-down:
-	docker-compose -f docker-compose.test.yml down
+lab-up:
+	$(LAB) up -d --build --wait ssh db snmp quiet
 
-clean:
-	rm -rf .pytest_cache htmlcov .coverage __pycache__
-	docker-compose -f docker-compose.test.yml down 2>/dev/null || true
+lab-down:
+	$(LAB) down -v
+
+# Runs inside the lab network so container IPs are reachable on any Docker host.
+test-integration:
+	$(LAB) run --rm --build tester pytest -m integration -v -p no:cacheprovider
 
 demo:
-	@make docker-up
-	python -m netprobe scan 172.20.0.0/28
-	@make docker-down
+	$(LAB) run --rm --build tester python -m netprobe scan 172.30.57.8/29
+
+clean:
+	rm -rf .pytest_cache htmlcov .coverage
+	$(LAB) down -v 2>/dev/null || true

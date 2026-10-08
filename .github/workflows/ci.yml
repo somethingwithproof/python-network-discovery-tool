@@ -43,14 +43,6 @@ jobs:
         python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - name: Install nmap
-        run: |
-          if [ "$RUNNER_OS" == "Linux" ]; then
-            sudo apt-get update && sudo apt-get install -y nmap
-          elif [ "$RUNNER_OS" == "macOS" ]; then
-            brew install nmap
-          fi
-        shell: bash
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
@@ -63,6 +55,20 @@ jobs:
         with:
           file: ./coverage.xml
           fail_ci_if_error: false
+
+  integration:
+    name: Integration (compose lab)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Run tests inside the lab network
+        run: >-
+          docker compose -f tests/integration/compose.yml --profile tester
+          run --rm --build tester pytest -m integration -v -p no:cacheprovider
+      - name: Tear down the lab
+        if: always()
+        run: docker compose -f tests/integration/compose.yml --profile tester down -v
 
   type-check:
     name: Type check

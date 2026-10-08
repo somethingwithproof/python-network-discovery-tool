@@ -16,6 +16,9 @@ from netprobe.models import Device
 logger = logging.getLogger(__name__)
 console = Console()
 
+# New columns go at the end so positional CSV readers keep working.
+CSV_FIELDS = ["ip", "alive", "ssh", "snmp", "mysql", "hostname", "errors", "services"]
+
 
 def save_json(devices: list[Device], output_path: Path) -> None:
     """Save devices to JSON file."""
@@ -27,13 +30,14 @@ def save_json(devices: list[Device], output_path: Path) -> None:
 def save_csv(devices: list[Device], output_path: Path) -> None:
     """Save devices to CSV file."""
     with output_path.open("w", newline="") as f:
-        writer = csv.DictWriter(
-            f, fieldnames=["ip", "alive", "ssh", "snmp", "mysql", "hostname", "errors"]
-        )
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
         writer.writeheader()
         for device in devices:
             row = asdict(device)
             row["errors"] = "; ".join(row["errors"]) if row["errors"] else ""
+            row["services"] = "; ".join(
+                f"{s.name}:{s.port}/{s.protocol}" for s in device.open_services
+            )
             writer.writerow(row)
     logger.info(f"Saved CSV report to {output_path}")
 
