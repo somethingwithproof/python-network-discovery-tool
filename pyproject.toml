@@ -47,6 +47,7 @@ dev = [
     "ruff>=0.15.14",
     "mypy>=1.19.1",
     "hatchling>=1.27.0",
+    "installer>=0.7.0",
     "twine>=6.2.0",
 ]
 

@@ -38,7 +38,8 @@ def project(tmp_path):
 @pytest.mark.parametrize("value", ["0.0.0", "3.1.0", "3.1.0-alpha.0", "3.1.0-beta.2", "3.1.0-rc.1"])
 def test_version_roundtrip(release, value):
     version = release.parse_version(value)
-    assert version.semantic == value and version.tag == "v" + value
+    assert version.semantic == value
+    assert version.tag == "v" + value
     assert release.parse_version(version.package, package=True) == version
 
 
@@ -73,7 +74,8 @@ def test_prerelease_precedence(release):
         "3.1.1",
     ]
     keys = [release.parse_version(version).precedence for version in versions]
-    assert keys == sorted(keys) and len(set(keys)) == len(keys)
+    assert keys == sorted(keys)
+    assert len(set(keys)) == len(keys)
 
 
 @pytest.mark.parametrize(
@@ -104,8 +106,9 @@ def test_dry_run_does_not_write(release, project):
 
 @pytest.mark.parametrize("value", ["2.9.9", "3.0.0", "3.0.0-rc.1"])
 def test_prepare_refuses_older_or_equal_versions(release, project, value):
+    version = release.parse_version(value)
     with pytest.raises(ValueError, match="greater"):
-        release.prepare(project, release.parse_version(value))
+        release.prepare(project, version)
 
 
 @pytest.mark.parametrize(
@@ -127,8 +130,9 @@ def test_invalid_prepare_leaves_all_files_unchanged(release, project, problem):
         path = project / "uv.lock"
         path.write_text(path.read_text().replace('version = "3.0.0"', 'version = "3.0.1"'))
     before = {path: path.read_bytes() for path in project.iterdir()}
+    version = release.parse_version("3.1.0")
     with pytest.raises(ValueError):
-        release.prepare(project, release.parse_version("3.1.0"))
+        release.prepare(project, version)
     assert before == {path: path.read_bytes() for path in project.iterdir()}
 
 
@@ -144,10 +148,11 @@ def test_release_requires_matching_tag_notes_and_lock(release, project):
 
 
 def test_empty_release_notes_rejected(release):
+    version = release.parse_version("3.0.0")
     with pytest.raises(ValueError, match="empty"):
         release.release_notes(
             "## Version 3.0.0 (2026-10-08)\n\n## Version 2.0.0 (2025-01-01)\nOld\n",
-            release.parse_version("3.0.0"),
+            version,
         )
 
 
@@ -196,8 +201,9 @@ def test_distribution_version_mismatches_rejected(release, distributions, kind):
         files[0].rename(directory / "other.whl")
     elif kind == "missing":
         files[1].unlink()
+    version = release.parse_version("3.1.0")
     with pytest.raises(ValueError):
-        release.check_distributions(directory, release.parse_version("3.1.0"))
+        release.check_distributions(directory, version)
 
 
 @pytest.mark.parametrize(
@@ -224,3 +230,45 @@ def test_cli_prepare_dry_run_and_check(release, project, monkeypatch, capsys):
         release.main()
     assert error.value.code == 1
     assert "Release validation failed" in capsys.readouterr().err
+
+
+def test_sections_preserve_following_metadata_without_final_newline(release, project):
+    path = project / "pyproject.toml"
+    path.write_text(path.read_text().rstrip())
+    version = release.parse_version("3.1.0")
+    release.prepare(project, version)
+    assert path.read_text().endswith('version="keep-me"')
+    assert release.project_version(project) == version
+
+
+@pytest.mark.parametrize("kind", ["parent", "absolute", "symlink"])
+def test_artifact_paths_cannot_escape_selected_root(release, tmp_path, kind):
+    root = tmp_path / "project"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    if kind == "parent":
+        path = Path("../outside/notes.md")
+    elif kind == "absolute":
+        path = outside / "notes.md"
+    else:
+        (root / "linked").symlink_to(outside, target_is_directory=True)
+        path = Path("linked/notes.md")
+    with pytest.raises(ValueError, match="within the project root"):
+        release.confined_path(path, root)
+    assert not (outside / "notes.md").exists()
+
+
+def test_checksum_output_cannot_overwrite_an_external_file(release, distributions):
+    directory, files = distributions()
+    outside = directory.parent / "outside-checksums"
+    outside.write_text("preserve")
+    with pytest.raises(ValueError, match="within the project root"):
+        release.write_checksums(files, outside)
+    assert outside.read_text() == "preserve"
+
+
+def test_notes_relative_to_selected_root(release, project):
+    version = release.parse_version("3.0.0")
+    release.write_notes(project, Path("release-notes.md"), version)
+    assert (project / "release-notes.md").read_text() == "- Initial v3 package.\n"

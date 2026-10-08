@@ -47,7 +47,9 @@ jobs:
             python 3.14
             uv 0.12.23
       - name: Install locked build and test tools
-        run: uv sync --locked --extra dev
+        # Nmap tests use the mocked adapter; its optional source-only wrapper is
+        # tested separately by CI. Release dependency installation is wheel-only.
+        run: uv sync --locked --extra dev --no-build --no-install-project --no-install-package python-nmap
       - name: Validate version, notes, and release source
         id: metadata
         env:
@@ -67,16 +69,19 @@ jobs:
           fi
           python scripts/release.py check "${args[@]}" --notes release-notes.md > release-metadata.json
           jq -r '"tag=" + .tag, "prerelease=" + (.prerelease | tostring)' release-metadata.json >> "$GITHUB_OUTPUT"
-      - name: Run quality and regression checks
-        run: |
-          uv run ruff check .
-          uv run ruff format --check .
-          uv run mypy
-          uv run pytest --cov=netprobe --cov-fail-under=90
-      - name: Build once and validate package contents
+      - name: Build once and install the release wheel for testing
         run: |
           uv build --no-build-isolation
-          uv run twine check --strict dist/*.whl dist/*.tar.gz
+          .venv/bin/python -m installer dist/*.whl
+      - name: Run quality and regression checks
+        run: |
+          uv run --locked --no-sync --no-build ruff check .
+          uv run --locked --no-sync --no-build ruff format --check .
+          uv run --locked --no-sync --no-build mypy
+          uv run --locked --no-sync --no-build pytest --cov=netprobe --cov-fail-under=90
+      - name: Validate the tested package contents
+        run: |
+          uv run --locked --no-sync --no-build twine check --strict dist/*.whl dist/*.tar.gz
           python scripts/release.py check --dist dist --checksums dist/SHA256SUMS
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
