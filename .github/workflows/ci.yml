@@ -67,7 +67,7 @@ jobs:
       - run: uv run --locked --no-sync --no-build pytest -v --cov=netprobe --cov-report=xml --cov-fail-under=90
       - name: Upload coverage
         if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
-        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v5
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v5
         with:
           files: ./coverage.xml
           fail_ci_if_error: false

@@ -244,7 +244,7 @@ async def mysql_probe(host: str, port: int, ctx: ProbeContext) -> ProbeResult:
                 raise ValueError(f"greeting of {length} bytes is too large")
             body = await reader.readexactly(length)
         details = parse_mysql_handshake(header + body)
-    except (TimeoutError, OSError, ValueError, asyncio.IncompleteReadError) as e:
+    except (OSError, ValueError, asyncio.IncompleteReadError) as e:
         details = {"error": f"no handshake: {clean(str(e)) or type(e).__name__}"}
     finally:
         await _close(writer)
