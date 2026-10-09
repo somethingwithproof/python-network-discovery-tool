@@ -131,11 +131,15 @@ def test_v3_authnopriv_uses_quoted_none(tmp_path):
 
 
 def test_v3_without_user_or_auth_is_refused():
+    prepared_argument_0 = device("10.0.0.6", SNMP_V3)
+    prepared_argument_1 = KadupulOptions()
     with pytest.raises(ExportError, match="--snmp-user"):
-        kadupul_script([device("10.0.0.6", SNMP_V3)], KadupulOptions(), "t")
+        kadupul_script([prepared_argument_0], prepared_argument_1, "t")
     no_auth = ("snmp", 161, "udp", "", {"snmp_version": "3", "snmp_security_level": "noAuthNoPriv"})
+    prepared_argument_0 = device("10.0.0.6", no_auth)
+    prepared_argument_1 = KadupulOptions(snmp_user="ops")
     with pytest.raises(ExportError, match="needs SNMPv3 auth"):
-        kadupul_script([device("10.0.0.6", no_auth)], KadupulOptions(snmp_user="ops"), "t")
+        kadupul_script([prepared_argument_0], prepared_argument_1, "t")
 
 
 def test_non_snmp_hosts_use_tcp_or_icmp_ping(tmp_path):
@@ -235,8 +239,10 @@ def test_include_credentials_embeds_quoted_literals(tmp_path):
 
 
 def test_include_credentials_without_value_is_refused():
+    prepared_argument_0 = device("10.0.0.5", SNMP_V2)
+    prepared_argument_1 = KadupulOptions(include_credentials=True)
     with pytest.raises(ExportError, match="needs a value for --community"):
-        kadupul_script([device("10.0.0.5", SNMP_V2)], KadupulOptions(include_credentials=True), "t")
+        kadupul_script([prepared_argument_0], prepared_argument_1, "t")
 
 
 def test_write_script_modes(tmp_path):
@@ -279,7 +285,8 @@ def test_cli_export_without_credentials(tmp_path, monkeypatch, caplog):
 
     assert result.exit_code == 0, result.output
     text = out.read_text()
-    assert "c0mmunity" not in text and "c0mmunity" not in caplog.text
+    assert "c0mmunity" not in text
+    assert "c0mmunity" not in caplog.text
     assert "--template=3" in text
     assert "cli/add_device.php" in text
 

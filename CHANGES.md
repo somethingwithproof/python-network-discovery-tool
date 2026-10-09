@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fail closed on TLS certificate or hostname verification errors; private-CA services require `--tls-ca-file` for certificate and HTTP observations.
+- Refactor CLI orchestration, history validation, profiles, preflight, comparisons, and tests to resolve project-wide Sonar findings.
+
 - Define the SemVer compatibility contract and stable/prerelease tag mapping.
 - Replace legacy release helpers and duplicate upload workflows with reviewed version preparation, validated tag builds, draft GitHub releases, checksums, and optional trusted publishing.
 - Add offline release-integrity regression tests and locked build/metadata-validation tools.

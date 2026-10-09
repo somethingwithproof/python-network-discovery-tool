@@ -202,21 +202,8 @@ def compare(old: Inventory, new: Inventory) -> Diff:
         diff.vanished_hosts.append(_summary(old.hosts[ip]))
 
     for ip in sorted(old.hosts.keys() & new.hosts.keys(), key=_ip_key):
-        before, after = old.hosts[ip].open, new.hosts[ip].open
-        for port in sorted(before.keys() | after.keys()):
-            if comparable is not None and port not in comparable:
-                continue
-            if port not in before:
-                name, version = after[port]
-                diff.opened.append(Change(ip, name, port[0], port[1], version))
-            elif port not in after:
-                name, version = before[port]
-                diff.closed.append(Change(ip, name, port[0], port[1], "", version))
-            elif before[port][1] != after[port][1]:
-                name = after[port][0]
-                diff.version_changes.append(
-                    Change(ip, name, port[0], port[1], after[port][1], before[port][1])
-                )
+        compare_host_ports(diff, ip, old.hosts[ip].open, new.hosts[ip].open, comparable)
+
     return diff
 
 
@@ -272,3 +259,26 @@ def print_diff(diff: Diff, console: Console) -> None:
             escape(f"{c.old_version or '-'} -> {c.version or '-'}"),
         )
     console.print(table)
+
+
+def compare_host_ports(
+    diff: Diff,
+    ip: str,
+    before: dict[Port, tuple[str, str]],
+    after: dict[Port, tuple[str, str]],
+    comparable: set[Port] | None,
+) -> None:
+    for port in sorted(before.keys() | after.keys()):
+        if comparable is not None and port not in comparable:
+            continue
+        if port not in before:
+            name, version = after[port]
+            diff.opened.append(Change(ip, name, port[0], port[1], version))
+        elif port not in after:
+            name, version = before[port]
+            diff.closed.append(Change(ip, name, port[0], port[1], "", version))
+        elif before[port][1] != after[port][1]:
+            name = after[port][0]
+            diff.version_changes.append(
+                Change(ip, name, port[0], port[1], after[port][1], before[port][1])
+            )

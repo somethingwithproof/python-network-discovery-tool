@@ -124,14 +124,16 @@ async def test_probe_errors_are_redacted(monkeypatch):
 
 async def test_probe_cap_counts_hosts_times_services():
     services = [ServiceSpec(f"tcp-{p}", p) for p in range(1, 10)]
+    prepared_argument_0 = NetworkScanner(services=services)
     with pytest.raises(ValueError, match="Scan too large: 65534 hosts x 9 services"):
-        await NetworkScanner(services=services).scan_network("10.0.0.0/16")
+        await prepared_argument_0.scan_network("10.0.0.0/16")
 
 
 async def test_probe_cap_also_applies_to_nmap_backend(fake_nmap):
     services = [ServiceSpec(f"tcp-{p}", p) for p in range(1, 10)]
+    prepared_argument_0 = NetworkScanner(backend="nmap", services=services)
     with pytest.raises(ValueError, match="Scan too large"):
-        await NetworkScanner(backend="nmap", services=services).scan_network("10.0.0.0/16")
+        await prepared_argument_0.scan_network("10.0.0.0/16")
     assert FakePortScanner.calls == []  # refused before nmap ran
 
 
@@ -172,7 +174,8 @@ async def test_scan_network_single_localhost(tcp_server, udp_server):
     devices = await NetworkScanner(services=services).scan_network("127.0.0.1")
 
     assert len(devices) == 1
-    assert devices[0].alive and devices[0].ssh
+    assert devices[0].alive
+    assert devices[0].ssh
 
 
 @pytest.mark.parametrize(
@@ -184,8 +187,9 @@ async def test_scan_network_single_localhost(tcp_server, udp_server):
     ],
 )
 async def test_scan_network_rejects_bad_targets(network, message):
+    prepared_argument_0 = NetworkScanner()
     with pytest.raises(ValueError, match=message):
-        await NetworkScanner().scan_network(network)
+        await prepared_argument_0.scan_network(network)
 
 
 async def test_scan_network_accepts_largest_allowed_network(monkeypatch):
@@ -271,7 +275,7 @@ def fake_nmap(monkeypatch):
 
 
 async def test_nmap_backend_only_probes_swept_hosts(fake_nmap, monkeypatch):
-    FakePortScanner.hosts = {"10.0.0.1": "up", "10.0.0.2": "down"}
+    monkeypatch.setattr(FakePortScanner, "hosts", {"10.0.0.1": "up", "10.0.0.2": "down"})
     probed = []
 
     async def closed(host, port, timeout):
@@ -289,7 +293,7 @@ async def test_nmap_backend_only_probes_swept_hosts(fake_nmap, monkeypatch):
 
 
 async def test_nmap_backend_hostname_target_matches_by_ip(fake_nmap, monkeypatch):
-    FakePortScanner.hosts = {"93.184.216.34": "up"}
+    monkeypatch.setattr(FakePortScanner, "hosts", {"93.184.216.34": "up"})
 
     async def filtered(host, port, timeout):
         return "filtered"

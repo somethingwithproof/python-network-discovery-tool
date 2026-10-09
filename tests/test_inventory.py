@@ -58,8 +58,10 @@ def test_history_roundtrip_and_readonly_queries(history_store):
 
 
 def test_history_failed_serialization_does_not_write_partial_snapshot(history_store):
+    prepared_argument_0 = object()
+    prepared_argument_1 = history.utc_now()
     with pytest.raises(TypeError):
-        history_store.save({"not_json": object()}, [], history.utc_now())
+        history_store.save({"not_json": prepared_argument_0}, [], prepared_argument_1)
     assert history_store.list_scans() == []
 
 
@@ -68,15 +70,17 @@ def test_history_rejects_foreign_database_without_modifying_it(tmp_path):
     with closing(sqlite3.connect(path)) as connection, connection:
         connection.execute("CREATE TABLE other (id INTEGER)")
     original = path.read_bytes()
+    prepared_argument_0 = history.HistoryStore(path)
     with pytest.raises(ValueError, match="supported"):
-        history.HistoryStore(path).initialize()
+        prepared_argument_0.initialize()
     assert path.read_bytes() == original
 
 
 def test_history_read_command_never_creates_database(tmp_path):
     path = tmp_path / "missing.sqlite3"
     result = CliRunner().invoke(app, ["history", "--history", str(path)])
-    assert result.exit_code == 1 and not path.exists()
+    assert result.exit_code == 1
+    assert not path.exists()
 
 
 def test_history_schema_version_rejected(history_store):
@@ -126,8 +130,10 @@ def test_compare_errors_and_unknown_states_are_not_disappearances(history_store)
         ],
     )
     report = history.compare_scans(history_store.get(first), history_store.get(second))
-    assert report["no_longer_responding"] == [] and report["newly_responsive"] == []
-    assert report["port_changes"] == [] and report["uncertain_hosts"] == ["127.0.0.1"]
+    assert report["no_longer_responding"] == []
+    assert report["newly_responsive"] == []
+    assert report["port_changes"] == []
+    assert report["uncertain_hosts"] == ["127.0.0.1"]
 
 
 @pytest.mark.parametrize("changed", ["targets", "ports"])
@@ -138,10 +144,14 @@ def test_compare_different_scope_rejected(history_store, changed):
         [Observation("127.0.0.2" if changed == "targets" else "127.0.0.1")],
         ports=["443/tcp"] if changed == "ports" else None,
     )
+    prepared_argument_0 = history_store.get(first)
+    prepared_argument_1 = history_store.get(second)
     with pytest.raises(ValueError, match="different targets"):
-        history.compare_scans(history_store.get(first), history_store.get(second))
+        history.compare_scans(prepared_argument_0, prepared_argument_1)
+    prepared_argument_0 = history_store.get(second)
+    prepared_argument_1 = history_store.get(first)
     with pytest.raises(ValueError, match="Earlier scan"):
-        history.compare_scans(history_store.get(second), history_store.get(first))
+        history.compare_scans(prepared_argument_0, prepared_argument_1)
 
 
 def test_compare_cannot_overwrite_history(history_store):
@@ -159,7 +169,8 @@ def test_compare_cannot_overwrite_history(history_store):
             str(history_store.path),
         ],
     )
-    assert result.exit_code == 1 and "overwrite" in result.output
+    assert result.exit_code == 1
+    assert "overwrite" in result.output
     assert len(history_store.list_scans()) == 2
 
 
@@ -247,7 +258,8 @@ def test_profiles_and_cli_precedence(config, scanner):
     )
     assert result.exit_code == 0, result.output
     options = factory.call_args.kwargs
-    assert options["timeout"] == 0.8 and options["concurrency"] == 2
+    assert options["timeout"] == 0.8
+    assert options["concurrency"] == 2
     assert options["exclusions"] == ["127.0.0.2/32", "127.0.0.1"]
     assert options["services"][0].port == 2222
 
@@ -331,7 +343,8 @@ def test_preflight_no_traffic_and_no_database_creation(scanner, tmp_path):
         cli.app, ["preflight", "127.0.0.1", "-o", str(out), "--history", str(path)]
     )
     assert result.exit_code == 0, result.output
-    assert out.read_text() == "existing" and not path.exists()
+    assert out.read_text() == "existing"
+    assert not path.exists()
     scanner[1].assert_not_called()
 
 
@@ -363,11 +376,13 @@ def test_conflicting_destinations(config, scanner, history_store, tmp_path):
 def test_missing_nmap_and_ca_stop_before_scanning(scanner, monkeypatch, tmp_path):
     monkeypatch.setattr(checks.shutil, "which", lambda _: None)
     result = CliRunner().invoke(cli.app, ["scan", "127.0.0.1", "--backend", "nmap"])
-    assert result.exit_code == 1 and "requires" in result.output
+    assert result.exit_code == 1
+    assert "requires" in result.output
     result = CliRunner().invoke(
         cli.app, ["scan", "127.0.0.1", "--tls-ca-file", str(tmp_path / "missing.pem")]
     )
-    assert result.exit_code == 1 and "TLS CA" in result.output
+    assert result.exit_code == 1
+    assert "TLS CA" in result.output
     scanner[1].assert_not_called()
 
 
@@ -428,7 +443,8 @@ def test_invalid_history_blocks_scan(scanner, tmp_path):
     path = tmp_path / "wrong.sqlite3"
     path.write_text("not a database")
     result = CliRunner().invoke(cli.app, ["scan", "127.0.0.1", "--history", str(path)])
-    assert result.exit_code == 1 and "history schema" in result.output
+    assert result.exit_code == 1
+    assert "history schema" in result.output
     scanner[1].assert_not_called()
 
 

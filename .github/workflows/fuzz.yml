@@ -1,0 +1,39 @@
+name: Parser fuzzing
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "35 4 * * 4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  fuzz:
+    name: Offline parser fuzzing
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+        with:
+          tool_versions: |
+            python 3.14
+            uv 0.12.23
+      - name: Install locked wheel-only fuzz dependencies
+        run: uv sync --locked --extra dev --extra fuzz --no-build --no-install-project --no-install-package python-nmap
+      - name: Build and install the project wheel
+        run: |
+          uv build --no-build-isolation --wheel
+          .venv/bin/python -m installer dist/*.whl
+      - name: Fuzz bounded protocol parsers offline
+        run: uv run --locked --no-sync --no-build python fuzz/fuzz_parsers.py -max_total_time=60 -max_len=4096 -timeout=5
