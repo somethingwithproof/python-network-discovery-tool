@@ -48,8 +48,13 @@ jobs:
           if ! jq -e '
             [.[] | select(.type == "required_status_checks") |
               .parameters.required_status_checks[].context] as $required |
-            ["Lint", "Type check", "Integration (compose lab)",
-             "CodeQL", "SonarCloud Code Analysis", "security/snyk (thomasvincent)"] |
+            ["Lint", "Type check", "Workflow lint", "Integration (compose lab)",
+             "Test (Python 3.12, ubuntu-latest)", "Test (Python 3.13, ubuntu-latest)",
+             "Test (Python 3.14, ubuntu-latest)", "Test (Python 3.12, macos-latest)",
+             "Test (Python 3.13, macos-latest)", "Test (Python 3.14, macos-latest)",
+             "Offline parser fuzzing", "build-and-test", "bandit", "DCO",
+             "CodeQL", "SonarCloud Code Analysis", "security/snyk (thomasvincent)",
+             "CodeRabbit", "Gitar"] |
             all(.[]; . as $name | $required | index($name) != null)
           ' "$RUNNER_TEMP/branch-rules.json" >/dev/null; then
             echo "Auto-merge requires CI and security checks in main branch rules." >> "$GITHUB_STEP_SUMMARY"
