@@ -1,77 +1,59 @@
 version: 2
+
 updates:
-  # ========================================
-  # GitHub Actions
-  # ========================================
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: github-actions
+    directory: /
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "America/New_York"
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "github-actions"
-      - "automated"
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 5
+    labels: [dependencies, github_actions]
     commit-message:
-      prefix: "chore(deps)"
-      prefix-development: "chore(deps-dev)"
-      include: "scope"
+      prefix: chore
+      include: scope
     groups:
-      github-actions:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
+      actions:
+        patterns: ["*"]
+        update-types: [minor, patch]
 
-  # ========================================
-  # Python (pip)
-  # ========================================
-  - package-ecosystem: "pip"
-    directory: "/"
+  # uv owns pyproject.toml and uv.lock; pip would not maintain this lockfile.
+  - package-ecosystem: uv
+    directory: /
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "America/New_York"
-    open-pull-requests-limit: 15
-    labels:
-      - "dependencies"
-      - "python"
-      - "automated"
+      interval: weekly
+      day: monday
+      time: "08:15"
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 5
+    labels: [dependencies, python]
     commit-message:
-      prefix: "chore(deps)"
-      prefix-development: "chore(deps-dev)"
-    allow:
-      - dependency-type: "all"
+      prefix: chore
+      prefix-development: chore
+      include: scope
     groups:
-      python-dependencies:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
+      python-tooling:
+        patterns: [atheris, bandit, hatchling, installer, mypy, "pytest*", ruff, setuptools, twine, wheel]
+        update-types: [minor, patch]
+      python-runtime:
+        patterns: ["*"]
+        exclude-patterns: [atheris, bandit, hatchling, installer, mypy, "pytest*", ruff, setuptools, twine, wheel]
+        update-types: [minor, patch]
+      python-security:
+        applies-to: security-updates
+        patterns: ["*"]
 
-  # ========================================
-  # Docker
-  # ========================================
-  - package-ecosystem: "docker"
-    directory: "/"
+  - package-ecosystem: docker
+    directory: /
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "America/New_York"
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "docker"
-      - "automated"
+      interval: weekly
+      day: monday
+      time: "08:30"
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 3
+    labels: [dependencies, docker]
     commit-message:
-      prefix: "chore(deps)"
-      include: "scope"
-    allow:
-      - dependency-type: "all"
+      prefix: chore
+      include: scope
+    # Runtime/base image changes receive maintainer review, including digest bumps.

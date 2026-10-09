@@ -75,3 +75,10 @@ Please note that the Network Discovery Tool project is released with a Contribut
 ## Versioning and releases
 
 Add user-visible changes under `## Unreleased` in `CHANGES.md`. Use conventional PR titles and choose release bumps based on the documented compatibility contract. See [Versioning and releases](docs/releasing.md) for preparation, tag validation, GitHub draft releases, and optional PyPI trusted publishing.
+
+## Dependencies and GitHub Actions
+
+See [Dependency maintenance](docs/dependency-maintenance.md) for update groups,
+lockfiles, and auto-merge gates. Pin Actions to immutable commit SHAs, scope token
+permissions to the job that needs them, and select runtime tools through mise.
+The `Workflow lint` check runs actionlint on pull requests and main commits.
