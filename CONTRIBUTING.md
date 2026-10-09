@@ -8,7 +8,7 @@ You can contribute in many ways:
 
 ### Report Bugs
 
-Report bugs at https://github.com/thomasvincent/python-network-discovery-tool/issues.
+Report bugs at https://github.com/somethingwithproof/python-network-discovery-tool/issues.
 
 If you are reporting a bug, please include:
 
@@ -30,7 +30,7 @@ Network Discovery Tool could always use more documentation, whether as part of t
 
 ### Submit Feedback
 
-The best way to send feedback is to file an issue at https://github.com/thomasvincent/python-network-discovery-tool/issues.
+The best way to send feedback is to file an issue at https://github.com/somethingwithproof/python-network-discovery-tool/issues.
 
 If you are proposing a feature:
 

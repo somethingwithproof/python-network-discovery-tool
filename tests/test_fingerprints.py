@@ -304,11 +304,11 @@ async def test_https_probe_records_failed_verification(tls_server):
     result = await probes.https_probe("127.0.0.1", port, CTX)
 
     assert result.details["cert_verified"] is False
-    assert result.details["cert_read_unverified"] is True
+    assert "cert_read_unverified" not in result.details
     assert "unable to get local issuer certificate" in result.details["cert_verify_error"]
-    # The certificate is still inventoried after the failure is recorded.
-    assert result.details["cert_subject"] == "CN=localhost"
-    assert result.details["server"] == "nginx/1.28.3"
+    assert "cert_subject" not in result.details
+    assert "server" not in result.details
+    assert result.version == ""
 
 
 async def test_https_probe_hostname_mismatch(tls_server):
@@ -317,7 +317,7 @@ async def test_https_probe_hostname_mismatch(tls_server):
 
     assert result.details["cert_verified"] is False
     assert "mismatch" in result.details["cert_verify_error"].lower()
-    assert result.details["cert_sans"] == []
+    assert "cert_sans" not in result.details
 
 
 async def test_https_probe_plain_tcp_service(tcp_server):
@@ -332,7 +332,7 @@ async def test_https_probe_closed_port():
     assert (await probes.https_probe("127.0.0.1", closed_port(), CTX)).state == "closed"
 
 
-async def test_https_probe_retry_handshake_failure(monkeypatch):
+async def test_https_probe_verification_failure_never_retries(monkeypatch):
     calls = []
 
     async def fake_open(host, port, timeout, tls=None):
@@ -348,8 +348,9 @@ async def test_https_probe_retry_handshake_failure(monkeypatch):
 
     assert result.details["cert_verified"] is False
     assert result.details["cert_verify_error"] == "certificate has expired"
-    assert "handshake failure" in result.details["tls_error"]
-    assert calls[1].verify_mode == ssl.CERT_NONE
+    assert len(calls) == 1
+    assert calls[0].verify_mode == ssl.CERT_REQUIRED
+    assert calls[0].check_hostname is True
 
 
 # --- SNMP with credentials
@@ -424,7 +425,8 @@ def test_credentials_repr_hides_secrets():
     v3 = SnmpCredentials(user="u", auth_key="a-key-1", priv_key="p-key-1")
 
     assert "c0mm" not in repr(v2c)
-    assert "a-key-1" not in repr(v3) and "p-key-1" not in repr(v3)
+    assert "a-key-1" not in repr(v3)
+    assert "p-key-1" not in repr(v3)
     assert (v2c.version, v3.version) == ("2c", "3")
 
 
