@@ -53,7 +53,7 @@ jobs:
              "Test (Python 3.14, ubuntu-latest)", "Test (Python 3.12, macos-latest)",
              "Test (Python 3.13, macos-latest)", "Test (Python 3.14, macos-latest)",
              "Offline parser fuzzing", "build-and-test", "bandit", "DCO",
-             "CodeQL", "SonarCloud Code Analysis", "security/snyk (thomasvincent)",
+             "CodeQL", "SonarCloud Code Analysis", "code/snyk (thomasvincent)",
              "CodeRabbit", "Gitar"] |
             all(.[]; . as $name | $required | index($name) != null)
           ' "$RUNNER_TEMP/branch-rules.json" >/dev/null; then
