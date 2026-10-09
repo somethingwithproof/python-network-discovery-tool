@@ -1,36 +1,63 @@
 name: Dependabot Auto-Merge
 
 on:
-  pull_request:
-  workflow_dispatch:
+  # Metadata only: never check out or execute pull-request code with this token.
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
 
 permissions:
   contents: read
 
+concurrency:
+  group: dependabot-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   dependabot-auto-merge:
+    if: >-
+      github.repository == 'somethingwithproof/python-network-discovery-tool' &&
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: write
       pull-requests: write
-    runs-on: ubuntu-latest
-    if: ${{ github.actor == 'dependabot[bot]' }}
-
     steps:
-      - name: Dependabot metadata
+      - name: Read verified Dependabot metadata
         id: metadata
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3
         with:
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
-
-      - name: Approve PR
-        run: gh pr review --approve "$PR_URL"
+          github-token: ${{ github.token }}
+      - name: Queue eligible updates behind required checks
+        if: >-
+          (steps.metadata.outputs.package-ecosystem == 'uv' ||
+           steps.metadata.outputs.package-ecosystem == 'github_actions' ||
+           steps.metadata.outputs.package-ecosystem == 'github-actions') &&
+          (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+           steps.metadata.outputs.update-type == 'version-update:semver-minor')
         env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Auto-merge PR
-        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor' }}
-        run: gh pr merge --auto --merge "$PR_URL"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # --auto can merge immediately without required checks. Fail closed
+          # until the default-branch rules enforce CI and security gates.
+          gh api "repos/$GH_REPO/rules/branches/main" > "$RUNNER_TEMP/branch-rules.json"
+          if ! jq -e '
+            [.[] | select(.type == "required_status_checks") |
+              .parameters.required_status_checks[].context] as $required |
+            ["Lint", "Type check", "Workflow lint", "Integration (compose lab)",
+             "Test (Python 3.12, ubuntu-latest)", "Test (Python 3.13, ubuntu-latest)",
+             "Test (Python 3.14, ubuntu-latest)", "Test (Python 3.12, macos-latest)",
+             "Test (Python 3.13, macos-latest)", "Test (Python 3.14, macos-latest)",
+             "Offline parser fuzzing", "build-and-test", "bandit", "DCO",
+             "CodeQL", "SonarCloud Code Analysis", "code/snyk (thomasvincent)",
+             "CodeRabbit", "Gitar"] |
+            all(.[]; . as $name | $required | index($name) != null)
+          ' "$RUNNER_TEMP/branch-rules.json" >/dev/null; then
+            echo "Auto-merge requires CI and security checks in main branch rules." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          gh pr merge --auto --squash "$PR_URL"
