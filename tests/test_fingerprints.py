@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+
 """Fingerprint parsers and probes, driven by bytes captured from the lab."""
 
 import asyncio

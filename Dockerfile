@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025-2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+# SPDX-FileContributor: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com> (automated contribution)
+
 # Python 3.14 slim-bookworm, pinned by digest.
 FROM python@sha256:48b13b003dda20b16f9442b8475aa05fe21bf6579a8c881db92ffb4d8fd20f83 AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.12.23@sha256:61d393e44e249f2e4b526b6c7ddcecce245946826e608e11c93ad4f5bba55b21 /uv /usr/local/bin/uv

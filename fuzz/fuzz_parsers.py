@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+
 """Bounded, offline fuzzing of untrusted service responses; no sockets or secrets."""
 
 from __future__ import annotations

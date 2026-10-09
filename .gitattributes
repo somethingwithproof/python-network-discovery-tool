@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+
 # Captured protocol bytes; line-ending conversion would corrupt them.
 tests/fixtures/*.bin binary
 tests/fixtures/*.der binary

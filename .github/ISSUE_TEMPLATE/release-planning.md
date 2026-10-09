@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025-2026 Thomas Vincent <thomasvincent@gmail.com>
+SPDX-License-Identifier: MIT
+-->
+
 ---
 name: Release Planning
 about: Plan a new release of the Network Discovery Tool

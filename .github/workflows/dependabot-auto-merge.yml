@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025-2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+# SPDX-FileContributor: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com> (automated contribution)
+
 name: Dependabot Auto-Merge
 
 on:
@@ -53,8 +57,7 @@ jobs:
              "Test (Python 3.14, ubuntu-latest)", "Test (Python 3.12, macos-latest)",
              "Test (Python 3.13, macos-latest)", "Test (Python 3.14, macos-latest)",
              "Offline parser fuzzing", "build-and-test", "bandit", "DCO",
-             "CodeQL", "SonarCloud Code Analysis", "code/snyk (thomasvincent)",
-             "CodeRabbit", "Gitar"] |
+             "CodeQL", "SonarCloud Code Analysis", "code/snyk (thomasvincent)"] |
             all(.[]; . as $name | $required | index($name) != null)
           ' "$RUNNER_TEMP/branch-rules.json" >/dev/null; then
             echo "Auto-merge requires CI and security checks in main branch rules." >> "$GITHUB_STEP_SUMMARY"

@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+SPDX-License-Identifier: MIT
+-->
+
 # Versioning and releases
 
 netprobe follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The

@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2016-2026 Thomas Vincent <thomasvincent@gmail.com>
+SPDX-License-Identifier: MIT
+-->
+
 # netprobe
 
 [![CI](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/ci.yml)
@@ -373,3 +378,7 @@ data-format contracts, and pass the quality checks above. See
 
 See [SECURITY.md](SECURITY.md) for private reporting and supported versions.
 netprobe is licensed under the [MIT License](LICENSE).
+
+Source headers use SPDX identifiers and preserve contributor credits from Git
+history. See [AUTHORS.md](AUTHORS.md) for attribution. Binary test captures and the
+generated lockfile use adjacent `.license` files; MIT text is in `LICENSES/MIT.txt`.
