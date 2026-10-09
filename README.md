@@ -345,6 +345,10 @@ OpenSSH, MariaDB, nginx and net-snmp on an isolated bridge. Run it with
 `make test-integration`. See [CONTRIBUTING.md](CONTRIBUTING.md) and
 [release tooling](scripts/README.md).
 
+The runtime container runs as UID 10001 and can write to `/app/output`.
+Give that user write access to any mounted output directory. Nmap uses its
+unprivileged TCP discovery behavior in this container.
+
 ## Supply-chain checks
 
 [OpenSSF Scorecard](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)

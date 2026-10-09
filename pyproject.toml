@@ -55,6 +55,9 @@ dev = [
     "twine>=6.2.0",
 ]
 
+[dependency-groups]
+build = ["hatchling>=1.27.0", "setuptools>=80.9.0", "wheel>=0.46.0"]
+
 [project.scripts]
 netprobe = "netprobe.cli:app"
 
