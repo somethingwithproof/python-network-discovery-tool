@@ -62,9 +62,9 @@ build = ["hatchling>=1.27.0", "setuptools>=80.9.0", "wheel>=0.46.0"]
 netprobe = "netprobe.cli:app"
 
 [project.urls]
-Homepage = "https://github.com/thomasvincent/python-network-discovery-tool"
-Repository = "https://github.com/thomasvincent/python-network-discovery-tool"
-Issues = "https://github.com/thomasvincent/python-network-discovery-tool/issues"
+Homepage = "https://github.com/somethingwithproof/python-network-discovery-tool"
+Repository = "https://github.com/somethingwithproof/python-network-discovery-tool"
+Issues = "https://github.com/somethingwithproof/python-network-discovery-tool/issues"
 
 [tool.ruff]
 # Modern all-in-one linter (replaces black, isort, flake8, pylint)
