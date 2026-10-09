@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+
 """Scans of the docker compose lab in tests/integration/compose.yml.
 
 These run only inside the lab's tester container (NETPROBE_LAB=1), and only

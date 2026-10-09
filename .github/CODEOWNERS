@@ -1,25 +1,28 @@
+# SPDX-FileCopyrightText: 2025-2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+
 # Global code ownership - Thomas Vincent owns all code
-* @thomasvincent
+* @somethingwithproof
 
 # Python-specific files
-*.py @thomasvincent
-requirements.txt @thomasvincent
-setup.py @thomasvincent
-pyproject.toml @thomasvincent
+*.py @somethingwithproof
+requirements.txt @somethingwithproof
+setup.py @somethingwithproof
+pyproject.toml @somethingwithproof
 
 # Configuration files
-.github/ @thomasvincent
-.pre-commit-config.yaml @thomasvincent
-Makefile @thomasvincent
+.github/ @somethingwithproof
+.pre-commit-config.yaml @somethingwithproof
+Makefile @somethingwithproof
 
 # Docker files
-Dockerfile @thomasvincent
-.dockerignore @thomasvincent
+Dockerfile @somethingwithproof
+.dockerignore @somethingwithproof
 
 # CI/CD and automation
-.github/workflows/ @thomasvincent
-.github/dependabot.yml @thomasvincent
+.github/workflows/ @somethingwithproof
+.github/dependabot.yml @somethingwithproof
 
 # Documentation
-README.md @thomasvincent
-*.md @thomasvincent
+README.md @somethingwithproof
+*.md @somethingwithproof

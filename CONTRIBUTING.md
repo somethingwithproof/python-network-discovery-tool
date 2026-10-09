@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2016-2026 Thomas Vincent <thomasvincent@gmail.com>
+SPDX-License-Identifier: MIT
+-->
+
 # Contributing to Network Discovery Tool
 
 Contributions are welcome, and they are greatly appreciated! Every little bit helps, and credit will always be given.
@@ -82,3 +87,10 @@ See [Dependency maintenance](docs/dependency-maintenance.md) for update groups,
 lockfiles, and auto-merge gates. Pin Actions to immutable commit SHAs, scope token
 permissions to the job that needs them, and select runtime tools through mise.
 The `Workflow lint` check runs actionlint on pull requests and main commits.
+
+Use SPDX copyright, contributor, and license tags in file headers. Preserve
+existing credits and add contributors supported by the file's history. Binary
+fixtures and generated files use adjacent `.license` files. Run
+`mise exec python@3.14 -- uv tool run --from 'reuse[charset-normalizer]==6.2.0' reuse lint`
+to validate licensing; `Workflow lint` also validates REUSE compliance in CI.
+See [AUTHORS.md](AUTHORS.md) for current attribution.

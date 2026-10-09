@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+
 """Record raw protocol bytes from the integration lab for parser tests.
 
 Run inside the lab network, e.g.:

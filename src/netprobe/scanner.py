@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+
 """Host discovery and service checks.
 
 The default backend uses plain asyncio sockets: TCP connects and an SNMPv3

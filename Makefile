@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2016-2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+
 .PHONY: install test lint lab-up lab-down test-integration demo clean
 
 LAB = docker compose -f tests/integration/compose.yml --profile tester

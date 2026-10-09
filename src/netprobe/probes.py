@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+
 """Service probes: reachability plus a read-only fingerprint of what answers.
 
 Every probe stops at what a server volunteers before authentication: the SSH

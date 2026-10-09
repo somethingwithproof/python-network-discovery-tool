@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+
 import pytest
 
 from netprobe.config import DEFAULT_SERVICES, ConfigError, load_services, select_services

@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+SPDX-License-Identifier: MIT
+-->
+
 # Dependency maintenance
 
 Dependabot maintains `pyproject.toml` and `uv.lock` through the native `uv`
@@ -22,6 +27,10 @@ The main-branch rules should require all supported Python matrix jobs, lint,
 typing, integration, parser fuzzing, Docker smoke tests, Bandit, CodeQL, SonarCloud,
 and configured external security checks. Maintain required check names when
 renaming jobs. A failed external service remains a merge blocker.
+
+Required gates cover executable CI and security scans. Optional review services
+can report on human PRs and may skip Dependabot PRs; their absence does not prevent
+dependency maintenance. Review any findings they do report before merging.
 
 The inline lab images in `tests/integration/compose.yml` and runtime tool versions
 embedded in mise configuration need explicit maintainer updates; the root Docker

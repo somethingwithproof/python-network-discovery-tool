@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+
 # Lab network for integration tests. Everything stays on a private bridge;
 # the tester container scans only this subnet.
 name: netprobe-it

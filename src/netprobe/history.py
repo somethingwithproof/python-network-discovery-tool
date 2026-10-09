@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+
 """Opt-in SQLite inventory snapshots and comparisons that preserve uncertainty."""
 
 from __future__ import annotations

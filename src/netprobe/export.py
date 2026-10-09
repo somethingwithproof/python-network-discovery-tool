@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+
 """Kadupul import script: one `php cli/add_device.php` call per discovered host.
 
 Kadupul (a fork of Cacti 1.2.31) has no bulk device file import; its

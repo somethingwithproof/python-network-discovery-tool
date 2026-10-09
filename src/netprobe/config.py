@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+
 """Service definitions: built-in defaults, TOML config and CLI selection."""
 
 from __future__ import annotations

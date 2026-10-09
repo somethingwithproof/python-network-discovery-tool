@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025-2026 Thomas Vincent <thomasvincent@gmail.com>
+SPDX-License-Identifier: MIT
+-->
+
 # Release process
 
 The current process is documented in [Versioning and releases](releasing.md).

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2025-2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+
 """Local socket fixtures. Every test server binds to 127.0.0.1 only."""
 
 from __future__ import annotations
