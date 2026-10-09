@@ -6,6 +6,8 @@
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
 [![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
 [![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
 
 netprobe is a Python CLI for repeatable service inventory on networks you administer.
@@ -162,7 +164,7 @@ Each open service is fingerprinted from what it sends before any login. Nothing 
 | `https` | TLS handshake, certificate, `HEAD /` | `Server` header | `tls_version`, `cert_verified`, `cert_verify_error`, `cert_subject`, `cert_issuer`, `cert_sans`, `cert_not_before`, `cert_not_after` (UTC ISO 8601), `cert_self_signed`, `status`, `server` |
 | `snmp` | SNMPv3 discovery; with credentials, GET of sysDescr, sysObjectID, sysName | sysDescr | `engine_id`; with credentials `snmp_version`, `sys_descr`, `sys_object_id`, `sys_name`, or `snmp_error` |
 
-HTTPS certificates are verified first, against the system store or `--tls-ca-file`. If verification fails, the failure is recorded in `cert_verified: false` and `cert_verify_error`, and the certificate is then read over an unverified connection so it can still be inventoried; such results carry `cert_read_unverified: true`. Nothing is sent over that connection except the `HEAD` request.
+HTTPS uses certificate and hostname verification against the system store or `--tls-ca-file`. If verification fails, the result records `cert_verified: false` and `cert_verify_error`; it does not retry with weaker settings or send an HTTP request. Certificate details and HTTP headers are collected only after verification succeeds. Supply the correct CA bundle for private-CA services. Older reports may contain `cert_read_unverified`, which current probes no longer produce.
 
 SNMP credentials are read from options or environment variables. Prefer the environment variables: command-line values are visible to other local users in the process list. Scan reports and history do not intentionally include credential values. The exporter has a separate, explicit `--include-credentials` option described below. A community selects SNMPv2c; a user selects SNMPv3, with authentication when an auth key is given and privacy when both keys are given (`snmp_security_level` records which). netprobe refuses, with exit code 2, to combine a community with a v3 user, to use a privacy key without an auth key, or to use keys without a user, and it never retries a failed v3 query with v2c or a lower security level. Passing a secret as an option logs a warning naming the matching environment variable. Agents that only speak v1/v2c ignore the credential-free v3 discovery, so they show as open only when a community is supplied.
 
@@ -343,6 +345,19 @@ OpenSSH, MariaDB, nginx and net-snmp on an isolated bridge. Run it with
 `make test-integration`. See [CONTRIBUTING.md](CONTRIBUTING.md) and
 [release tooling](scripts/README.md).
 
+## Supply-chain checks
+
+[OpenSSF Scorecard](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
+runs on main and weekly, publishes its real score, and uploads findings to GitHub
+code scanning. Actions and container bases are pinned by immutable hashes; Python
+dependencies are resolved in `uv.lock`. Bandit failures fail CI, and bounded Atheris
+fuzzing exercises protocol parsers without network access.
+
+Scorecard also measures historical review activity, contributor diversity, and
+release provenance. Those scores reflect actual evidence; they are not claims
+that every governance or historical-release check is satisfied. See
+[SECURITY.md](SECURITY.md) and [release provenance](docs/releasing.md).
+
 ## Contributing
 
 Contributions should include a reproducible case, preserve the documented CLI and
@@ -352,4 +367,5 @@ data-format contracts, and pass the quality checks above. See
 
 ## Security and license status
 
-See [SECURITY.md](SECURITY.md). Package metadata declares MIT, but this checkout has no `LICENSE` file. Confirm the intended license grant before redistribution.
+See [SECURITY.md](SECURITY.md) for private reporting and supported versions.
+netprobe is licensed under the [MIT License](LICENSE).

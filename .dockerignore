@@ -43,3 +43,12 @@ Dockerfile
 # Project specific
 output/
 devices.json
+
+# Local tooling, credentials, and virtual environments
+.venv/
+.env
+.env.*
+.codex/
+.agents/
+netprobe.toml
+netprobe-history.sqlite3*

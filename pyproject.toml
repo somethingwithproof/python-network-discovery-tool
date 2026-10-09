@@ -36,6 +36,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+fuzz = [
+    "atheris>=3.1.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
 nmap = [
     "python-nmap>=0.7.1",
 ]
@@ -48,6 +51,7 @@ dev = [
     "mypy>=1.19.1",
     "hatchling>=1.27.0",
     "installer>=0.7.0",
+    "bandit>=1.8.0",
     "twine>=6.2.0",
 ]
 

@@ -120,14 +120,14 @@ def clean(raw: bytes | str, limit: int = MAX_TEXT) -> str:
 
 
 async def _open(
-    host: str, port: int, timeout: float, tls: ssl.SSLContext | None = None
+    host: str, port: int, timeout_seconds: float, tls: ssl.SSLContext | None = None
 ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter] | PortState:
     """Connect, returning the streams, or the port state when the connect fails.
 
     TLS errors propagate so the HTTPS probe can tell them apart.
     """
     try:
-        async with asyncio.timeout(timeout):
+        async with asyncio.timeout(timeout_seconds):
             return await asyncio.open_connection(
                 host, port, ssl=tls, server_hostname=host if tls else None, limit=MAX_LINE_BYTES
             )
@@ -135,24 +135,24 @@ async def _open(
         return "closed"
     except ssl.SSLError:
         raise
-    except (TimeoutError, OSError):
+    except OSError:
         return "filtered"
 
 
 async def _close(writer: asyncio.StreamWriter) -> None:
     writer.close()
-    with contextlib.suppress(OSError, ssl.SSLError, TimeoutError):
+    with contextlib.suppress(OSError):
         async with asyncio.timeout(1):
             await writer.wait_closed()
 
 
-async def tcp_state(host: str, port: int, timeout: float) -> PortState:
+async def tcp_state(host: str, port: int, timeout_seconds: float) -> PortState:
     """Classify a TCP port by attempting a full connect.
 
     A refused connection still proves the host is up, which is why "closed"
     is kept apart from "filtered" (no answer before the timeout).
     """
-    streams = await _open(host, port, timeout)
+    streams = await _open(host, port, timeout_seconds)
     if isinstance(streams, str):
         return streams
     await _close(streams[1])
@@ -186,7 +186,7 @@ async def ssh_probe(host: str, port: int, ctx: ProbeContext) -> ProbeResult:
                 details = parse_ssh_banner(await reader.readline())
                 if details:
                     break
-    except (TimeoutError, OSError, ValueError) as e:
+    except (OSError, ValueError) as e:
         details = {"error": f"no banner: {clean(str(e)) or type(e).__name__}"}
     finally:
         await _close(writer)
@@ -268,7 +268,7 @@ def parse_http_head(raw: bytes) -> Details:
 
 
 async def _http_exchange(
-    reader: asyncio.StreamReader, writer: asyncio.StreamWriter, host: str, timeout: float
+    reader: asyncio.StreamReader, writer: asyncio.StreamWriter, host: str, timeout_seconds: float
 ) -> Details:
     writer.write(
         b"HEAD / HTTP/1.0\r\nHost: "
@@ -276,10 +276,10 @@ async def _http_exchange(
         + b"\r\nUser-Agent: netprobe\r\nConnection: close\r\n\r\n"
     )
     try:
-        async with asyncio.timeout(timeout):
+        async with asyncio.timeout(timeout_seconds):
             await writer.drain()
             raw = await reader.read(MAX_HEADER_BYTES)
-    except (TimeoutError, OSError, ssl.SSLError) as e:
+    except OSError as e:
         return {"error": f"no response: {clean(str(e)) or type(e).__name__}"}
     if not raw:
         return {"error": "no response: connection closed"}
@@ -320,32 +320,25 @@ def parse_certificate(der: bytes) -> Details:
     }
 
 
-def _tls_contexts(ca_file: str | None) -> tuple[ssl.SSLContext, ssl.SSLContext]:
-    verified = ssl.create_default_context(cafile=ca_file)
-    # Only used after verification has failed and that failure is recorded, so
-    # an untrusted certificate can still be inventoried.
-    unverified = ssl.create_default_context()
-    unverified.check_hostname = False
-    unverified.verify_mode = ssl.CERT_NONE
-    return verified, unverified
+def _tls_context(ca_file: str | None) -> ssl.SSLContext:
+    """Authenticate TLS before collecting application or certificate observations."""
+    return ssl.create_default_context(cafile=ca_file)
 
 
 async def https_probe(host: str, port: int, ctx: ProbeContext) -> ProbeResult:
-    verified_ctx, unverified_ctx = _tls_contexts(ctx.tls_ca_file)
+    verified_ctx = _tls_context(ctx.tls_ca_file)
     details: Details = {"cert_verified": True}
     try:
         streams = await _open(host, port, ctx.timeout, verified_ctx)
     except ssl.SSLCertVerificationError as e:
-        details = {
-            "cert_verified": False,
-            "cert_verify_error": clean(e.verify_message or str(e)),
-            # Everything below came over a connection that skipped verification.
-            "cert_read_unverified": True,
-        }
-        try:
-            streams = await _open(host, port, ctx.timeout, unverified_ctx)
-        except ssl.SSLError as retry_error:
-            return ProbeResult("open", "", {**details, "tls_error": clean(str(retry_error))})
+        return ProbeResult(
+            "open",
+            "",
+            {
+                "cert_verified": False,
+                "cert_verify_error": clean(e.verify_message or str(e)),
+            },
+        )
     except ssl.SSLError as e:
         # Something listens but does not complete a TLS handshake.
         return ProbeResult("open", "", {"tls_error": clean(str(e))})
@@ -386,7 +379,9 @@ class _OneDatagram(asyncio.DatagramProtocol):
             self.reply.set_exception(exc)
 
 
-async def udp_exchange(host: str, port: int, payload: bytes, timeout: float) -> bytes | None:
+async def udp_exchange(
+    host: str, port: int, payload: bytes, timeout_seconds: float
+) -> bytes | None:
     """Send one datagram and return the first reply.
 
     Raises ConnectionRefusedError when the host answers with ICMP
@@ -398,7 +393,7 @@ async def udp_exchange(host: str, port: int, payload: bytes, timeout: float) -> 
     )
     try:
         transport.sendto(payload)
-        async with asyncio.timeout(timeout):
+        async with asyncio.timeout(timeout_seconds):
             return await protocol.reply
     except TimeoutError:
         return None
@@ -447,10 +442,12 @@ def snmp_engine_id(message: bytes) -> str | None:
     return engine_id.hex()
 
 
-async def snmp_discover(host: str, port: int, timeout: float) -> tuple[PortState, str | None]:
+async def snmp_discover(
+    host: str, port: int, timeout_seconds: float
+) -> tuple[PortState, str | None]:
     """Send an unauthenticated SNMPv3 discovery request; return state and engine ID."""
     try:
-        reply = await udp_exchange(host, port, SNMPV3_DISCOVERY, timeout)
+        reply = await udp_exchange(host, port, SNMPV3_DISCOVERY, timeout_seconds)
     except ConnectionRefusedError:
         return "closed", None
     except OSError as e:
@@ -461,7 +458,7 @@ async def snmp_discover(host: str, port: int, timeout: float) -> tuple[PortState
 
 
 async def snmp_system(
-    host: str, port: int, creds: SnmpCredentials, timeout: float
+    host: str, port: int, creds: SnmpCredentials, timeout_seconds: float
 ) -> dict[str, str]:
     """GET sysDescr, sysObjectID and sysName. Raises RuntimeError on any SNMP error."""
     # Imported here: pysnmp loads its MIB machinery on import, which slows
@@ -502,7 +499,9 @@ async def snmp_system(
 
     engine = hlapi.SnmpEngine()
     try:
-        target = await hlapi.UdpTransportTarget.create((host, port), timeout=timeout, retries=0)
+        target = await hlapi.UdpTransportTarget.create(
+            (host, port), timeout=timeout_seconds, retries=0
+        )
         error, status, _, binds = await hlapi.get_cmd(
             engine,
             auth,

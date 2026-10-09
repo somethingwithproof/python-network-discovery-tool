@@ -88,25 +88,7 @@ def load_profiles(path: Path) -> dict[str, Profile]:
 def resolve_profile(
     network: str | None, config: Path | None, name: str | None, overrides: ProfileSettings
 ) -> ProfileSettings:
-    settings: ProfileSettings = {}
-    if name is not None:
-        if config is None:
-            raise ConfigError("select a profile configuration with --config")
-        available = load_profiles(config)
-        if name not in available:
-            raise ConfigError(f"unknown profile {name!r}; available: {', '.join(available)}")
-        settings = asdict(available[name])
-        if network is not None:
-            try:
-                requested = ipaddress.ip_network(network, strict=False)
-                approved = ipaddress.ip_network(settings["network"])
-            except ValueError as exc:
-                raise ConfigError("profile target override must be an IP or CIDR") from exc
-            if requested.version != approved.version or (
-                requested.network_address not in approved
-                or requested.broadcast_address not in approved
-            ):
-                raise ConfigError("target must be contained in the profile network")
+    settings = selected_profile(config, name, network) if name is not None else {}
     if network is not None:
         settings["network"] = network
     if "network" not in settings:
@@ -115,3 +97,27 @@ def resolve_profile(
         if value is not None:
             settings[key] = settings.get(key, []) + value if key == "exclusions" else value
     return settings
+
+
+def selected_profile(config: Path | None, name: str, network: str | None) -> ProfileSettings:
+    if config is None:
+        raise ConfigError("select a profile configuration with --config")
+    available = load_profiles(config)
+    if name not in available:
+        raise ConfigError(f"unknown profile {name!r}; available: {', '.join(available)}")
+    settings = asdict(available[name])
+    if network is not None:
+        validate_profile_target(network, settings["network"])
+    return settings
+
+
+def validate_profile_target(network: str, scope: str) -> None:
+    try:
+        requested = ipaddress.ip_network(network, strict=False)
+        approved = ipaddress.ip_network(scope)
+    except ValueError as exc:
+        raise ConfigError("profile target override must be an IP or CIDR") from exc
+    if requested.version != approved.version or (
+        requested.network_address not in approved or requested.broadcast_address not in approved
+    ):
+        raise ConfigError("target must be contained in the profile network")

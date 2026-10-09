@@ -92,44 +92,12 @@ def check_plan(
         {"check": "targets", "status": "ok", "detail": f"{len(targets)} hosts after exclusions"}
     ]
     if backend == "nmap":
-        executable = shutil.which("nmap")
-        if executable is None or importlib.util.find_spec("nmap") is None:
-            checks.append(
-                {
-                    "check": "nmap",
-                    "status": "error",
-                    "detail": "nmap backend requires the executable and python-nmap extra",
-                }
-            )
-        else:
-            try:
-                version = nmap_version(executable)
-                checks.append({"check": "nmap", "status": "ok", "detail": version[:200]})
-            except (OSError, ValueError, TimeoutError) as exc:
-                checks.append({"check": "nmap", "status": "error", "detail": str(exc)})
-    for path in destinations:
-        try:
-            check_writable_path(path)
-            checks.append({"check": str(path), "status": "ok", "detail": "Destination writable"})
-        except ValueError as exc:
-            checks.append(
-                {
-                    "check": str(path),
-                    "status": "error",
-                    "detail": f"cannot write destination: {exc}",
-                }
-            )
+        checks.append(check_nmap())
+    checks.extend(check_destination(path) for path in destinations)
     if history is not None:
-        try:
-            HistoryStore(history).validate_existing()
-        except (ValueError, sqlite3.Error) as exc:
-            checks.append({"check": "history schema", "status": "error", "detail": str(exc)})
+        checks.extend(check_history(history))
     if tls_ca_file is not None:
-        try:
-            ssl.create_default_context(cafile=str(tls_ca_file))
-            checks.append({"check": "TLS CA", "status": "ok", "detail": "CA bundle readable"})
-        except (OSError, ValueError) as exc:
-            checks.append({"check": "TLS CA", "status": "error", "detail": str(exc)})
+        checks.append(check_ca(tls_ca_file))
     return {
         "target": network,
         "host_count": len(targets),
@@ -137,3 +105,42 @@ def check_plan(
         "backend": backend,
         "checks": checks,
     }
+
+
+def check_nmap() -> Check:
+    executable = shutil.which("nmap")
+    if executable is None or importlib.util.find_spec("nmap") is None:
+        return {
+            "check": "nmap",
+            "status": "error",
+            "detail": "nmap backend requires the executable and python-nmap extra",
+        }
+    try:
+        version = nmap_version(executable)
+        return {"check": "nmap", "status": "ok", "detail": version[:200]}
+    except (OSError, ValueError) as exc:
+        return {"check": "nmap", "status": "error", "detail": str(exc)}
+
+
+def check_destination(path: Path) -> Check:
+    try:
+        check_writable_path(path)
+        return {"check": str(path), "status": "ok", "detail": "Destination writable"}
+    except ValueError as exc:
+        return {"check": str(path), "status": "error", "detail": f"cannot write destination: {exc}"}
+
+
+def check_history(path: Path) -> list[Check]:
+    try:
+        HistoryStore(path).validate_existing()
+        return []
+    except (ValueError, sqlite3.Error) as exc:
+        return [{"check": "history schema", "status": "error", "detail": str(exc)}]
+
+
+def check_ca(path: Path) -> Check:
+    try:
+        ssl.create_default_context(cafile=str(path))
+        return {"check": "TLS CA", "status": "ok", "detail": "CA bundle readable"}
+    except (OSError, ValueError) as exc:
+        return {"check": "TLS CA", "status": "error", "detail": str(exc)}

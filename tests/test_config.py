@@ -39,7 +39,8 @@ def test_config_adds_and_overrides(tmp_path):
     )
     services = {s.name: s for s in load_services(path)}
 
-    assert services["ssh"].port == 2222 and services["ssh"].probe == "ssh"
+    assert services["ssh"].port == 2222
+    assert services["ssh"].probe == "ssh"
     assert (services["admin-ui"].port, services["admin-ui"].probe) == (8443, "https")
     assert services["snmp-alt"].protocol == "udp"
     assert services["mysql"].port == 3306
@@ -64,8 +65,9 @@ def test_config_without_services_table_keeps_defaults(tmp_path):
     ],
 )
 def test_config_errors(tmp_path, text, message):
+    prepared_argument_0 = write(tmp_path, text)
     with pytest.raises(ConfigError, match=message):
-        load_services(write(tmp_path, text))
+        load_services(prepared_argument_0)
 
 
 def test_missing_config_file(tmp_path):
@@ -114,5 +116,6 @@ def test_too_many_services_from_ports():
 
 def test_too_many_services_from_config(tmp_path):
     text = "".join(f"[services.s{i}]\nport = {1000 + i}\n" for i in range(70))
+    prepared_argument_0 = write(tmp_path, text)
     with pytest.raises(ConfigError, match="max 64"):
-        load_services(write(tmp_path, text))
+        load_services(prepared_argument_0)

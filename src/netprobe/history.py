@@ -19,6 +19,9 @@ type SnapshotRow = tuple[Any, ...]
 
 HISTORY_APPLICATION_ID = 0x4E505242
 HISTORY_SCHEMA_VERSION = 1
+SUMMARY_ERROR = "Invalid snapshot summary"
+PORT_ERROR = "Invalid snapshot port selection"
+OBSERVATION_ERROR = "Invalid snapshot observations"
 
 
 def check_writable_path(path: Path) -> None:
@@ -121,20 +124,7 @@ class HistoryStore:
             metadata = json.loads(raw_metadata)
             if not isinstance(metadata, dict) or metadata.get("schema_version") != 1:
                 raise ValueError("Unsupported snapshot metadata schema")
-            summary = metadata.get("summary", {})
-            if not isinstance(summary, dict) or set(summary) != {
-                "hosts",
-                "responsive",
-                "hosts_with_errors",
-            }:
-                raise ValueError("Invalid snapshot summary")
-            if any(type(count) is not int or count < 0 for count in summary.values()):
-                raise ValueError("Invalid snapshot summary")
-            if (
-                summary["responsive"] > summary["hosts"]
-                or summary["hosts_with_errors"] > summary["hosts"]
-            ):
-                raise ValueError("Invalid snapshot summary")
+            summary = validate_summary(metadata)
             summaries.append(
                 {
                     "id": scan_id,
@@ -162,51 +152,12 @@ class HistoryStore:
         metadata, devices = json.loads(row[3]), json.loads(row[4])
         if not isinstance(metadata, dict) or metadata.get("schema_version") != 1:
             raise ValueError("Unsupported snapshot metadata schema")
-        ports = metadata.get("ports")
-        if not isinstance(ports, list) or not ports or len(ports) != len(set(ports)):
-            raise ValueError("Invalid snapshot port selection")
-        for port in ports:
-            if not isinstance(port, str):
-                raise ValueError("Invalid snapshot port selection")
-            number, separator, protocol = port.partition("/")
-            if (
-                not separator
-                or not number.isdecimal()
-                or not 1 <= int(number) <= 65535
-                or protocol not in ("tcp", "udp")
-                or number != str(int(number))
-            ):
-                raise ValueError("Invalid snapshot port selection")
+        ports = validate_ports(metadata)
         if not isinstance(devices, list):
-            raise ValueError("Invalid snapshot observations")
-        seen = set()
-        states = {
-            "open",
-            "closed",
-            "filtered",
-            "unfiltered",
-            "open|filtered",
-            "closed|filtered",
-            "unknown",
-        }
+            raise ValueError(OBSERVATION_ERROR)
+        seen: set[str] = set()
         for device in devices:
-            if not isinstance(device, dict):
-                raise ValueError("Invalid snapshot observations")
-            ip = device.get("ip")
-            if not isinstance(ip, str) or "%" in ip or validate_target(ip) != ip or ip in seen:
-                raise ValueError("Snapshot contains invalid or duplicate IP addresses")
-            seen.add(ip)
-            errors, observed = device.get("errors"), device.get("port_states")
-            if (
-                type(device.get("alive")) is not bool
-                or device.get("status") not in ("up", "unknown", "error", "unresponsive")
-                or not isinstance(errors, list)
-                or any(not isinstance(error, str) for error in errors)
-                or not isinstance(observed, dict)
-                or not set(observed).issubset(ports)
-                or any(state not in states for state in observed.values())
-            ):
-                raise ValueError("Invalid snapshot observations")
+            validate_observation(device, ports, seen)
         return {
             "id": row[0],
             "started_at": row[1],
@@ -237,27 +188,8 @@ def compare_scans(before: JSONDocument, after: JSONDocument) -> JSONDocument:
         "status_changes": [],
         "port_changes": [],
     }
-    for ip in sorted(
-        old,
-        key=host_sort_key,
-    ):
-        previous, current = old[ip], new[ip]
-        if previous["status"] != current["status"]:
-            report["status_changes"].append(
-                {"ip": ip, "before": previous["status"], "after": current["status"]}
-            )
-        if previous["errors"] or current["errors"]:
-            report["uncertain_hosts"].append(ip)
-        if not previous["alive"] and current["alive"] and previous["status"] == "unresponsive":
-            report["newly_responsive"].append(ip)
-        if previous["alive"] and not current["alive"] and current["status"] == "unresponsive":
-            report["no_longer_responding"].append(ip)
-        for port in sorted(previous["port_states"].keys() & current["port_states"].keys()):
-            old_state, new_state = previous["port_states"][port], current["port_states"][port]
-            if old_state != new_state and "unknown" not in (old_state, new_state):
-                report["port_changes"].append(
-                    {"ip": ip, "port": port, "before": old_state, "after": new_state}
-                )
+    for ip in sorted(old, key=host_sort_key):
+        compare_host_observations(report, ip, old[ip], new[ip])
     return report
 
 
@@ -267,3 +199,87 @@ def host_sort_key(value: str) -> tuple[int, int, str]:
         return address.version, int(address), ""
     except ValueError:
         return 99, 0, value
+
+
+def validate_summary(metadata: JSONDocument) -> JSONDocument:
+    summary = metadata.get("summary", {})
+    if not isinstance(summary, dict) or set(summary) != {
+        "hosts",
+        "responsive",
+        "hosts_with_errors",
+    }:
+        raise ValueError(SUMMARY_ERROR)
+    if any(type(count) is not int or count < 0 for count in summary.values()):
+        raise ValueError(SUMMARY_ERROR)
+    if summary["responsive"] > summary["hosts"] or summary["hosts_with_errors"] > summary["hosts"]:
+        raise ValueError(SUMMARY_ERROR)
+    return summary
+
+
+def validate_ports(metadata: JSONDocument) -> list[str]:
+    ports = metadata.get("ports")
+    if not isinstance(ports, list) or not ports or len(ports) != len(set(ports)):
+        raise ValueError(PORT_ERROR)
+    for port in ports:
+        if not isinstance(port, str):
+            raise ValueError(PORT_ERROR)
+        number, separator, protocol = port.partition("/")
+        if (
+            not separator
+            or not number.isdecimal()
+            or not 1 <= int(number) <= 65535
+            or protocol not in ("tcp", "udp")
+            or number != str(int(number))
+        ):
+            raise ValueError(PORT_ERROR)
+    return ports
+
+
+def validate_observation(device: Any, ports: list[str], seen: set[str]) -> None:
+    states = {
+        "open",
+        "closed",
+        "filtered",
+        "unfiltered",
+        "open|filtered",
+        "closed|filtered",
+        "unknown",
+    }
+    if not isinstance(device, dict):
+        raise ValueError(OBSERVATION_ERROR)
+    ip = device.get("ip")
+    if not isinstance(ip, str) or "%" in ip or validate_target(ip) != ip or ip in seen:
+        raise ValueError("Snapshot contains invalid or duplicate IP addresses")
+    seen.add(ip)
+    errors, observed = device.get("errors"), device.get("port_states")
+    if (
+        type(device.get("alive")) is not bool
+        or device.get("status") not in ("up", "unknown", "error", "unresponsive")
+        or not isinstance(errors, list)
+        or any(not isinstance(error, str) for error in errors)
+        or not isinstance(observed, dict)
+        or not set(observed).issubset(ports)
+        or any(state not in states for state in observed.values())
+    ):
+        raise ValueError(OBSERVATION_ERROR)
+
+
+def compare_host_observations(
+    report: JSONDocument, ip: str, previous: JSONDocument, current: JSONDocument
+) -> None:
+    if previous["status"] != current["status"]:
+        report["status_changes"].append(
+            {"ip": ip, "before": previous["status"], "after": current["status"]}
+        )
+    if previous["errors"] or current["errors"]:
+        report["uncertain_hosts"].append(ip)
+    if not previous["alive"] and current["alive"] and previous["status"] == "unresponsive":
+        report["newly_responsive"].append(ip)
+    if previous["alive"] and not current["alive"] and current["status"] == "unresponsive":
+        report["no_longer_responding"].append(ip)
+    for port in sorted(previous["port_states"].keys() & current["port_states"].keys()):
+        old_state, new_state = previous["port_states"][port], current["port_states"][port]
+        if old_state != new_state and "unknown" not in (old_state, new_state):
+            report["port_changes"].append(
+                {"ip": ip, "port": port, "before": old_state, "after": new_state}
+            )

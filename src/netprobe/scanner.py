@@ -42,6 +42,7 @@ MAX_PROBES = 524288
 # ceiling in units of --timeout, so no single probe can stall a scan.
 PROBE_BUDGET = 4
 HOSTNAME_TIMEOUT = 2.0
+SCOPE_ERROR = "IPv6 scope identifiers are not supported"
 
 
 _HOSTNAME_LABEL = re.compile(r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$")
@@ -59,7 +60,7 @@ def validate_target(target: str) -> str:
     rejected for every backend.
     """
     if "%" in target:
-        raise ValueError("IPv6 scope identifiers are not supported")
+        raise ValueError(SCOPE_ERROR)
     try:
         return str(ipaddress.ip_address(target))
     except ValueError:
@@ -84,7 +85,7 @@ def expand_targets(
         if type(max_hosts) is not int or not 1 <= max_hosts <= MAX_HOSTS:
             raise ValueError(f"host limit must be from 1 to {MAX_HOSTS}")
         if "%" in network:
-            raise ValueError("IPv6 scope identifiers are not supported")
+            raise ValueError(SCOPE_ERROR)
         if "/" in network:
             net = ipaddress.ip_network(network, strict=False)
             if net.num_addresses > max_hosts:
@@ -97,7 +98,7 @@ def expand_targets(
         blocked = []
         for value in exclusions:
             if "%" in value:
-                raise ValueError("IPv6 scope identifiers are not supported")
+                raise ValueError(SCOPE_ERROR)
             blocked.append(ipaddress.ip_network(value, strict=False))
         if blocked:
             try:
@@ -164,7 +165,7 @@ async def resolve_hostname(ip: str) -> str:
     try:
         async with asyncio.timeout(HOSTNAME_TIMEOUT):
             name, _, _ = await asyncio.to_thread(socket.gethostbyaddr, ip)
-    except (TimeoutError, OSError) as e:
+    except OSError as e:
         logger.debug(f"Could not resolve hostname for {ip}: {e}")
         return ""
     return name
@@ -248,7 +249,9 @@ class NetworkScanner:
             )
 
         async with asyncio.TaskGroup() as tg:
-            tasks = [tg.create_task(run(spec)) for spec in self.services]
+            tasks = []
+            for spec in self.services:
+                tasks.append(tg.create_task(run(spec)))
 
         device.services = [t.result() for t in tasks]
         open_names = {s.name for s in device.open_services}
@@ -296,10 +299,7 @@ class NetworkScanner:
 
         async def worker() -> None:
             for index, ip in pending:
-                if swept is not None and ip not in swept:
-                    device = Device(ip=ip, errors=["Host is down"])
-                else:
-                    device = await self.scan_device(ip, probes=probes, known_up=swept is not None)
+                device = await self._scan_target(ip, swept, probes)
                 results[index] = device
                 if progress and task is not None:
                     progress.update(task, advance=1)
@@ -311,3 +311,10 @@ class NetworkScanner:
         if any(device is None for device in results):
             raise asyncio.CancelledError("Inventory worker cancelled before completion")
         return [device for device in results if device is not None]
+
+    async def _scan_target(
+        self, ip: str, swept: set[str] | None, probes: asyncio.Semaphore
+    ) -> Device:
+        if swept is not None and ip not in swept:
+            return Device(ip=ip, errors=["Host is down"])
+        return await self.scan_device(ip, probes=probes, known_up=swept is not None)

@@ -101,6 +101,16 @@ def select_services(
             )
         by_name = {n: by_name[n] for n in wanted}
 
+    apply_port_overrides(by_name, ports)
+
+    if not by_name:
+        raise ConfigError("no services selected")
+    if len(by_name) > MAX_SERVICES:
+        raise ConfigError(f"{len(by_name)} services selected (max {MAX_SERVICES})")
+    return tuple(by_name.values())
+
+
+def apply_port_overrides(by_name: dict[str, ServiceSpec], ports: str | None) -> None:
     for item in (ports or "").split(","):
         item = item.strip()
         if not item:
@@ -116,9 +126,3 @@ def select_services(
             by_name[name] = ServiceSpec(spec.name, port, spec.protocol, spec.probe)
         else:
             by_name[f"tcp-{port}"] = _spec(f"tcp-{port}", port, "tcp")
-
-    if not by_name:
-        raise ConfigError("no services selected")
-    if len(by_name) > MAX_SERVICES:
-        raise ConfigError(f"{len(by_name)} services selected (max {MAX_SERVICES})")
-    return tuple(by_name.values())

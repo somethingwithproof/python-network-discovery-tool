@@ -24,13 +24,21 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
-          python-version: "3.12"
-      - run: uv sync --locked --extra dev
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+        with:
+          tool_versions: |
+            python 3.12
+            uv 0.12.23
+      - name: Install wheel-only locked test dependencies
+        run: uv sync --locked --extra dev --no-build --no-install-project --no-install-package python-nmap
+      - name: Build and install the project wheel
+        run: |
+          uv build --no-build-isolation --wheel
+          .venv/bin/python -m installer dist/*.whl
+      - run: uv run --locked --no-sync --no-build ruff check .
+      - run: uv run --locked --no-sync --no-build ruff format --check .
 
   test:
     name: Test (Python ${{ matrix.python-version }}, ${{ matrix.os }})
@@ -43,12 +51,20 @@ jobs:
         python-version: ["3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
-          python-version: ${{ matrix.python-version }}
-      - run: uv sync --locked --extra dev
-      - run: uv run pytest -v --cov=netprobe --cov-report=xml --cov-fail-under=90
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+        with:
+          tool_versions: |
+            python ${{ matrix.python-version }}
+            uv 0.12.23
+      - name: Install wheel-only locked test dependencies
+        run: uv sync --locked --extra dev --no-build --no-install-project --no-install-package python-nmap
+      - name: Build and install the project wheel
+        run: |
+          uv build --no-build-isolation --wheel
+          .venv/bin/python -m installer dist/*.whl
+      - run: uv run --locked --no-sync --no-build pytest -v --cov=netprobe --cov-report=xml --cov-fail-under=90
       - name: Upload coverage
         if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v5
@@ -62,6 +78,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - name: Run tests inside the lab network
         run: >-
           docker compose -f tests/integration/compose.yml --profile tester
@@ -72,13 +90,21 @@ jobs:
 
   type-check:
     name: Type check
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
-          python-version: "3.12"
-      - run: uv sync --locked --extra dev
-      - run: uv run mypy
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+        with:
+          tool_versions: |
+            python 3.12
+            uv 0.12.23
+      - name: Install wheel-only locked test dependencies
+        run: uv sync --locked --extra dev --no-build --no-install-project --no-install-package python-nmap
+      - name: Build and install the project wheel
+        run: |
+          uv build --no-build-isolation --wheel
+          .venv/bin/python -m installer dist/*.whl
+      - run: uv run --locked --no-sync --no-build mypy
