@@ -292,7 +292,17 @@ async def test_nmap_backend_only_probes_swept_hosts(fake_nmap, monkeypatch):
     assert devices[0].errors == []
     assert devices[1].errors == ["Host is down"]
     assert set(probed) == {"10.0.0.1"}
-    assert FakePortScanner.calls[-1] == ("10.0.0.0/30", "-sn -T4 --host-timeout 30s")
+    assert FakePortScanner.calls[-1] == ("10.0.0.1 10.0.0.2", "-sn -T4 --host-timeout 30s")
+
+
+def test_nmap_sweep_batches_a_full_prefix(fake_nmap):
+    targets = [f"10.0.{index // 256}.{index % 256}" for index in range(257)]
+
+    assert scanner.nmap_sweep(targets, "10.0.0.0/16") == set()
+
+    hosts = [call[0] for call in FakePortScanner.calls]
+    assert [len(batch.split()) for batch in hosts] == [256, 1]
+    assert {call[1] for call in FakePortScanner.calls} == {"-sn -T4 --host-timeout 30s"}
 
 
 async def test_nmap_backend_hostname_target_matches_by_ip(fake_nmap, monkeypatch):

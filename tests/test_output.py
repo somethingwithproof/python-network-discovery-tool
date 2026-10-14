@@ -3,6 +3,8 @@
 
 import json
 
+import pytest
+
 from netprobe.models import Device, Service
 from netprobe.output import print_results, save_csv, save_json
 
@@ -62,6 +64,30 @@ def test_save_csv_joins_errors(tmp_path):
     save_csv([Device(ip="10.0.0.1", errors=["a", "b"])], out)
 
     assert "a; b" in out.read_text()
+
+
+def test_save_csv_neutralizes_formula_cells(tmp_path):
+    out = tmp_path / "out.csv"
+    save_csv(
+        [Device(ip="10.0.0.1", alive=True, hostname="=cmd|calc", errors=["+boom"])],
+        out,
+    )
+    text = out.read_text()
+
+    assert "'=cmd|calc" in text
+    assert "'+boom" in text
+
+
+def test_save_json_refuses_a_symlink(tmp_path):
+    target = tmp_path / "target.json"
+    target.write_text("keep")
+    link = tmp_path / "link.json"
+    link.symlink_to(target)
+
+    with pytest.raises(OSError, match="symbolic link"):
+        save_json(sample(), link)
+
+    assert target.read_text() == "keep"
 
 
 def test_print_results_no_alive_hosts(capsys):

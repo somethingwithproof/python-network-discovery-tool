@@ -110,7 +110,20 @@ def select_services(
         raise ConfigError("no services selected")
     if len(by_name) > MAX_SERVICES:
         raise ConfigError(f"{len(by_name)} services selected (max {MAX_SERVICES})")
-    return tuple(by_name.values())
+    selected = tuple(by_name.values())
+    _reject_shared_endpoints(selected)
+    return selected
+
+
+def _reject_shared_endpoints(services: tuple[ServiceSpec, ...]) -> None:
+    """History stores one state per port/protocol, so two probes cannot share one."""
+    seen: dict[tuple[int, str], str] = {}
+    for spec in services:
+        key = (spec.port, spec.protocol)
+        other = seen.get(key)
+        if other is not None:
+            raise ConfigError(f"{spec.name} and {other} both use {spec.port}/{spec.protocol}")
+        seen[key] = spec.name
 
 
 def apply_port_overrides(by_name: dict[str, ServiceSpec], ports: str | None) -> None:

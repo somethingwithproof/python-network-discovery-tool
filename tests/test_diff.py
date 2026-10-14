@@ -103,6 +103,27 @@ def test_every_kind_of_change(tmp_path):
     ]
 
 
+def test_two_services_on_one_port_are_compared_apart(tmp_path):
+    old = snap(
+        tmp_path,
+        "old.json",
+        [host("10.0.0.1", ("http", 80, "tcp", "nginx"), ("alt", 80, "tcp", "caddy"))],
+    )
+    new = snap(
+        tmp_path,
+        "new.json",
+        [host("10.0.0.1", ("http", 80, "tcp", "nginx"), ("alt", 80, "tcp", "caddy-2"))],
+    )
+
+    result = compare(load_inventory(old), load_inventory(new))
+
+    assert [
+        (change.name, change.version, change.old_version) for change in result.version_changes
+    ] == [("alt", "caddy-2", "caddy")]
+    assert result.opened == []
+    assert result.closed == []
+
+
 def test_hosts_sorted_numerically(tmp_path):
     old = snap(tmp_path, "old.json", [])
     new = snap(

@@ -27,7 +27,7 @@ from netprobe.diff import SnapshotError, compare, load_inventory, print_diff, wr
 from netprobe.export import ExportError, KadupulOptions, kadupul_script, write_script
 from netprobe.history import HistoryStore, compare_scans, utc_now
 from netprobe.models import Device, ServiceSpec
-from netprobe.output import console, print_results, save_csv, save_json
+from netprobe.output import console, print_results, save_csv, save_json, write_text
 from netprobe.preflight import check_plan, paths_overlap
 from netprobe.probes import SnmpCredentials
 from netprobe.profiles import load_profiles, resolve_profile
@@ -421,6 +421,16 @@ def scan_devices(
             raise typer.Exit(1 if isinstance(exc, BackendUnavailableError) else 2) from exc
 
 
+def _port_states(device: Device) -> dict[str, str]:
+    states: dict[str, str] = {}
+    for service in device.services:
+        key = f"{service.port}/{service.protocol}"
+        if key in states:
+            raise ValueError(f"{device.ip}: more than one observation for {key}")
+        states[key] = service.state
+    return states
+
+
 def observation_status(device: Device) -> str:
     if device.alive:
         return "up"
@@ -440,9 +450,7 @@ def record_history(
     for device in devices:
         record = asdict(device)
         record["status"] = observation_status(device)
-        record["port_states"] = {
-            f"{service.port}/{service.protocol}": service.state for service in device.services
-        }
+        record["port_states"] = _port_states(device)
         observations.append(record)
     metadata = {
         "schema_version": 1,
@@ -607,7 +615,7 @@ def diff(
         print_diff(result, console)
     if output is not None:
         try:
-            output.write_text(json.dumps(result.to_dict(), indent=2) + "\n")
+            write_text(output, json.dumps(result.to_dict(), indent=2) + "\n")
         except OSError as e:
             typer.echo(f"Error: cannot write {output}: {e}", err=True)
             raise typer.Exit(1) from e
@@ -646,7 +654,7 @@ def history_compare(
             from netprobe.history import check_writable_path
 
             check_writable_path(output)
-            output.write_text(rendered + "\n", encoding="utf-8")
+            write_text(output, rendered + "\n")
         else:
             typer.echo(rendered)
     except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as exc:

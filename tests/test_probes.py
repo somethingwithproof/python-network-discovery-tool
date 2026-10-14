@@ -113,3 +113,30 @@ def test_snmp_engine_id_of_our_own_request_is_empty():
 )
 def test_snmp_engine_id_rejects_malformed(message):
     assert probes.snmp_engine_id(message) is None
+
+
+def _engine_message(engine_id: bytes) -> bytes:
+    def tlv(tag: int, value: bytes) -> bytes:
+        length = bytes([len(value)]) if len(value) < 128 else bytes([0x81, len(value)])
+        return bytes([tag]) + length + value
+
+    usm = tlv(0x30, tlv(0x04, engine_id))
+    body = tlv(0x02, b"\x03") + tlv(0x30, b"") + tlv(0x04, usm)
+    return tlv(0x30, body)
+
+
+def test_snmp_engine_id_is_capped_at_32_octets():
+    assert probes.snmp_engine_id(_engine_message(b"\xab" * 40)) == "ab" * 32
+
+
+@pytest.mark.parametrize(
+    ("host", "port", "default", "expected"),
+    [
+        ("2001:db8::1", 80, 80, "[2001:db8::1]"),
+        ("2001:db8::1", 8080, 80, "[2001:db8::1]:8080"),
+        ("127.0.0.1", 443, 443, "127.0.0.1"),
+        ("lab.example", 8443, 443, "lab.example:8443"),
+    ],
+)
+def test_host_header_brackets_ipv6_and_adds_non_default_port(host, port, default, expected):
+    assert probes.host_header(host, port, default) == expected

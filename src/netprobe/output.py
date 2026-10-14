@@ -6,8 +6,11 @@
 from __future__ import annotations
 
 import csv
+import errno
+import io
 import json
 import logging
+import os
 from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
@@ -20,6 +23,9 @@ from netprobe.models import LEGACY_FLAGS, Device
 
 logger = logging.getLogger(__name__)
 console = Console()
+
+# A cell that starts with one of these is a formula in Excel and LibreOffice.
+_FORMULA_PREFIX = ("=", "+", "-", "@", "\t", "\r")
 
 # New columns go at the end so positional CSV readers keep working.
 CSV_FIELDS = [
@@ -35,28 +41,61 @@ CSV_FIELDS = [
 ]
 
 
+def write_text(path: Path, text: str, *, mode: int = 0o666, private: bool = False) -> None:
+    """Write text to path. The final component must not be a symbolic link.
+
+    ``private`` forces mode 0600 on the opened descriptor, including when the
+    file already existed and ``O_CREAT``'s mode was ignored.
+    """
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    file_mode = 0o600 if private else mode
+    try:
+        descriptor = os.open(path, flags, file_mode)
+    except OSError as exc:
+        if exc.errno == errno.ELOOP:
+            raise OSError(errno.ELOOP, f"Destination must not be a symbolic link: {path}") from exc
+        raise
+    owned = True
+    try:
+        if private:
+            os.fchmod(descriptor, 0o600)
+        handle = os.fdopen(descriptor, "w", encoding="utf-8")
+        owned = False
+        with handle:
+            handle.write(text)
+    finally:
+        if owned:
+            os.close(descriptor)
+
+
+def _csv_field(value: object) -> object:
+    if isinstance(value, str) and value.startswith(_FORMULA_PREFIX):
+        return "'" + value
+    return value
+
+
 def save_json(devices: list[Device], output_path: Path) -> None:
     """Save devices to JSON file."""
     data = [asdict(d) for d in devices]
-    output_path.write_text(json.dumps(data, indent=2))
+    write_text(output_path, json.dumps(data, indent=2))
     logger.info(f"Saved JSON report to {output_path}")
 
 
 def save_csv(devices: list[Device], output_path: Path) -> None:
     """Save devices to CSV file."""
-    with output_path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
-        writer.writeheader()
-        for device in devices:
-            row = asdict(device)
-            row["errors"] = "; ".join(row["errors"]) if row["errors"] else ""
-            row["services"] = "; ".join(
-                f"{s.name}:{s.port}/{s.protocol}" for s in device.open_services
-            )
-            row["versions"] = "; ".join(
-                f"{s.name}={s.version}" for s in device.open_services if s.version
-            )
-            writer.writerow(row)
+    buffer = io.StringIO(newline="")
+    writer = csv.DictWriter(buffer, fieldnames=CSV_FIELDS)
+    writer.writeheader()
+    for device in devices:
+        row = asdict(device)
+        row["errors"] = "; ".join(row["errors"]) if row["errors"] else ""
+        row["services"] = "; ".join(f"{s.name}:{s.port}/{s.protocol}" for s in device.open_services)
+        row["versions"] = "; ".join(
+            f"{s.name}={s.version}" for s in device.open_services if s.version
+        )
+        writer.writerow({key: _csv_field(row[key]) for key in CSV_FIELDS})
+    write_text(output_path, buffer.getvalue())
     logger.info(f"Saved CSV report to {output_path}")
 
 

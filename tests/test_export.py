@@ -257,6 +257,21 @@ def test_write_script_modes(tmp_path):
 
     assert stat.S_IMODE(secret.stat().st_mode) == 0o600
     assert secret.read_text() == "x"
+    assert stat.S_IMODE((tmp_path / "plain.sh").stat().st_mode) == 0o644
+
+
+def test_write_script_does_not_follow_a_symlink(tmp_path):
+    target = tmp_path / "target.sh"
+    target.write_text("keep")
+    target.chmod(0o644)
+    link = tmp_path / "link.sh"
+    link.symlink_to(target)
+
+    with pytest.raises(OSError, match="symbolic link"):
+        write_script(link, "secret", secret=True)
+
+    assert target.read_text() == "keep"
+    assert stat.S_IMODE(target.stat().st_mode) == 0o644
 
 
 # --- CLI

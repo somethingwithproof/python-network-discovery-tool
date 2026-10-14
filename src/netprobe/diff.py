@@ -18,6 +18,7 @@ from rich.markup import escape
 from rich.table import Table
 
 from netprobe.models import Device, ServiceSpec
+from netprobe.output import write_text
 
 SNAPSHOT_FORMAT = "netprobe-snapshot"
 SNAPSHOT_VERSION = 1
@@ -26,6 +27,8 @@ SNAPSHOT_VERSION = 1
 LEGACY_PORTS = {"ssh": (22, "tcp"), "snmp": (161, "udp"), "mysql": (3306, "tcp")}
 
 Port = tuple[int, str]
+# port, protocol, service name. The name keeps two open services on one socket apart.
+OpenKey = tuple[int, str, str]
 
 
 class SnapshotError(ValueError):
@@ -50,15 +53,15 @@ def write_snapshot(
         # snapshot 65k entries long.
         "devices": [asdict(d) for d in devices if d.alive],
     }
-    path.write_text(json.dumps(document, indent=2) + "\n")
+    write_text(path, json.dumps(document, indent=2) + "\n")
 
 
 @dataclass
 class Host:
     ip: str
     hostname: str
-    # (port, protocol) -> (service name, version)
-    open: dict[Port, tuple[str, str]]
+    # (port, protocol, name) -> version
+    open: dict[OpenKey, str]
 
 
 @dataclass
@@ -76,19 +79,18 @@ class Inventory:
 def _host(entry: Any) -> Host:
     if not isinstance(entry, dict) or not isinstance(entry.get("ip"), str):
         raise SnapshotError("device entry without an ip")
-    found: dict[Port, tuple[str, str]] = {}
+    found: dict[OpenKey, str] = {}
     services = entry.get("services")
     if isinstance(services, list):
         for s in services:
             if isinstance(s, dict) and s.get("state") == "open":
-                found[(int(s["port"]), str(s["protocol"]))] = (
-                    str(s["name"]),
-                    str(s.get("version", "")),
+                found[(int(s["port"]), str(s["protocol"]), str(s["name"]))] = str(
+                    s.get("version", "")
                 )
     else:
-        for name, port in LEGACY_PORTS.items():
+        for name, (port, protocol) in LEGACY_PORTS.items():
             if entry.get(name) is True:
-                found[port] = (name, "")
+                found[(port, protocol, name)] = ""
     return Host(entry["ip"], str(entry.get("hostname", "")), found)
 
 
@@ -172,7 +174,7 @@ def _summary(host: Host) -> dict[str, Any]:
         "hostname": host.hostname,
         "services": [
             {"name": name, "port": port, "protocol": proto, "version": version}
-            for (port, proto), (name, version) in sorted(host.open.items())
+            for (port, proto, name), version in sorted(host.open.items())
         ],
     }
 
@@ -267,21 +269,17 @@ def print_diff(diff: Diff, console: Console) -> None:
 def compare_host_ports(
     diff: Diff,
     ip: str,
-    before: dict[Port, tuple[str, str]],
-    after: dict[Port, tuple[str, str]],
+    before: dict[OpenKey, str],
+    after: dict[OpenKey, str],
     comparable: set[Port] | None,
 ) -> None:
-    for port in sorted(before.keys() | after.keys()):
-        if comparable is not None and port not in comparable:
+    for port, protocol, name in sorted(before.keys() | after.keys()):
+        if comparable is not None and (port, protocol) not in comparable:
             continue
-        if port not in before:
-            name, version = after[port]
-            diff.opened.append(Change(ip, name, port[0], port[1], version))
-        elif port not in after:
-            name, version = before[port]
-            diff.closed.append(Change(ip, name, port[0], port[1], "", version))
-        elif before[port][1] != after[port][1]:
-            name = after[port][0]
-            diff.version_changes.append(
-                Change(ip, name, port[0], port[1], after[port][1], before[port][1])
-            )
+        key = (port, protocol, name)
+        if key not in before:
+            diff.opened.append(Change(ip, name, port, protocol, after[key]))
+        elif key not in after:
+            diff.closed.append(Change(ip, name, port, protocol, "", before[key]))
+        elif before[key] != after[key]:
+            diff.version_changes.append(Change(ip, name, port, protocol, after[key], before[key]))

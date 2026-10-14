@@ -34,6 +34,10 @@ Backend = Literal["asyncio", "nmap"]
 MAX_HOSTS = 65536
 # Per-nmap-invocation cap so one unresponsive host cannot hang a sweep.
 NMAP_HOST_TIMEOUT = "30s"
+# python-nmap kills the process after 35s. A full prefix has to be split too,
+# or a permitted /16 dies before discovery finishes.
+NMAP_BATCH = 256
+NMAP_TIMEOUT = 35
 DEFAULT_TIMEOUT = 1.0
 DEFAULT_CONCURRENCY = 256
 # Every socket in flight is a file descriptor.
@@ -148,14 +152,14 @@ def nmap_sweep(targets: list[str], network: str) -> set[str]:
     nm = _nmap_scanner()
     ipv6 = "-6 " if all(":" in target for target in targets) else ""
     arguments = f"{ipv6}-sn -T4 --host-timeout {NMAP_HOST_TIMEOUT}"
-    if "/" in network and targets == expand_targets(network):
-        batches = [network]
-    else:
-        batches = [" ".join(targets[index : index + 256]) for index in range(0, len(targets), 256)]
+    batches = [
+        " ".join(targets[index : index + NMAP_BATCH])
+        for index in range(0, len(targets), NMAP_BATCH)
+    ]
     up: list[str] = []
     for batch in batches:
         try:
-            nm.scan(hosts=batch, arguments=arguments, timeout=35)
+            nm.scan(hosts=batch, arguments=arguments, timeout=NMAP_TIMEOUT)
         except Exception as exc:
             raise BackendUnavailableError(f"Nmap discovery failed: {exc}") from exc
         up.extend(h for h in nm.all_hosts() if nm[h].state() == "up")
