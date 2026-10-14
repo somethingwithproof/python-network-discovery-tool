@@ -33,23 +33,39 @@ class SnapshotError(ValueError):
 
 
 def write_snapshot(
-    path: Path, network: str, services: tuple[ServiceSpec, ...], devices: list[Device]
+    path: Path,
+    network: str,
+    services: tuple[ServiceSpec, ...],
+    devices: list[Device],
+    *,
+    timeout: float | None = None,
+    backend: str | None = None,
 ) -> None:
     """Write the alive hosts of a scan, with what was probed, as versioned JSON."""
-    document = {
+    document: dict[str, Any] = {
         "format": SNAPSHOT_FORMAT,
         "version": SNAPSHOT_VERSION,
         "netprobe_version": package_version("netprobe"),
         "created": datetime.now(UTC).isoformat(timespec="seconds"),
         "target": network,
         "services": [
-            {"name": s.name, "port": s.port, "protocol": s.protocol, "probe": s.probe}
+            {
+                "name": s.name,
+                "port": s.port,
+                "protocol": s.protocol,
+                "probe": s.probe,
+                "timeout": s.timeout,
+            }
             for s in services
         ],
-        # Down hosts carry no information worth diffing and would make a /16
-        # snapshot 65k entries long.
-        "devices": [asdict(d) for d in devices if d.alive],
     }
+    if timeout is not None:
+        document["timeout"] = timeout
+    if backend is not None:
+        document["backend"] = backend
+    # Down hosts carry no information worth diffing and would make a /16
+    # snapshot 65k entries long.
+    document["devices"] = [asdict(d) for d in devices if d.alive]
     path.write_text(json.dumps(document, indent=2) + "\n")
 
 
@@ -71,6 +87,9 @@ class Inventory:
     hosts: dict[str, Host]
     # The alive device entries as stored, for consumers such as the exporter.
     devices: list[dict[str, Any]] = field(default_factory=list)
+    # None when the file did not record the setting (older snapshots, plain reports).
+    timeout: float | None = None
+    backend: str | None = None
 
 
 def _host(entry: Any) -> Host:
@@ -92,6 +111,25 @@ def _host(entry: Any) -> Host:
     return Host(entry["ip"], str(entry.get("hostname", "")), found)
 
 
+def _recorded_number(document: dict[str, Any], key: str) -> float | None:
+    if key not in document:
+        return None
+    value = document[key]
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{key} must be a number")
+    return float(value)
+
+
+def _recorded_settings(document: dict[str, Any]) -> tuple[float | None, str | None]:
+    timeout = _recorded_number(document, "timeout")
+    if "backend" not in document:
+        return timeout, None
+    backend = document["backend"]
+    if not isinstance(backend, str):
+        raise ValueError("backend must be a string")
+    return timeout, backend
+
+
 def load_inventory(path: Path) -> Inventory:
     """Read a snapshot, or a plain `scan -o file.json` report."""
     try:
@@ -100,6 +138,8 @@ def load_inventory(path: Path) -> Inventory:
         raise SnapshotError(f"cannot read {path}: {e}") from e
 
     try:
+        timeout: float | None = None
+        backend: str | None = None
         if isinstance(document, list):
             devices, probed, created, target = document, None, "", ""
         elif isinstance(document, dict) and document.get("format") == SNAPSHOT_FORMAT:
@@ -111,6 +151,7 @@ def load_inventory(path: Path) -> Inventory:
             devices = document["devices"]
             probed = {(int(s["port"]), str(s["protocol"])) for s in document["services"]}
             created, target = str(document.get("created", "")), str(document.get("target", ""))
+            timeout, backend = _recorded_settings(document)
         else:
             raise SnapshotError(f"{path}: not a netprobe snapshot or JSON report")
         alive = [d for d in devices if not isinstance(d, dict) or d.get("alive", True)]
@@ -119,7 +160,16 @@ def load_inventory(path: Path) -> Inventory:
         raise
     except (KeyError, TypeError, ValueError) as e:
         raise SnapshotError(f"{path}: malformed snapshot: {e}") from e
-    return Inventory(str(path), created, target, probed, {h.ip: h for h in hosts}, alive)
+    return Inventory(
+        str(path),
+        created,
+        target,
+        probed,
+        {h.ip: h for h in hosts},
+        alive,
+        timeout=timeout,
+        backend=backend,
+    )
 
 
 @dataclass
@@ -189,6 +239,10 @@ def compare(old: Inventory, new: Inventory) -> Diff:
     )
     if old.target and new.target and old.target != new.target:
         diff.warnings.append(f"targets differ: {old.target} vs {new.target}")
+    if old.timeout is not None and new.timeout is not None and old.timeout != new.timeout:
+        diff.warnings.append(f"timeouts differ: {old.timeout} vs {new.timeout}")
+    if old.backend is not None and new.backend is not None and old.backend != new.backend:
+        diff.warnings.append(f"backends differ: {old.backend} vs {new.backend}")
     comparable: set[Port] | None = None
     if old.probed is not None and new.probed is not None:
         comparable = old.probed & new.probed

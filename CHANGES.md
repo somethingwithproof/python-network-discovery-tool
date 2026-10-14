@@ -7,6 +7,7 @@ SPDX-License-Identifier: MIT
 
 ## Unreleased
 
+- Give connect probes a 0.3s budget, warn when compared scans used different timeouts or backends, and scale the full-prefix nmap deadline with host count.
 - Fail closed on TLS certificate or hostname verification errors; private-CA services require `--tls-ca-file` for certificate and HTTP observations.
 - Refactor CLI orchestration, history validation, profiles, preflight, comparisons, and tests to resolve project-wide Sonar findings.
 

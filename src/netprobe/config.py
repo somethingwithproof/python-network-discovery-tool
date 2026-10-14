@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 import tomllib
 from pathlib import Path
@@ -17,8 +18,17 @@ class ConfigError(ValueError):
     """A service definition or selection is invalid."""
 
 
-def _spec(name: str, port: int, probe: str) -> ServiceSpec:
-    return ServiceSpec(name, port, PROBES[probe][1], probe)
+# A connect only needs a short wait. SNMP and TLS keep the scan-wide budget.
+CONNECT_TIMEOUT = 0.3
+_CONNECT_PROBES = frozenset({"tcp", "ssh", "mysql", "http"})
+_MIN_TIMEOUT = 0.05
+
+
+def _spec(name: str, port: int, probe: str, timeout: float | None = None) -> ServiceSpec:
+    budget = CONNECT_TIMEOUT if probe in _CONNECT_PROBES else None
+    if timeout is not None:
+        budget = timeout
+    return ServiceSpec(name, port, PROBES[probe][1], probe, budget)
 
 
 DEFAULT_SERVICES: tuple[ServiceSpec, ...] = (
@@ -48,6 +58,18 @@ def _check_name(name: str, where: str) -> str:
     return name
 
 
+def _check_timeout(timeout: object, where: str) -> float:
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
+        raise ConfigError(
+            f"{where}: timeout must be at least {_MIN_TIMEOUT} seconds, got {timeout!r}"
+        )
+    if not math.isfinite(timeout) or timeout < _MIN_TIMEOUT:
+        raise ConfigError(
+            f"{where}: timeout must be at least {_MIN_TIMEOUT} seconds, got {timeout!r}"
+        )
+    return float(timeout)
+
+
 def load_services(path: Path) -> tuple[ServiceSpec, ...]:
     """Merge the [services] table from a TOML file over the defaults.
 
@@ -74,13 +96,14 @@ def load_services(path: Path) -> tuple[ServiceSpec, ...]:
         _check_name(name, where)
         if not isinstance(entry, dict):
             raise ConfigError(f"{where} must be a table")
-        unknown = set(entry) - {"port", "probe"}
+        unknown = set(entry) - {"port", "probe", "timeout"}
         if unknown:
             raise ConfigError(f"{where}: unknown keys {sorted(unknown)}")
         probe = entry.get("probe", name if name in PROBES else "tcp")
         if probe not in PROBES:
             raise ConfigError(f"{where}: unknown probe {probe!r} (known: {', '.join(PROBES)})")
-        services[name] = _spec(name, _check_port(entry.get("port"), where), probe)
+        timeout = _check_timeout(entry["timeout"], where) if "timeout" in entry else None
+        services[name] = _spec(name, _check_port(entry.get("port"), where), probe, timeout)
     if len(services) > MAX_SERVICES:
         raise ConfigError(f"{path}: {len(services)} services defined (max {MAX_SERVICES})")
     return tuple(services.values())
@@ -126,6 +149,6 @@ def apply_port_overrides(by_name: dict[str, ServiceSpec], ports: str | None) -> 
             if name not in by_name:
                 raise ConfigError(f"--ports: unknown service {name!r}")
             spec = by_name[name]
-            by_name[name] = ServiceSpec(spec.name, port, spec.protocol, spec.probe)
+            by_name[name] = ServiceSpec(spec.name, port, spec.protocol, spec.probe, spec.timeout)
         else:
             by_name[f"tcp-{port}"] = _spec(f"tcp-{port}", port, "tcp")

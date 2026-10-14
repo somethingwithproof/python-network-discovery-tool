@@ -3,7 +3,13 @@
 
 import pytest
 
-from netprobe.config import DEFAULT_SERVICES, ConfigError, load_services, select_services
+from netprobe.config import (
+    CONNECT_TIMEOUT,
+    DEFAULT_SERVICES,
+    ConfigError,
+    load_services,
+    select_services,
+)
 from netprobe.probes import PROBES
 
 
@@ -16,6 +22,9 @@ def test_defaults_cover_the_documented_services():
         ("https", 443, "tcp", "https"),
     ]
     assert all(s.probe in PROBES for s in DEFAULT_SERVICES)
+    by_name = {s.name: s.timeout for s in DEFAULT_SERVICES}
+    assert by_name["ssh"] == by_name["mysql"] == by_name["http"] == CONNECT_TIMEOUT
+    assert by_name["snmp"] is None and by_name["https"] is None
 
 
 def write(tmp_path, text):
@@ -44,6 +53,8 @@ def test_config_adds_and_overrides(tmp_path):
 
     assert services["ssh"].port == 2222
     assert services["ssh"].probe == "ssh"
+    assert services["ssh"].timeout == CONNECT_TIMEOUT
+    assert services["admin-ui"].timeout is None
     assert (services["admin-ui"].port, services["admin-ui"].probe) == (8443, "https")
     assert services["snmp-alt"].protocol == "udp"
     assert services["mysql"].port == 3306
@@ -63,6 +74,9 @@ def test_config_without_services_table_keeps_defaults(tmp_path):
         ("[services.web]\nprobe = 'http'", "port must be"),
         ("[services.web]\nport = 80\nprobe = 'gopher'", "unknown probe"),
         ("[services.web]\nport = 80\nhost = 'x'", "unknown keys"),
+        ("[services.web]\nport = 80\ntimeout = true", "timeout must be"),
+        ("[services.web]\nport = 80\ntimeout = 0.01", "timeout must be"),
+        ("[services.web]\nport = 80\ntimeout = 'fast'", "timeout must be"),
         ('[services."Bad Name"]\nport = 80', "invalid service name"),
         ("[services.web\nport = 80", "cannot read config"),
     ],
@@ -89,6 +103,13 @@ def test_ports_override_and_add():
         ("ssh", 2222, "tcp", "ssh"),
         ("tcp-9000", 9000, "tcp", "tcp"),
     ]
+    assert [s.timeout for s in selected] == [CONNECT_TIMEOUT, CONNECT_TIMEOUT]
+
+
+def test_service_timeout_overrides_the_connect_default(tmp_path):
+    path = write(tmp_path, "[services.ssh]\nport = 22\ntimeout = 1.5\n")
+    services = {s.name: s for s in load_services(path)}
+    assert services["ssh"].timeout == 1.5
 
 
 def test_no_selection_returns_everything():
