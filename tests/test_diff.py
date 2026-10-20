@@ -76,7 +76,12 @@ def test_diff_warns_when_timeout_or_backend_differ(tmp_path):
     new = snap(tmp_path, "new.json", [host("10.0.0.1", SSH)], timeout=1.0, backend="nmap")
     result = compare(load_inventory(old), load_inventory(new))
     assert not result.changed
-    assert result.warnings == ["timeouts differ: 0.3 vs 1.0", "backends differ: asyncio vs nmap"]
+    assert result.warnings == [
+        "timeouts differ: 0.3 vs 1.0",
+        "backends differ: asyncio vs nmap",
+        "timeouts differ for 161/udp: 0.3 vs 1.0",
+        "timeouts differ for 443/tcp: 0.3 vs 1.0",
+    ]
 
 
 def test_old_snapshots_without_settings_do_not_warn(tmp_path):
@@ -84,6 +89,24 @@ def test_old_snapshots_without_settings_do_not_warn(tmp_path):
     new = snap(tmp_path, "new.json", [host("10.0.0.1", SSH)], timeout=1.0, backend="nmap")
     result = compare(load_inventory(old), load_inventory(new))
     assert result.warnings == []
+
+
+@pytest.mark.parametrize("old_budget", ["missing", None, 0.8, 0.3])
+def test_snapshot_compares_effective_service_timeout(tmp_path, old_budget):
+    services = (ServiceSpec("ssh", 22, "tcp", "ssh", timeout=0.3),)
+    old = snap(tmp_path, "old.json", [host("10.0.0.1", SSH)], services=services, timeout=1.0)
+    new = snap(tmp_path, "new.json", [host("10.0.0.1", SSH)], services=services, timeout=1.0)
+    document = json.loads(old.read_text())
+    if old_budget == "missing":
+        del document["services"][0]["timeout"]
+    else:
+        document["services"][0]["timeout"] = old_budget
+    old.write_text(json.dumps(document))
+    result = compare(load_inventory(old), load_inventory(new))
+    effective = 1.0 if old_budget in ("missing", None) else old_budget
+    expected = [] if effective == 0.3 else [f"timeouts differ for 22/tcp: {effective} vs 0.3"]
+    assert result.warnings == expected
+    assert not result.changed
 
 
 def test_identical_snapshots_have_no_changes(tmp_path):

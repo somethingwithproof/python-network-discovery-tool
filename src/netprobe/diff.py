@@ -18,6 +18,7 @@ from rich.markup import escape
 from rich.table import Table
 
 from netprobe.models import Device, ServiceSpec
+from netprobe.scan_settings import effective_timeouts, timeout_warnings
 
 SNAPSHOT_FORMAT = "netprobe-snapshot"
 SNAPSHOT_VERSION = 1
@@ -90,6 +91,7 @@ class Inventory:
     # None when the file did not record the setting (older snapshots, plain reports).
     timeout: float | None = None
     backend: str | None = None
+    service_timeouts: dict[str, float] = field(default_factory=dict)
 
 
 def _host(entry: Any) -> Host:
@@ -140,6 +142,7 @@ def load_inventory(path: Path) -> Inventory:
     try:
         timeout: float | None = None
         backend: str | None = None
+        service_timeouts: dict[str, float] = {}
         if isinstance(document, list):
             devices, probed, created, target = document, None, "", ""
         elif isinstance(document, dict) and document.get("format") == SNAPSHOT_FORMAT:
@@ -152,6 +155,7 @@ def load_inventory(path: Path) -> Inventory:
             probed = {(int(s["port"]), str(s["protocol"])) for s in document["services"]}
             created, target = str(document.get("created", "")), str(document.get("target", ""))
             timeout, backend = _recorded_settings(document)
+            service_timeouts = effective_timeouts(document)
         else:
             raise SnapshotError(f"{path}: not a netprobe snapshot or JSON report")
         alive = [d for d in devices if not isinstance(d, dict) or d.get("alive", True)]
@@ -169,6 +173,7 @@ def load_inventory(path: Path) -> Inventory:
         alive,
         timeout=timeout,
         backend=backend,
+        service_timeouts=service_timeouts,
     )
 
 
@@ -243,6 +248,7 @@ def compare(old: Inventory, new: Inventory) -> Diff:
         diff.warnings.append(f"timeouts differ: {old.timeout} vs {new.timeout}")
     if old.backend is not None and new.backend is not None and old.backend != new.backend:
         diff.warnings.append(f"backends differ: {old.backend} vs {new.backend}")
+    diff.warnings.extend(timeout_warnings(old.service_timeouts, new.service_timeouts))
     comparable: set[Port] | None = None
     if old.probed is not None and new.probed is not None:
         comparable = old.probed & new.probed

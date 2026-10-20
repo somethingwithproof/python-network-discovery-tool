@@ -175,6 +175,24 @@ def test_compare_ignores_settings_missing_from_older_rows(history_store):
     assert report["warnings"] == []
 
 
+@pytest.mark.parametrize("old_budget", ["missing", None, 0.8, 0.3])
+def test_history_compares_effective_service_timeout(history_store, old_budget):
+    service = {"name": "ssh", "port": 22, "protocol": "tcp", "probe": "ssh"}
+    before_service = dict(service)
+    if old_budget != "missing":
+        before_service["timeout"] = old_budget
+    devices = [Observation("127.0.0.1", alive=True, status="up", port_states={"22/tcp": "open"})]
+    first = save_snapshot(history_store, devices, timeout=1.0, services=[before_service])
+    second = save_snapshot(
+        history_store, devices, timeout=1.0, services=[{**service, "timeout": 0.3}]
+    )
+    report = history.compare_scans(history_store.get(first), history_store.get(second))
+    effective = 1.0 if old_budget in ("missing", None) else old_budget
+    expected = [] if effective == 0.3 else [f"timeouts differ for 22/tcp: {effective} vs 0.3"]
+    assert report["warnings"] == expected
+    assert report["port_changes"] == []
+
+
 def test_compare_cannot_overwrite_history(history_store):
     first = save_snapshot(history_store, [Observation("127.0.0.1")])
     second = save_snapshot(history_store, [Observation("127.0.0.1")])

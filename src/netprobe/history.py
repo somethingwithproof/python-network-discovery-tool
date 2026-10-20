@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from netprobe.scan_settings import effective_timeouts, timeout_warnings
 from netprobe.scanner import validate_target
 
 type JSONDocument = dict[str, Any]
@@ -210,6 +211,7 @@ def _setting_warnings(before: JSONDocument, after: JSONDocument) -> list[str]:
     old_backend, new_backend = before.get("backend"), after.get("backend")
     if old_backend is not None and new_backend is not None and old_backend != new_backend:
         warnings.append(f"backends differ: {old_backend} vs {new_backend}")
+    warnings.extend(timeout_warnings(effective_timeouts(before), effective_timeouts(after)))
     return warnings
 
 
