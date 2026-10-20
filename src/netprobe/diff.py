@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+from collections import Counter
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from importlib.metadata import version as package_version
@@ -273,6 +274,21 @@ def compare_host_ports(
     after: dict[OpenKey, str],
     comparable: set[Port] | None,
 ) -> None:
+    # A label change is not a port transition. Retain name matching only for
+    # older inventories that contain multiple services on the same socket.
+    before_counts = Counter((port, protocol) for port, protocol, _ in before)
+    after_counts = Counter((port, protocol) for port, protocol, _ in after)
+    unique_after = {
+        (port, protocol): (port, protocol, name)
+        for port, protocol, name in after
+        if after_counts[(port, protocol)] == 1
+    }
+    before = {
+        unique_after.get((port, protocol), (port, protocol, name))
+        if before_counts[(port, protocol)] == 1
+        else (port, protocol, name): version
+        for (port, protocol, name), version in before.items()
+    }
     for port, protocol, name in sorted(before.keys() | after.keys()):
         if comparable is not None and (port, protocol) not in comparable:
             continue

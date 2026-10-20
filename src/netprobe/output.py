@@ -41,14 +41,16 @@ CSV_FIELDS = [
 ]
 
 
-def write_text(path: Path, text: str, *, mode: int = 0o666, private: bool = False) -> None:
+def write_text(path: Path, text: str, *, mode: int = 0o600, private: bool = False) -> None:
     """Write text to path. The final component must not be a symbolic link.
 
     ``private`` forces mode 0600 on the opened descriptor, including when the
     file already existed and ``O_CREAT``'s mode was ignored.
     """
-    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_CLOEXEC", 0)
-    flags |= getattr(os, "O_NOFOLLOW", 0)
+    no_follow = getattr(os, "O_NOFOLLOW", 0)
+    if not no_follow:
+        raise OSError(errno.ENOTSUP, "Safe output requires no-follow file opens on this platform")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_CLOEXEC", 0) | no_follow
     file_mode = 0o600 if private else mode
     try:
         descriptor = os.open(path, flags, file_mode)

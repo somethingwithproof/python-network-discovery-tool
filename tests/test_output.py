@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: MIT
 
 import json
+import os
+import stat
 
 import pytest
 
@@ -87,6 +89,41 @@ def test_save_json_refuses_a_symlink(tmp_path):
     with pytest.raises(OSError, match="symbolic link"):
         save_json(sample(), link)
 
+    assert target.read_text() == "keep"
+
+
+@pytest.mark.parametrize("existing", [False, True])
+def test_save_json_requires_no_follow_support(tmp_path, monkeypatch, existing):
+    path = tmp_path / "report.json"
+    if existing:
+        path.write_text("keep")
+    monkeypatch.delattr(os, "O_NOFOLLOW")
+
+    with pytest.raises(OSError, match="no-follow"):
+        save_json(sample(), path)
+
+    assert path.read_text() == "keep" if existing else not path.exists()
+
+
+def test_save_json_creates_owner_only_report(tmp_path):
+    path = tmp_path / "report.json"
+    previous = os.umask(0)
+    try:
+        save_json(sample(), path)
+    finally:
+        os.umask(previous)
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+def test_save_json_without_no_follow_preserves_symlink_target(tmp_path, monkeypatch):
+    target = tmp_path / "target.json"
+    target.write_text("keep")
+    link = tmp_path / "link.json"
+    link.symlink_to(target)
+    monkeypatch.delattr(os, "O_NOFOLLOW")
+    with pytest.raises(OSError, match="no-follow"):
+        save_json(sample(), link)
+    assert link.is_symlink()
     assert target.read_text() == "keep"
 
 

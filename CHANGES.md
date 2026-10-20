@@ -7,6 +7,8 @@ SPDX-License-Identifier: MIT
 
 ## Unreleased
 
+- Refuse report writes when the platform cannot open files without following symlinks, and create new reports with owner-only permissions. Existing report permissions remain unchanged; exports containing credentials still force mode 0600.
+- Treat a service rename on a unique port/protocol as the same open port while preserving distinct services in older snapshots.
 - Fail closed on TLS certificate or hostname verification errors; private-CA services require `--tls-ca-file` for certificate and HTTP observations.
 - Refactor CLI orchestration, history validation, profiles, preflight, comparisons, and tests to resolve project-wide Sonar findings.
 

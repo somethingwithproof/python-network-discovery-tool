@@ -62,6 +62,38 @@ def test_identical_snapshots_have_no_changes(tmp_path):
     assert result.warnings == []
 
 
+def test_service_rename_does_not_change_port_state(tmp_path):
+    old = snap(tmp_path, "old.json", [host("10.0.0.1", HTTP)])
+    renamed = ("web", *HTTP[1:])
+    new = snap(tmp_path, "new.json", [host("10.0.0.1", renamed)])
+    result = runner.invoke(cli.app, ["diff", str(old), str(new), "--format", "json"])
+    assert result.exit_code == 0
+    assert json.loads(result.output)["changed"] is False
+
+
+def test_service_rename_preserves_version_change(tmp_path):
+    old = snap(tmp_path, "old.json", [host("10.0.0.1", HTTP)])
+    new = snap(tmp_path, "new.json", [host("10.0.0.1", ("web", 80, "tcp", "new"))])
+    result = compare(load_inventory(old), load_inventory(new))
+    assert result.opened == result.closed == []
+    assert [(c.name, c.old_version, c.version) for c in result.version_changes] == [
+        ("web", HTTP[3], "new")
+    ]
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_duplicate_port_services_keep_their_identity(tmp_path, reverse):
+    old = snap(tmp_path, "old.json", [host("10.0.0.1", HTTP, ("web", 80, "tcp", "other"))])
+    new = snap(tmp_path, "new.json", [host("10.0.0.1", HTTP)])
+    if reverse:
+        old, new = new, old
+    result = compare(load_inventory(old), load_inventory(new))
+    changes = result.opened if reverse else result.closed
+    assert [(c.name, c.port) for c in changes] == [("web", 80)]
+    assert (result.closed if reverse else result.opened) == []
+    assert result.version_changes == []
+
+
 def test_every_kind_of_change(tmp_path):
     old = snap(
         tmp_path,
