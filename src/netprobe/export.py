@@ -176,7 +176,7 @@ def kadupul_script(devices: Iterable[dict[str, Any]], opts: KadupulOptions, sour
 
 def write_script(path: Path, text: str, *, secret: bool) -> None:
     """Write the script. A credential script is owner-only, and a symlink is refused."""
-    write_text(path, text, mode=0o644, private=secret)
+    write_text(path, text, private=secret)
 
 
 def snmp_arguments(

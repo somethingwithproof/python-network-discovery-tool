@@ -257,7 +257,7 @@ def test_write_script_modes(tmp_path):
 
     assert stat.S_IMODE(secret.stat().st_mode) == 0o600
     assert secret.read_text() == "x"
-    assert stat.S_IMODE((tmp_path / "plain.sh").stat().st_mode) == 0o644
+    assert stat.S_IMODE((tmp_path / "plain.sh").stat().st_mode) == 0o600
 
 
 def test_write_script_does_not_follow_a_symlink(tmp_path):

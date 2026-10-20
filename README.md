@@ -240,7 +240,7 @@ rejected. Failed checks return 1; invalid scope/configuration returns 2.
 
 Report and export writes require `O_NOFOLLOW` support. On platforms without it,
 including Windows, these writes fail without opening or truncating the destination.
-New reports are owner-only (mode 0600); replacing an existing report preserves its
+New reports and export scripts are owner-only (mode 0600); replacing an existing file preserves its
 permissions. Exports containing credentials always force mode 0600.
 
 History is opt-in and complements the existing JSON snapshots and `diff` command:
