@@ -18,6 +18,7 @@ import math
 import re
 import socket
 from collections.abc import Iterable
+from dataclasses import replace
 from typing import Any, Literal
 
 from rich.progress import Progress
@@ -32,10 +33,10 @@ Backend = Literal["asyncio", "nmap"]
 
 # Largest network accepted in one run. A /8 would otherwise queue 16M scan tasks.
 MAX_HOSTS = 65536
-# Per-nmap-invocation cap so one unresponsive host cannot hang a sweep.
+# Per-host cap inside nmap so one unresponsive host cannot hang a sweep.
 NMAP_HOST_TIMEOUT = "30s"
-# python-nmap kills the process after 35s. A full prefix has to be split too,
-# or a permitted /16 dies before discovery finishes.
+# One nmap process for a full prefix. The subprocess deadline grows by this
+# much for every NMAP_BATCH addresses, which matches the old per-batch ceiling.
 NMAP_BATCH = 256
 NMAP_TIMEOUT = 35
 DEFAULT_TIMEOUT = 1.0
@@ -46,7 +47,7 @@ MAX_CONCURRENCY = 4096
 # /16 into millions of probes.
 MAX_PROBES = 524288
 # A probe may connect twice (HTTPS retry) and read once; this is its hard
-# ceiling in units of --timeout, so no single probe can stall a scan.
+# ceiling in units of that probe's own timeout.
 PROBE_BUDGET = 4
 HOSTNAME_TIMEOUT = 2.0
 SCOPE_ERROR = "IPv6 scope identifiers are not supported"
@@ -144,22 +145,33 @@ def _nmap_scanner() -> Any:
         raise BackendUnavailableError(f"nmap is not available: {e}") from e
 
 
+def nmap_deadline(host_count: int) -> int:
+    """Subprocess deadline for one nmap process covering host_count addresses."""
+    batches = max(1, math.ceil(host_count / NMAP_BATCH))
+    return NMAP_TIMEOUT * batches
+
+
 def nmap_sweep(targets: list[str], network: str) -> set[str]:
     """Return the targets that answer an nmap ping sweep.
 
     Without root, nmap substitutes TCP connects to ports 80 and 443 for ICMP.
+    A full prefix is one process. Exclusions and partial lists stay in batches
+    of NMAP_BATCH, each with a fixed NMAP_TIMEOUT deadline.
     """
     nm = _nmap_scanner()
     ipv6 = "-6 " if all(":" in target for target in targets) else ""
     arguments = f"{ipv6}-sn -T4 --host-timeout {NMAP_HOST_TIMEOUT}"
-    batches = [
-        " ".join(targets[index : index + NMAP_BATCH])
-        for index in range(0, len(targets), NMAP_BATCH)
-    ]
+    if "/" in network and targets == expand_targets(network):
+        batches = [(network, nmap_deadline(len(targets)))]
+    else:
+        batches = [
+            (" ".join(targets[index : index + NMAP_BATCH]), NMAP_TIMEOUT)
+            for index in range(0, len(targets), NMAP_BATCH)
+        ]
     up: list[str] = []
-    for batch in batches:
+    for batch, deadline in batches:
         try:
-            nm.scan(hosts=batch, arguments=arguments, timeout=NMAP_TIMEOUT)
+            nm.scan(hosts=batch, arguments=arguments, timeout=deadline)
         except Exception as exc:
             raise BackendUnavailableError(f"Nmap discovery failed: {exc}") from exc
         up.extend(h for h in nm.all_hosts() if nm[h].state() == "up")
@@ -205,6 +217,9 @@ class NetworkScanner:
         self.timeout = timeout
         self.concurrency = concurrency
         self.services = tuple(services)
+        for spec in self.services:
+            if spec.timeout is not None and (not math.isfinite(spec.timeout) or spec.timeout <= 0):
+                raise ValueError(f"timeout for {spec.name} must be positive")
         self.context = ProbeContext(timeout=timeout, snmp=snmp, tls_ca_file=tls_ca_file)
         if snmp is not None:
             # Load pysnmp now; its first import takes about a second and would
@@ -237,11 +252,13 @@ class NetworkScanner:
         limit = probes or asyncio.Semaphore(self.concurrency)
 
         async def run(spec: ServiceSpec) -> Service:
+            budget = self.timeout if spec.timeout is None else spec.timeout
+            context = replace(self.context, timeout=budget)
             async with limit:
                 try:
                     probe, _ = PROBES[spec.probe]
-                    async with asyncio.timeout(self.timeout * PROBE_BUDGET):
-                        result = await probe(ip, spec.port, self.context)
+                    async with asyncio.timeout(budget * PROBE_BUDGET):
+                        result = await probe(ip, spec.port, context)
                 except TimeoutError:
                     device.errors.append(f"Error checking port {spec.port}: probe timed out")
                     result = ProbeResult("filtered")

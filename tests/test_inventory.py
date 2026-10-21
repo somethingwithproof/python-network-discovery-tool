@@ -37,10 +37,11 @@ def history_store(tmp_path):
     return store
 
 
-def save_snapshot(store, devices, ports=None):
+def save_snapshot(store, devices, ports=None, **metadata_extra):
     from dataclasses import asdict
 
     metadata = {"ports": ["22/tcp"] if ports is None else ports, "schema_version": 1}
+    metadata.update(metadata_extra)
     return store.save(metadata, [asdict(device) for device in devices], history.utc_now())
 
 
@@ -155,6 +156,41 @@ def test_compare_different_scope_rejected(history_store, changed):
     prepared_argument_1 = history_store.get(first)
     with pytest.raises(ValueError, match="Earlier scan"):
         history.compare_scans(prepared_argument_0, prepared_argument_1)
+
+
+def test_compare_warns_when_timeout_or_backend_differ(history_store):
+    devices = [Observation("127.0.0.1", alive=True, status="up", port_states={"22/tcp": "open"})]
+    first = save_snapshot(history_store, devices, timeout=0.3, backend="asyncio")
+    second = save_snapshot(history_store, devices, timeout=1.0, backend="nmap")
+    report = history.compare_scans(history_store.get(first), history_store.get(second))
+    assert report["port_changes"] == []
+    assert report["warnings"] == ["timeouts differ: 0.3 vs 1.0", "backends differ: asyncio vs nmap"]
+
+
+def test_compare_ignores_settings_missing_from_older_rows(history_store):
+    devices = [Observation("127.0.0.1")]
+    first = save_snapshot(history_store, devices)
+    second = save_snapshot(history_store, devices, timeout=1.0, backend="asyncio")
+    report = history.compare_scans(history_store.get(first), history_store.get(second))
+    assert report["warnings"] == []
+
+
+@pytest.mark.parametrize("old_budget", ["missing", None, 0.8, 0.3])
+def test_history_compares_effective_service_timeout(history_store, old_budget):
+    service = {"name": "ssh", "port": 22, "protocol": "tcp", "probe": "ssh"}
+    before_service = dict(service)
+    if old_budget != "missing":
+        before_service["timeout"] = old_budget
+    devices = [Observation("127.0.0.1", alive=True, status="up", port_states={"22/tcp": "open"})]
+    first = save_snapshot(history_store, devices, timeout=1.0, services=[before_service])
+    second = save_snapshot(
+        history_store, devices, timeout=1.0, services=[{**service, "timeout": 0.3}]
+    )
+    report = history.compare_scans(history_store.get(first), history_store.get(second))
+    effective = 1.0 if old_budget in ("missing", None) else old_budget
+    expected = [] if effective == 0.3 else [f"timeouts differ for 22/tcp: {effective} vs 0.3"]
+    assert report["warnings"] == expected
+    assert report["port_changes"] == []
 
 
 def test_compare_cannot_overwrite_history(history_store):
