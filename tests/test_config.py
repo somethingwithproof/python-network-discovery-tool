@@ -132,6 +132,17 @@ def test_selection_errors(names, ports, message):
         select_services(DEFAULT_SERVICES, names, ports)
 
 
+def test_shared_port_and_protocol_is_rejected(tmp_path):
+    services = load_services(write(tmp_path, '[services.alt]\nport = 22\nprobe = "tcp"\n'))
+    with pytest.raises(ConfigError, match="22/tcp"):
+        select_services(services, None, None)
+
+
+def test_added_port_cannot_reuse_an_endpoint():
+    with pytest.raises(ConfigError, match="22/tcp"):
+        select_services(DEFAULT_SERVICES, None, "22")
+
+
 def test_too_many_services_from_ports():
     ports = ",".join(str(p) for p in range(1000, 1070))
     with pytest.raises(ConfigError, match="max 64"):

@@ -11,7 +11,6 @@ calls. Every value is validated and passed through shlex.quote.
 
 from __future__ import annotations
 
-import os
 import re
 import shlex
 from collections.abc import Iterable
@@ -21,6 +20,7 @@ from importlib.metadata import version as package_version
 from pathlib import Path
 from typing import Any
 
+from netprobe.output import write_text
 from netprobe.probes import AUTH_PROTOCOLS, PRIV_PROTOCOLS, clean
 from netprobe.scanner import validate_target
 
@@ -175,14 +175,8 @@ def kadupul_script(devices: Iterable[dict[str, Any]], opts: KadupulOptions, sour
 
 
 def write_script(path: Path, text: str, *, secret: bool) -> None:
-    """Write the script; one holding credentials is created owner-only from the start."""
-    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
-    fd = os.open(path, flags, 0o600 if secret else 0o644)
-    if secret:
-        # O_CREAT's mode does not apply to an existing file.
-        os.fchmod(fd, 0o600)
-    with os.fdopen(fd, "w") as f:
-        f.write(text)
+    """Write the script. A credential script is owner-only, and a symlink is refused."""
+    write_text(path, text, private=secret)
 
 
 def snmp_arguments(

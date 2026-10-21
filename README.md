@@ -173,7 +173,7 @@ HTTPS uses certificate and hostname verification against the system store or `--
 
 SNMP credentials are read from options or environment variables. Prefer the environment variables: command-line values are visible to other local users in the process list. Scan reports and history do not intentionally include credential values. The exporter has a separate, explicit `--include-credentials` option described below. A community selects SNMPv2c; a user selects SNMPv3, with authentication when an auth key is given and privacy when both keys are given (`snmp_security_level` records which). netprobe refuses, with exit code 2, to combine a community with a v3 user, to use a privacy key without an auth key, or to use keys without a user, and it never retries a failed v3 query with v2c or a lower security level. Passing a secret as an option logs a warning naming the matching environment variable. Agents that only speak v1/v2c ignore the credential-free v3 discovery, so they show as open only when a community is supplied.
 
-Banner text is reduced to printable characters and capped at 256 characters before it is stored or shown. Reads are bounded too: 4 KiB per line, 4 KiB for a MySQL greeting, 16 KiB of HTTP headers.
+Banner text is reduced to printable characters and capped at 256 characters before it is stored or shown. Reads are bounded too: 4 KiB per line, 4 KiB for a MySQL greeting, 16 KiB of HTTP headers. An SNMP engine ID longer than 32 octets is truncated before it is stored. HTTP and HTTPS send a Host header with an IPv6 address in brackets and with the port when it is not 80 or 443. CSV cells that start with a spreadsheet formula trigger are prefixed so the cell stays text.
 
 ### Limits
 
@@ -193,7 +193,7 @@ port = 8443
 probe = "https"
 ```
 
-`probe` is one of `tcp`, `ssh`, `mysql`, `http`, `https` or `snmp` and defaults to the service name when that is a probe, else `tcp`. Only `snmp` uses UDP. Service names are lowercase letters, digits, `-` and `_`. `timeout` is optional, in seconds, and at least 0.05. Connect-style probes (`tcp`, `ssh`, `mysql`, `http`) default to 0.3 seconds. `snmp` and `https` use the scan `--timeout` when the service does not set `timeout`. `--timeout` does not replace a budget the service already has.
+`probe` is one of `tcp`, `ssh`, `mysql`, `http`, `https` or `snmp` and defaults to the service name when that is a probe, else `tcp`. Only `snmp` uses UDP. Service names are lowercase letters, digits, `-` and `_`. Two services cannot share a port and protocol; history records one state for that pair. `timeout` is optional, in seconds, and at least 0.05. Connect-style probes (`tcp`, `ssh`, `mysql`, `http`) default to 0.3 seconds. `snmp` and `https` use the scan `--timeout` when the service does not set `timeout`. `--timeout` does not replace a budget the service already has.
 
 Results keep the original `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` and `errors` fields and add a `services` list with each probe's `name`, `port`, `protocol`, `state` (`open`, `closed` or `filtered`), `version` and `details`. CSV output gains trailing `services` and `versions` columns for the open ones. The `ssh`, `snmp` and `mysql` booleans follow the services with exactly those names.
 
@@ -238,6 +238,11 @@ destination access without changing existing contents. The default asyncio backe
 still requires neither Nmap nor root. Destination paths must be distinct from each
 other and the input configuration, including hard links; destination symlinks are
 rejected. Failed checks return 1; invalid scope/configuration returns 2.
+
+Report and export writes require `O_NOFOLLOW` support. On platforms without it,
+including Windows, these writes fail without opening or truncating the destination.
+New reports and export scripts are owner-only (mode 0600); replacing an existing file preserves its
+permissions. Exports containing credentials always force mode 0600.
 
 History is opt-in and complements the existing JSON snapshots and `diff` command:
 
