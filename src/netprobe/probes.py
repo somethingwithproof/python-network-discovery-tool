@@ -108,6 +108,16 @@ class ProbeContext:
     timeout: float
     snmp: SnmpCredentials | None = None
     tls_ca_file: str | None = None
+    # Filled on the first HTTPS probe. Creating a context loads the trust store.
+    _tls: ssl.SSLContext | None = field(default=None, init=False, repr=False, compare=False)
+
+    def tls_context(self) -> ssl.SSLContext:
+        """Return this scan's TLS context, loading the trust store only once."""
+        cached = self._tls
+        if cached is None:
+            cached = _tls_context(self.tls_ca_file)
+            object.__setattr__(self, "_tls", cached)
+        return cached
 
 
 @dataclass
@@ -351,7 +361,7 @@ def _tls_context(ca_file: str | None) -> ssl.SSLContext:
 
 
 async def https_probe(host: str, port: int, ctx: ProbeContext) -> ProbeResult:
-    verified_ctx = _tls_context(ctx.tls_ca_file)
+    verified_ctx = ctx.tls_context()
     details: Details = {"cert_verified": True}
     try:
         streams = await _open(host, port, ctx.timeout, verified_ctx)
