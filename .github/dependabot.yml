@@ -60,3 +60,19 @@ updates:
       prefix: chore
       include: scope
     # Runtime/base image changes receive maintainer review, including digest bumps.
+
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:45"
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      pre-commit-hooks:
+        patterns: ["*"]
+        update-types: [minor, patch]
