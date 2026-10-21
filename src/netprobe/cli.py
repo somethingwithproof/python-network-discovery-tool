@@ -475,7 +475,14 @@ def report_scan(options: ScanOptions, plan: ScanPlan, devices: list[Device]) -> 
         save_report(options, plan, devices)
     if options.save_snapshot:
         try:
-            write_snapshot(options.save_snapshot, plan.network, plan.services, devices)
+            write_snapshot(
+                options.save_snapshot,
+                plan.network,
+                plan.services,
+                devices,
+                timeout=plan.timeout,
+                backend=plan.backend,
+            )
         except OSError as exc:
             typer.echo(f"Error: cannot write {options.save_snapshot}: {exc}", err=True)
             raise typer.Exit(1) from exc

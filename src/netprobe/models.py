@@ -22,6 +22,8 @@ class ServiceSpec:
     port: int
     protocol: Protocol = "tcp"
     probe: str = "tcp"
+    # None uses the scan-wide --timeout. Connect probes set their own shorter budget.
+    timeout: float | None = None
 
 
 @dataclass

@@ -35,9 +35,17 @@ HTTP = ("http", 80, "tcp", "nginx/1.28.3")
 DB = ("mysql", 3306, "tcp", "11.4.13-MariaDB")
 
 
-def snap(tmp_path, name, devices, services=DEFAULT_SERVICES, target="10.0.0.0/24"):
+def snap(
+    tmp_path,
+    name,
+    devices,
+    services=DEFAULT_SERVICES,
+    target="10.0.0.0/24",
+    timeout=None,
+    backend=None,
+):
     path = tmp_path / name
-    write_snapshot(path, target, services, devices)
+    write_snapshot(path, target, services, devices, timeout=timeout, backend=backend)
     return path
 
 
@@ -51,6 +59,54 @@ def test_snapshot_format(tmp_path):
     assert document["target"] == "10.0.0.0/24"
     assert [s["name"] for s in document["services"]] == ["ssh", "snmp", "mysql", "http", "https"]
     assert [d["ip"] for d in document["devices"]] == ["10.0.0.1"]  # down hosts are dropped
+
+
+def test_snapshot_records_timeout_and_backend(tmp_path):
+    path = snap(tmp_path, "a.json", [], timeout=0.3, backend="asyncio")
+    document = json.loads(path.read_text())
+    assert document["timeout"] == 0.3
+    assert document["backend"] == "asyncio"
+    loaded = load_inventory(path)
+    assert loaded.timeout == 0.3
+    assert loaded.backend == "asyncio"
+
+
+def test_diff_warns_when_timeout_or_backend_differ(tmp_path):
+    old = snap(tmp_path, "old.json", [host("10.0.0.1", SSH)], timeout=0.3, backend="asyncio")
+    new = snap(tmp_path, "new.json", [host("10.0.0.1", SSH)], timeout=1.0, backend="nmap")
+    result = compare(load_inventory(old), load_inventory(new))
+    assert not result.changed
+    assert result.warnings == [
+        "timeouts differ: 0.3 vs 1.0",
+        "backends differ: asyncio vs nmap",
+        "timeouts differ for 161/udp: 0.3 vs 1.0",
+        "timeouts differ for 443/tcp: 0.3 vs 1.0",
+    ]
+
+
+def test_old_snapshots_without_settings_do_not_warn(tmp_path):
+    old = snap(tmp_path, "old.json", [host("10.0.0.1", SSH)])
+    new = snap(tmp_path, "new.json", [host("10.0.0.1", SSH)], timeout=1.0, backend="nmap")
+    result = compare(load_inventory(old), load_inventory(new))
+    assert result.warnings == []
+
+
+@pytest.mark.parametrize("old_budget", ["missing", None, 0.8, 0.3])
+def test_snapshot_compares_effective_service_timeout(tmp_path, old_budget):
+    services = (ServiceSpec("ssh", 22, "tcp", "ssh", timeout=0.3),)
+    old = snap(tmp_path, "old.json", [host("10.0.0.1", SSH)], services=services, timeout=1.0)
+    new = snap(tmp_path, "new.json", [host("10.0.0.1", SSH)], services=services, timeout=1.0)
+    document = json.loads(old.read_text())
+    if old_budget == "missing":
+        del document["services"][0]["timeout"]
+    else:
+        document["services"][0]["timeout"] = old_budget
+    old.write_text(json.dumps(document))
+    result = compare(load_inventory(old), load_inventory(new))
+    effective = 1.0 if old_budget in ("missing", None) else old_budget
+    expected = [] if effective == 0.3 else [f"timeouts differ for 22/tcp: {effective} vs 0.3"]
+    assert result.warnings == expected
+    assert not result.changed
 
 
 def test_identical_snapshots_have_no_changes(tmp_path):
@@ -158,6 +214,16 @@ def test_plain_reports_and_legacy_booleans(tmp_path):
         ('{"format": "other"}', "not a netprobe snapshot"),
         ('{"format": "netprobe-snapshot", "version": 99}', "version 99 is not supported"),
         ('{"format": "netprobe-snapshot", "version": 1}', "malformed"),
+        (
+            '{"format": "netprobe-snapshot", "version": 1, "services": [], "devices": [], '
+            '"timeout": "slow"}',
+            "timeout must be a number",
+        ),
+        (
+            '{"format": "netprobe-snapshot", "version": 1, "services": [], "devices": [], '
+            '"backend": 1}',
+            "backend must be a string",
+        ),
         ('[{"hostname": "x"}]', "without an ip"),
         ('[{"ip": "10.0.0.1", "services": [{"state": "open"}]}]', "malformed"),
     ],
