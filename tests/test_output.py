@@ -2,6 +2,10 @@
 # SPDX-License-Identifier: MIT
 
 import json
+import os
+import stat
+
+import pytest
 
 from netprobe.models import Device, Service
 from netprobe.output import print_results, save_csv, save_json
@@ -62,6 +66,65 @@ def test_save_csv_joins_errors(tmp_path):
     save_csv([Device(ip="10.0.0.1", errors=["a", "b"])], out)
 
     assert "a; b" in out.read_text()
+
+
+def test_save_csv_neutralizes_formula_cells(tmp_path):
+    out = tmp_path / "out.csv"
+    save_csv(
+        [Device(ip="10.0.0.1", alive=True, hostname="=cmd|calc", errors=["+boom"])],
+        out,
+    )
+    text = out.read_text()
+
+    assert "'=cmd|calc" in text
+    assert "'+boom" in text
+
+
+def test_save_json_refuses_a_symlink(tmp_path):
+    target = tmp_path / "target.json"
+    target.write_text("keep")
+    link = tmp_path / "link.json"
+    link.symlink_to(target)
+
+    with pytest.raises(OSError, match="symbolic link"):
+        save_json(sample(), link)
+
+    assert target.read_text() == "keep"
+
+
+@pytest.mark.parametrize("existing", [False, True])
+def test_save_json_requires_no_follow_support(tmp_path, monkeypatch, existing):
+    path = tmp_path / "report.json"
+    if existing:
+        path.write_text("keep")
+    monkeypatch.delattr(os, "O_NOFOLLOW")
+
+    with pytest.raises(OSError, match="no-follow"):
+        save_json(sample(), path)
+
+    assert path.read_text() == "keep" if existing else not path.exists()
+
+
+def test_save_json_creates_owner_only_report(tmp_path):
+    path = tmp_path / "report.json"
+    previous = os.umask(0)
+    try:
+        save_json(sample(), path)
+    finally:
+        os.umask(previous)
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+def test_save_json_without_no_follow_preserves_symlink_target(tmp_path, monkeypatch):
+    target = tmp_path / "target.json"
+    target.write_text("keep")
+    link = tmp_path / "link.json"
+    link.symlink_to(target)
+    monkeypatch.delattr(os, "O_NOFOLLOW")
+    with pytest.raises(OSError, match="no-follow"):
+        save_json(sample(), link)
+    assert link.is_symlink()
+    assert target.read_text() == "keep"
 
 
 def test_print_results_no_alive_hosts(capsys):

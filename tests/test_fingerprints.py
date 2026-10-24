@@ -335,6 +335,26 @@ async def test_https_probe_closed_port():
     assert (await probes.https_probe("127.0.0.1", closed_port(), CTX)).state == "closed"
 
 
+async def test_https_probes_load_the_trust_store_once_per_scan(monkeypatch):
+    calls = 0
+    real = probes._tls_context
+
+    def counting(ca_file: str | None) -> ssl.SSLContext:
+        nonlocal calls
+        calls += 1
+        return real(ca_file)
+
+    monkeypatch.setattr(probes, "_tls_context", counting)
+    first = ProbeContext(timeout=0.2)
+    second = ProbeContext(timeout=0.2)
+    port = closed_port()
+    await probes.https_probe("127.0.0.1", port, first)
+    await probes.https_probe("127.0.0.1", port, first)
+    await probes.https_probe("127.0.0.1", port, second)
+
+    assert calls == 2
+
+
 async def test_https_probe_verification_failure_never_retries(monkeypatch):
     calls = []
 
