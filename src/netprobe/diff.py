@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+from collections import Counter
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from importlib.metadata import version as package_version
@@ -18,6 +19,8 @@ from rich.markup import escape
 from rich.table import Table
 
 from netprobe.models import Device, ServiceSpec
+from netprobe.output import write_text
+from netprobe.scan_settings import effective_timeouts, timeout_warnings
 
 SNAPSHOT_FORMAT = "netprobe-snapshot"
 SNAPSHOT_VERSION = 1
@@ -26,6 +29,8 @@ SNAPSHOT_VERSION = 1
 LEGACY_PORTS = {"ssh": (22, "tcp"), "snmp": (161, "udp"), "mysql": (3306, "tcp")}
 
 Port = tuple[int, str]
+# port, protocol, service name. The name keeps two open services on one socket apart.
+OpenKey = tuple[int, str, str]
 
 
 class SnapshotError(ValueError):
@@ -33,32 +38,48 @@ class SnapshotError(ValueError):
 
 
 def write_snapshot(
-    path: Path, network: str, services: tuple[ServiceSpec, ...], devices: list[Device]
+    path: Path,
+    network: str,
+    services: tuple[ServiceSpec, ...],
+    devices: list[Device],
+    *,
+    timeout: float | None = None,
+    backend: str | None = None,
 ) -> None:
     """Write the alive hosts of a scan, with what was probed, as versioned JSON."""
-    document = {
+    document: dict[str, Any] = {
         "format": SNAPSHOT_FORMAT,
         "version": SNAPSHOT_VERSION,
         "netprobe_version": package_version("netprobe"),
         "created": datetime.now(UTC).isoformat(timespec="seconds"),
         "target": network,
         "services": [
-            {"name": s.name, "port": s.port, "protocol": s.protocol, "probe": s.probe}
+            {
+                "name": s.name,
+                "port": s.port,
+                "protocol": s.protocol,
+                "probe": s.probe,
+                "timeout": s.timeout,
+            }
             for s in services
         ],
-        # Down hosts carry no information worth diffing and would make a /16
-        # snapshot 65k entries long.
-        "devices": [asdict(d) for d in devices if d.alive],
     }
-    path.write_text(json.dumps(document, indent=2) + "\n")
+    if timeout is not None:
+        document["timeout"] = timeout
+    if backend is not None:
+        document["backend"] = backend
+    # Down hosts carry no information worth diffing and would make a /16
+    # snapshot 65k entries long.
+    document["devices"] = [asdict(d) for d in devices if d.alive]
+    write_text(path, json.dumps(document, indent=2) + "\n")
 
 
 @dataclass
 class Host:
     ip: str
     hostname: str
-    # (port, protocol) -> (service name, version)
-    open: dict[Port, tuple[str, str]]
+    # (port, protocol, name) -> version
+    open: dict[OpenKey, str]
 
 
 @dataclass
@@ -71,25 +92,47 @@ class Inventory:
     hosts: dict[str, Host]
     # The alive device entries as stored, for consumers such as the exporter.
     devices: list[dict[str, Any]] = field(default_factory=list)
+    # None when the file did not record the setting (older snapshots, plain reports).
+    timeout: float | None = None
+    backend: str | None = None
+    service_timeouts: dict[str, float] = field(default_factory=dict)
 
 
 def _host(entry: Any) -> Host:
     if not isinstance(entry, dict) or not isinstance(entry.get("ip"), str):
         raise SnapshotError("device entry without an ip")
-    found: dict[Port, tuple[str, str]] = {}
+    found: dict[OpenKey, str] = {}
     services = entry.get("services")
     if isinstance(services, list):
         for s in services:
             if isinstance(s, dict) and s.get("state") == "open":
-                found[(int(s["port"]), str(s["protocol"]))] = (
-                    str(s["name"]),
-                    str(s.get("version", "")),
+                found[(int(s["port"]), str(s["protocol"]), str(s["name"]))] = str(
+                    s.get("version", "")
                 )
     else:
-        for name, port in LEGACY_PORTS.items():
+        for name, (port, protocol) in LEGACY_PORTS.items():
             if entry.get(name) is True:
-                found[port] = (name, "")
+                found[(port, protocol, name)] = ""
     return Host(entry["ip"], str(entry.get("hostname", "")), found)
+
+
+def _recorded_number(document: dict[str, Any], key: str) -> float | None:
+    if key not in document:
+        return None
+    value = document[key]
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{key} must be a number")
+    return float(value)
+
+
+def _recorded_settings(document: dict[str, Any]) -> tuple[float | None, str | None]:
+    timeout = _recorded_number(document, "timeout")
+    if "backend" not in document:
+        return timeout, None
+    backend = document["backend"]
+    if not isinstance(backend, str):
+        raise ValueError("backend must be a string")
+    return timeout, backend
 
 
 def load_inventory(path: Path) -> Inventory:
@@ -100,6 +143,9 @@ def load_inventory(path: Path) -> Inventory:
         raise SnapshotError(f"cannot read {path}: {e}") from e
 
     try:
+        timeout: float | None = None
+        backend: str | None = None
+        service_timeouts: dict[str, float] = {}
         if isinstance(document, list):
             devices, probed, created, target = document, None, "", ""
         elif isinstance(document, dict) and document.get("format") == SNAPSHOT_FORMAT:
@@ -111,6 +157,8 @@ def load_inventory(path: Path) -> Inventory:
             devices = document["devices"]
             probed = {(int(s["port"]), str(s["protocol"])) for s in document["services"]}
             created, target = str(document.get("created", "")), str(document.get("target", ""))
+            timeout, backend = _recorded_settings(document)
+            service_timeouts = effective_timeouts(document)
         else:
             raise SnapshotError(f"{path}: not a netprobe snapshot or JSON report")
         alive = [d for d in devices if not isinstance(d, dict) or d.get("alive", True)]
@@ -119,7 +167,17 @@ def load_inventory(path: Path) -> Inventory:
         raise
     except (KeyError, TypeError, ValueError) as e:
         raise SnapshotError(f"{path}: malformed snapshot: {e}") from e
-    return Inventory(str(path), created, target, probed, {h.ip: h for h in hosts}, alive)
+    return Inventory(
+        str(path),
+        created,
+        target,
+        probed,
+        {h.ip: h for h in hosts},
+        alive,
+        timeout=timeout,
+        backend=backend,
+        service_timeouts=service_timeouts,
+    )
 
 
 @dataclass
@@ -172,7 +230,7 @@ def _summary(host: Host) -> dict[str, Any]:
         "hostname": host.hostname,
         "services": [
             {"name": name, "port": port, "protocol": proto, "version": version}
-            for (port, proto), (name, version) in sorted(host.open.items())
+            for (port, proto, name), version in sorted(host.open.items())
         ],
     }
 
@@ -189,6 +247,11 @@ def compare(old: Inventory, new: Inventory) -> Diff:
     )
     if old.target and new.target and old.target != new.target:
         diff.warnings.append(f"targets differ: {old.target} vs {new.target}")
+    if old.timeout is not None and new.timeout is not None and old.timeout != new.timeout:
+        diff.warnings.append(f"timeouts differ: {old.timeout} vs {new.timeout}")
+    if old.backend is not None and new.backend is not None and old.backend != new.backend:
+        diff.warnings.append(f"backends differ: {old.backend} vs {new.backend}")
+    diff.warnings.extend(timeout_warnings(old.service_timeouts, new.service_timeouts))
     comparable: set[Port] | None = None
     if old.probed is not None and new.probed is not None:
         comparable = old.probed & new.probed
@@ -267,21 +330,32 @@ def print_diff(diff: Diff, console: Console) -> None:
 def compare_host_ports(
     diff: Diff,
     ip: str,
-    before: dict[Port, tuple[str, str]],
-    after: dict[Port, tuple[str, str]],
+    before: dict[OpenKey, str],
+    after: dict[OpenKey, str],
     comparable: set[Port] | None,
 ) -> None:
-    for port in sorted(before.keys() | after.keys()):
-        if comparable is not None and port not in comparable:
+    # A label change is not a port transition. Retain name matching only for
+    # older inventories that contain multiple services on the same socket.
+    before_counts = Counter((port, protocol) for port, protocol, _ in before)
+    after_counts = Counter((port, protocol) for port, protocol, _ in after)
+    unique_after = {
+        (port, protocol): (port, protocol, name)
+        for port, protocol, name in after
+        if after_counts[(port, protocol)] == 1
+    }
+    before = {
+        unique_after.get((port, protocol), (port, protocol, name))
+        if before_counts[(port, protocol)] == 1
+        else (port, protocol, name): version
+        for (port, protocol, name), version in before.items()
+    }
+    for port, protocol, name in sorted(before.keys() | after.keys()):
+        if comparable is not None and (port, protocol) not in comparable:
             continue
-        if port not in before:
-            name, version = after[port]
-            diff.opened.append(Change(ip, name, port[0], port[1], version))
-        elif port not in after:
-            name, version = before[port]
-            diff.closed.append(Change(ip, name, port[0], port[1], "", version))
-        elif before[port][1] != after[port][1]:
-            name = after[port][0]
-            diff.version_changes.append(
-                Change(ip, name, port[0], port[1], after[port][1], before[port][1])
-            )
+        key = (port, protocol, name)
+        if key not in before:
+            diff.opened.append(Change(ip, name, port, protocol, after[key]))
+        elif key not in after:
+            diff.closed.append(Change(ip, name, port, protocol, "", before[key]))
+        elif before[key] != after[key]:
+            diff.version_changes.append(Change(ip, name, port, protocol, after[key], before[key]))

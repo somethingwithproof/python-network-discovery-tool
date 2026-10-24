@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import ipaddress
 import logging
 import ssl
 from collections.abc import Awaitable, Callable
@@ -34,6 +35,9 @@ MAX_HEADER_BYTES = 16384
 MAX_LINE_BYTES = 4096
 # A real MySQL greeting is under 200 bytes; refuse to buffer a 16 MB "packet".
 MAX_MYSQL_PACKET = 4096
+# RFC 3411 limits an SNMP engine ID to 32 octets. A longer value is still
+# proof the agent answered, but only the first 32 are stored.
+MAX_ENGINE_ID_OCTETS = 32
 
 # SNMPv3 GetRequest with an empty engine ID and user and the reportable flag.
 # RFC 3414 section 4 requires an agent to answer it with a Report carrying its
@@ -104,6 +108,16 @@ class ProbeContext:
     timeout: float
     snmp: SnmpCredentials | None = None
     tls_ca_file: str | None = None
+    # Filled on the first HTTPS probe. Creating a context loads the trust store.
+    _tls: ssl.SSLContext | None = field(default=None, init=False, repr=False, compare=False)
+
+    def tls_context(self) -> ssl.SSLContext:
+        """Return this scan's TLS context, loading the trust store only once."""
+        cached = self._tls
+        if cached is None:
+            cached = _tls_context(self.tls_ca_file)
+            object.__setattr__(self, "_tls", cached)
+        return cached
 
 
 @dataclass
@@ -270,12 +284,30 @@ def parse_http_head(raw: bytes) -> Details:
     return details
 
 
+def host_header(host: str, port: int, default_port: int) -> str:
+    """Host header value: bracket IPv6, and include a port that is not the scheme default."""
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        rendered = host.encode("idna").decode("ascii")
+    else:
+        rendered = f"[{address}]" if address.version == 6 else str(address)
+    if port != default_port:
+        return f"{rendered}:{port}"
+    return rendered
+
+
 async def _http_exchange(
-    reader: asyncio.StreamReader, writer: asyncio.StreamWriter, host: str, timeout_seconds: float
+    reader: asyncio.StreamReader,
+    writer: asyncio.StreamWriter,
+    host: str,
+    port: int,
+    default_port: int,
+    timeout_seconds: float,
 ) -> Details:
     writer.write(
         b"HEAD / HTTP/1.0\r\nHost: "
-        + host.encode("idna")
+        + host_header(host, port, default_port).encode("ascii")
         + b"\r\nUser-Agent: netprobe\r\nConnection: close\r\n\r\n"
     )
     try:
@@ -295,7 +327,7 @@ async def http_probe(host: str, port: int, ctx: ProbeContext) -> ProbeResult:
         return ProbeResult(streams)
     reader, writer = streams
     try:
-        details = await _http_exchange(reader, writer, host, ctx.timeout)
+        details = await _http_exchange(reader, writer, host, port, 80, ctx.timeout)
     finally:
         await _close(writer)
     return ProbeResult("open", details.get("server", ""), details)
@@ -329,7 +361,7 @@ def _tls_context(ca_file: str | None) -> ssl.SSLContext:
 
 
 async def https_probe(host: str, port: int, ctx: ProbeContext) -> ProbeResult:
-    verified_ctx = _tls_context(ctx.tls_ca_file)
+    verified_ctx = ctx.tls_context()
     details: Details = {"cert_verified": True}
     try:
         streams = await _open(host, port, ctx.timeout, verified_ctx)
@@ -359,7 +391,7 @@ async def https_probe(host: str, port: int, ctx: ProbeContext) -> ProbeResult:
                     details.update(parse_certificate(der))
                 except ValueError as e:
                     details["cert_error"] = clean(str(e))
-        details.update(await _http_exchange(reader, writer, host, ctx.timeout))
+        details.update(await _http_exchange(reader, writer, host, port, 443, ctx.timeout))
     finally:
         await _close(writer)
     return ProbeResult("open", details.get("server", ""), details)
@@ -442,7 +474,7 @@ def snmp_engine_id(message: bytes) -> str | None:
         return None
     if tag != 0x04 or not engine_id:
         return None
-    return engine_id.hex()
+    return engine_id[:MAX_ENGINE_ID_OCTETS].hex()
 
 
 async def snmp_discover(
