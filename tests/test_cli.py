@@ -10,7 +10,7 @@ import pytest
 from typer.testing import CliRunner
 
 from netprobe import cli, preflight
-from netprobe.models import Device
+from netprobe.models import Device, Service
 from netprobe.scanner import BackendUnavailableError
 
 runner = CliRunner()
@@ -275,6 +275,15 @@ def test_cli_scan_saves_snapshot(tmp_path):
     assert document["target"] == "10.0.0.0/30"
     assert [s["name"] for s in document["services"]] == ["ssh"]
     assert [d["ip"] for d in document["devices"]] == ["10.0.0.1"]
+
+
+def test_port_states_reject_two_observations_for_one_endpoint():
+    device = Device(
+        ip="10.0.0.1",
+        services=[Service("ssh", 22, "tcp", "open"), Service("alt", 22, "tcp", "closed")],
+    )
+    with pytest.raises(ValueError, match="22/tcp"):
+        cli._port_states(device)
 
 
 def test_cli_scan_unwritable_snapshot_exits_1(tmp_path):
