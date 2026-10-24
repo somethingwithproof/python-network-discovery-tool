@@ -3,7 +3,7 @@
 # SPDX-FileContributor: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com> (automated contribution)
 
 # Python 3.14 slim-bookworm, pinned by digest.
-FROM python@sha256:48b13b003dda20b16f9442b8475aa05fe21bf6579a8c881db92ffb4d8fd20f83 AS builder
+FROM python@sha256:e748956ccf3f50c9555f236753bbcd5f430d3937e665d3bd6922dd0e6e591a24 AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.12.23@sha256:61d393e44e249f2e4b526b6c7ddcecce245946826e608e11c93ad4f5bba55b21 /uv /usr/local/bin/uv
 WORKDIR /app
 COPY pyproject.toml uv.lock README.md LICENSE ./
@@ -17,7 +17,7 @@ RUN uv sync --locked --group build --no-build --no-install-project \
     && uv sync --locked --extra nmap --no-build --no-install-project --no-install-package python-nmap \
     && uv pip install --python .venv/bin/python --no-build --no-deps /wheels/*.whl
 
-FROM python@sha256:48b13b003dda20b16f9442b8475aa05fe21bf6579a8c881db92ffb4d8fd20f83 AS runtime
+FROM python@sha256:e748956ccf3f50c9555f236753bbcd5f430d3937e665d3bd6922dd0e6e591a24 AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends nmap \
     && apt-get clean && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 10001 netprobe \
