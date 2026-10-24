@@ -139,7 +139,7 @@ netprobe scan 10.0.0.0/24 -q -o out.json  # no table, file only
 | `-v, --verbose` | Debug logging. |
 | `-q, --quiet` | Suppress results and progress output; errors still appear. |
 | `--backend asyncio\|nmap` | Host discovery. `asyncio` (default) probes the service ports directly; `nmap` runs an nmap ping sweep first and needs `pip install 'netprobe[nmap]'` plus the `nmap` binary. |
-| `--timeout SECONDS` | Wait per probe (default 1.0). |
+| `--timeout SECONDS` | Wait for probes that do not set their own budget (default 1.0). Built-in connect probes use 0.3s unless the service table sets `timeout`. |
 | `--concurrency N` | Probes in flight at once (default 256). |
 | `--config PATH` | TOML service definitions and optional named `[profiles]` settings. |
 | `--profile NAME` | Use a named profile; defaults to `netprobe.toml` when `--config` is omitted. |
@@ -169,15 +169,15 @@ Each open service is fingerprinted from what it sends before any login. Nothing 
 | `https` | TLS handshake, certificate, `HEAD /` | `Server` header | `tls_version`, `cert_verified`, `cert_verify_error`, `cert_subject`, `cert_issuer`, `cert_sans`, `cert_not_before`, `cert_not_after` (UTC ISO 8601), `cert_self_signed`, `status`, `server` |
 | `snmp` | SNMPv3 discovery; with credentials, GET of sysDescr, sysObjectID, sysName | sysDescr | `engine_id`; with credentials `snmp_version`, `sys_descr`, `sys_object_id`, `sys_name`, or `snmp_error` |
 
-HTTPS uses certificate and hostname verification against the system store or `--tls-ca-file`. If verification fails, the result records `cert_verified: false` and `cert_verify_error`; it does not retry with weaker settings or send an HTTP request. Certificate details and HTTP headers are collected only after verification succeeds. Supply the correct CA bundle for private-CA services. Older reports may contain `cert_read_unverified`, which current probes no longer produce.
+HTTPS uses certificate and hostname verification against the system store or `--tls-ca-file`. The trust store is loaded once for the scan and reused for every HTTPS probe. If verification fails, the result records `cert_verified: false` and `cert_verify_error`; it does not retry with weaker settings or send an HTTP request. Certificate details and HTTP headers are collected only after verification succeeds. Supply the correct CA bundle for private-CA services. Older reports may contain `cert_read_unverified`, which current probes no longer produce.
 
 SNMP credentials are read from options or environment variables. Prefer the environment variables: command-line values are visible to other local users in the process list. Scan reports and history do not intentionally include credential values. The exporter has a separate, explicit `--include-credentials` option described below. A community selects SNMPv2c; a user selects SNMPv3, with authentication when an auth key is given and privacy when both keys are given (`snmp_security_level` records which). netprobe refuses, with exit code 2, to combine a community with a v3 user, to use a privacy key without an auth key, or to use keys without a user, and it never retries a failed v3 query with v2c or a lower security level. Passing a secret as an option logs a warning naming the matching environment variable. Agents that only speak v1/v2c ignore the credential-free v3 discovery, so they show as open only when a community is supplied.
 
-Banner text is reduced to printable characters and capped at 256 characters before it is stored or shown. Reads are bounded too: 4 KiB per line, 4 KiB for a MySQL greeting, 16 KiB of HTTP headers.
+Banner text is reduced to printable characters and capped at 256 characters before it is stored or shown. Reads are bounded too: 4 KiB per line, 4 KiB for a MySQL greeting, 16 KiB of HTTP headers. An SNMP engine ID longer than 32 octets is truncated before it is stored. HTTP and HTTPS send a Host header with an IPv6 address in brackets and with the port when it is not 80 or 443. CSV cells that start with a spreadsheet formula trigger are prefixed so the cell stays text.
 
 ### Limits
 
-One run accepts at most 65,536 addresses, 64 services, and 524,288 probes (hosts times services); larger requests exit with code 2 before anything is sent. `--concurrency` is capped at 4096 sockets. Service probes have a hard deadline of four times `--timeout`; a probe that hits it is reported as `filtered` with "probe timed out" in `errors`. Nmap discovery uses a 30-second host timeout and a 35-second subprocess deadline per invocation. Excluded-target sweeps use bounded batches; worker creation is bounded independently of range size. Reverse DNS has a separate two-second deadline. These are operation limits, not a total scan deadline.
+One run accepts at most 65,536 addresses, 64 services, and 524,288 probes (hosts times services); larger requests exit with code 2 before anything is sent. `--concurrency` is capped at 4096 sockets. Each probe has a hard deadline of four times its own budget. Connect probes (`tcp`, `ssh`, `mysql`, `http`) use 0.3 seconds unless that service sets `timeout`. SNMP and HTTPS use `--timeout` (default 1.0) when they do not set one. A probe that hits the deadline is reported as `filtered` with "probe timed out" in `errors`. Nmap discovery uses a 30-second host timeout. A full prefix is one nmap process whose subprocess deadline is 35 seconds for every 256 addresses, rounded up. Sweeps with exclusions use batches of 256 hosts and a 35-second deadline for each batch. Worker creation is bounded independently of range size. Reverse DNS has a separate two-second deadline. These are operation limits, not a total scan deadline.
 
 ### Configuring services
 
@@ -186,13 +186,14 @@ Services can be changed with a TOML file:
 ```toml
 [services.ssh]          # same name as a built-in: replaces it
 port = 2222
+timeout = 0.5
 
 [services.admin-ui]     # a new service, probed like HTTPS
 port = 8443
 probe = "https"
 ```
 
-`probe` is one of `tcp`, `ssh`, `mysql`, `http`, `https` or `snmp` and defaults to the service name when that is a probe, else `tcp`. Only `snmp` uses UDP. Service names are lowercase letters, digits, `-` and `_`.
+`probe` is one of `tcp`, `ssh`, `mysql`, `http`, `https` or `snmp` and defaults to the service name when that is a probe, else `tcp`. Only `snmp` uses UDP. Service names are lowercase letters, digits, `-` and `_`. Two services cannot share a port and protocol; history records one state for that pair. `timeout` is optional, in seconds, and at least 0.05. Connect-style probes (`tcp`, `ssh`, `mysql`, `http`) default to 0.3 seconds. `snmp` and `https` use the scan `--timeout` when the service does not set `timeout`. `--timeout` does not replace a budget the service already has.
 
 Results keep the original `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` and `errors` fields and add a `services` list with each probe's `name`, `port`, `protocol`, `state` (`open`, `closed` or `filtered`), `version` and `details`. CSV output gains trailing `services` and `versions` columns for the open ones. The `ssh`, `snmp` and `mysql` booleans follow the services with exactly those names.
 
@@ -238,6 +239,11 @@ still requires neither Nmap nor root. Destination paths must be distinct from ea
 other and the input configuration, including hard links; destination symlinks are
 rejected. Failed checks return 1; invalid scope/configuration returns 2.
 
+Report and export writes require `O_NOFOLLOW` support. On platforms without it,
+including Windows, these writes fail without opening or truncating the destination.
+New reports and export scripts are owner-only (mode 0600); replacing an existing file preserves its
+permissions. Exports containing credentials always force mode 0600.
+
 History is opt-in and complements the existing JSON snapshots and `diff` command:
 
 ```bash
@@ -259,8 +265,11 @@ report, snapshot, export, and scan exit-code contracts are preserved.
 `history` lists JSON summaries without reading all historical device payloads.
 `compare` reads two saved scans, requires identical target identities and selected
 ports, and reports responsiveness, status, and port-state changes. The earlier
-scan ID must precede the later ID. Scanner errors and unknown port observations
-are flagged as uncertain rather than treated as confirmed disappearance or closure.
+scan ID must precede the later ID. When both scans recorded `timeout` or `backend`
+and those values differ, the report lists a warning and still compares the
+observations. A different wait can make a filtered port look open. Scanner errors
+and unknown port observations are flagged as uncertain rather than treated as
+confirmed disappearance or closure.
 `no_longer_responding` means lack of a response, not proof of device removal.
 Scan exit code 0 does not guarantee every host responded: inspect per-host errors. Comparison success returns 0 whether or not changes exist; existing file `diff`
 retains its exit code 3 contract. Unsupported or corrupt history returns 1.
@@ -278,9 +287,9 @@ netprobe diff monday.json tuesday.json             # table
 netprobe diff monday.json tuesday.json -f json     # JSON on stdout
 ```
 
-A snapshot is JSON with `format: "netprobe-snapshot"`, `version: 1`, the netprobe version, the UTC creation time, the target, the services that were probed, and the alive hosts in the same shape as the `-o` report. Down hosts are left out. `diff` also accepts plain `scan -o` JSON reports, including ones from before the `services` field existed.
+A snapshot is JSON with `format: "netprobe-snapshot"`, `version: 1`, the netprobe version, the UTC creation time, the target, the scan `timeout` and `backend` when the scan recorded them, the services that were probed, and the alive hosts in the same shape as the `-o` report. Down hosts are left out. `diff` also accepts plain `scan -o` JSON reports, including ones from before the `services` field existed.
 
-`diff` reports new and vanished hosts, ports that opened or closed on hosts present in both, and services whose `version` changed. Ports that were probed in only one of the two scans are not compared, and a warning says so; a warning also appears when the targets differ. `-o PATH` writes the JSON form to a file as well.
+`diff` reports new and vanished hosts, ports that opened or closed on hosts present in both, and services whose `version` changed. Ports that were probed in only one of the two scans are not compared, and a warning says so. A warning also appears when the targets differ, and when both files recorded a timeout or backend and those values differ. `-o PATH` writes the JSON form to a file as well.
 
 `diff` exit codes: `0` no changes, `3` changes found, `2` a file is missing, unreadable or not a supported snapshot, `1` the `-o` file could not be written.
 

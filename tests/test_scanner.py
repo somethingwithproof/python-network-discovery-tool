@@ -254,10 +254,10 @@ class FakeHost:
 
 class FakePortScanner:
     hosts: ClassVar[dict[str, str]] = {}
-    calls: ClassVar[list[tuple[str, str]]] = []
+    calls: ClassVar[list[tuple[str, str, int | None]]] = []
 
     def scan(self, hosts, arguments, timeout=None):
-        self.calls.append((hosts, arguments))
+        self.calls.append((hosts, arguments, timeout))
 
     def all_hosts(self):
         return list(self.hosts)
@@ -292,7 +292,7 @@ async def test_nmap_backend_only_probes_swept_hosts(fake_nmap, monkeypatch):
     assert devices[0].errors == []
     assert devices[1].errors == ["Host is down"]
     assert set(probed) == {"10.0.0.1"}
-    assert FakePortScanner.calls[-1] == ("10.0.0.0/30", "-sn -T4 --host-timeout 30s")
+    assert FakePortScanner.calls[-1] == ("10.0.0.0/30", "-sn -T4 --host-timeout 30s", 35)
 
 
 async def test_nmap_backend_hostname_target_matches_by_ip(fake_nmap, monkeypatch):
@@ -305,6 +305,43 @@ async def test_nmap_backend_hostname_target_matches_by_ip(fake_nmap, monkeypatch
     devices = await NetworkScanner(backend="nmap").scan_network("example.com")
 
     assert devices[0].alive
+
+
+def test_nmap_full_prefix_deadline_scales_with_hosts(fake_nmap):
+    network = "10.0.0.0/23"
+    targets = scanner.expand_targets(network)
+    assert len(targets) == 510
+    scanner.nmap_sweep(targets, network)
+    hosts, _arguments, timeout = FakePortScanner.calls[-1]
+    assert hosts == network
+    assert timeout == 70
+
+
+def test_nmap_partial_lists_stay_in_fixed_batches(fake_nmap):
+    network = "10.0.0.0/23"
+    targets = scanner.expand_targets(network)[:-1]
+    scanner.nmap_sweep(targets, network)
+    assert len(FakePortScanner.calls) == 2
+    assert all(call[2] == 35 for call in FakePortScanner.calls)
+    assert "/" not in FakePortScanner.calls[0][0]
+
+
+async def test_service_budget_replaces_the_scan_timeout(monkeypatch):
+    seen: list[float] = []
+
+    async def grab(host, port, timeout):
+        seen.append(timeout)
+        return "closed"
+
+    stub_probes(monkeypatch, grab)
+    await NetworkScanner(
+        timeout=1.0,
+        services=[
+            ServiceSpec("ssh", 22, "tcp", "ssh", 0.3),
+            ServiceSpec("https", 443, "tcp", "https"),
+        ],
+    ).scan_device("127.0.0.1")
+    assert seen == [0.3, 1.0]
 
 
 def test_host_key_never_falls_back_to_a_different_ip():
