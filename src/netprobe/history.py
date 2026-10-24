@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from netprobe.scan_settings import effective_timeouts, timeout_warnings
 from netprobe.scanner import validate_target
 
 type JSONDocument = dict[str, Any]
@@ -190,10 +191,28 @@ def compare_scans(before: JSONDocument, after: JSONDocument) -> JSONDocument:
         "uncertain_hosts": [],
         "status_changes": [],
         "port_changes": [],
+        "warnings": _setting_warnings(before["metadata"], after["metadata"]),
     }
     for ip in sorted(old, key=host_sort_key):
         compare_host_observations(report, ip, old[ip], new[ip])
     return report
+
+
+def _setting_warnings(before: JSONDocument, after: JSONDocument) -> list[str]:
+    """Warn when both scans recorded a setting and the values differ.
+
+    Missing keys are older rows. A difference changes how long a filtered port
+    waited, so the comparison still runs and says so.
+    """
+    warnings: list[str] = []
+    old_timeout, new_timeout = before.get("timeout"), after.get("timeout")
+    if old_timeout is not None and new_timeout is not None and old_timeout != new_timeout:
+        warnings.append(f"timeouts differ: {old_timeout} vs {new_timeout}")
+    old_backend, new_backend = before.get("backend"), after.get("backend")
+    if old_backend is not None and new_backend is not None and old_backend != new_backend:
+        warnings.append(f"backends differ: {old_backend} vs {new_backend}")
+    warnings.extend(timeout_warnings(effective_timeouts(before), effective_timeouts(after)))
+    return warnings
 
 
 def host_sort_key(value: str) -> tuple[int, int, str]:
