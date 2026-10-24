@@ -21,7 +21,7 @@ repos:
       - id: debug-statements
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.5
+    rev: v0.17.1
     hooks:
       - id: ruff
         args: [--fix]
@@ -43,16 +43,16 @@ repos:
         additional_dependencies: ['bandit[toml]']
 
   - repo: https://github.com/pypa/pip-audit
-    rev: v2.10.0
+    rev: v2.10.1
     hooks:
       - id: pip-audit
 
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.23.1
+    rev: v8.30.1
     hooks:
       - id: gitleaks
 
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.11
+    rev: v1.7.12
     hooks:
       - id: actionlint
