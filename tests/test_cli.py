@@ -167,6 +167,11 @@ def test_cli_snmp_secrets_reach_probe_but_never_output(tmp_path, monkeypatch, ca
         monkeypatch.setenv(name, value)
     out = tmp_path / "scan.json"
 
+    # This checks real SNMP credential redaction, not the scanner deadline.
+    # Leave time for initial MIB/key setup on slower macOS runners while keeping
+    # the real SNMP request timeout at one second. Scanner tests cover its budget.
+    monkeypatch.setattr("netprobe.scanner.PROBE_BUDGET", 10)
+
     # A bound UDP socket that never answers: the real SNMP GET runs and times out.
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as agent:
         agent.bind(("127.0.0.1", 0))
