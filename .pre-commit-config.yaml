@@ -28,7 +28,7 @@ repos:
       - id: ruff-format
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.19.1
+    rev: v2.4.0
     hooks:
       - id: mypy
         # Settings live in pyproject.toml; check the package, not single files.
