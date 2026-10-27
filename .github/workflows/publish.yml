@@ -38,7 +38,7 @@ jobs:
           ref: refs/tags/${{ inputs.tag || github.event.release.tag_name }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+      - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
         with:
           tool_versions: python 3.14
       - name: Verify tag and download the published release artifacts
@@ -56,6 +56,6 @@ jobs:
           python scripts/release.py check --tag "$RELEASE_TAG" --dist dist --verify-checksums dist/SHA256SUMS
           mv dist/SHA256SUMS "$RUNNER_TEMP/release-SHA256SUMS"
       - name: Publish the existing artifacts with OIDC
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           packages-dir: dist
