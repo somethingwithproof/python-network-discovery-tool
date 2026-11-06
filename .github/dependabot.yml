@@ -5,6 +5,8 @@ version: 2
 
 updates:
   - package-ecosystem: github-actions
+    cooldown:
+      default-days: 7
     directory: /
     schedule:
       interval: weekly
@@ -23,6 +25,8 @@ updates:
 
   # uv owns pyproject.toml and uv.lock; pip would not maintain this lockfile.
   - package-ecosystem: uv
+    cooldown:
+      default-days: 7
     directory: /
     schedule:
       interval: weekly
@@ -48,6 +52,8 @@ updates:
         patterns: ["*"]
 
   - package-ecosystem: docker
+    cooldown:
+      default-days: 7
     directory: /
     schedule:
       interval: weekly
@@ -62,6 +68,8 @@ updates:
     # Runtime/base image changes receive maintainer review, including digest bumps.
 
   - package-ecosystem: pre-commit
+    cooldown:
+      default-days: 7
     directory: /
     schedule:
       interval: weekly
