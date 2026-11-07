@@ -48,19 +48,19 @@ nmap = [
 ]
 dev = [
     "python-nmap>=0.7.1",
-    "pytest>=9.0.3",
-    "pytest-asyncio>=1.3.0",
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.4.1",
     "pytest-cov>=7.1.0",
-    "ruff>=0.17.2",
-    "mypy>=1.19.1",
-    "hatchling>=1.27.0",
+    "ruff>=0.17.3",
+    "mypy>=2.4.1",
+    "hatchling>=1.33.0",
     "installer>=1.1.0",
     "bandit>=1.8.0",
     "twine>=6.2.0",
 ]
 
 [dependency-groups]
-build = ["hatchling>=1.27.0", "setuptools>=84.2.1", "wheel>=0.46.0"]
+build = ["hatchling>=1.33.0", "setuptools>=84.2.1", "wheel>=0.46.0"]
 
 [project.scripts]
 netprobe = "netprobe.cli:app"
