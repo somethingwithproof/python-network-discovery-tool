@@ -326,21 +326,48 @@ async def test_nmap_backend_only_probes_swept_hosts(fake_nmap, monkeypatch):
     assert fake_nmap.calls == [[*SWEEP, "10.0.0.0/30"]]
 
 
-async def test_nmap_backend_hostname_target_matches_by_ip(fake_nmap, monkeypatch):
-    fake_nmap.up(["93.184.216.34"])
-
-    async def filtered(host, port, timeout):
-        return "filtered"
+async def test_nmap_backend_sweeps_the_pinned_address_of_a_hostname(fake_nmap, monkeypatch):
+    fake_nmap.up(["192.0.2.10"])
+    lookups = []
 
     def fake_getaddrinfo(host, port, **kwargs):
-        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))]
+        lookups.append(host)
+        # A rebinding answer would differ on the next lookup; only the first is used.
+        address = "192.0.2.10" if len(lookups) == 1 else "127.0.0.1"
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (address, 0))]
+
+    probed = []
+
+    async def filtered(host, port, timeout):
+        probed.append(host)
+        return "filtered"
 
     stub_probes(monkeypatch, filtered)
     monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
-    devices = await NetworkScanner(backend="nmap").scan_network("example.com")
+    devices = await NetworkScanner(backend="nmap").scan_network("web.example")
 
-    assert devices[0].alive
-    assert fake_nmap.calls == [[*SWEEP, "example.com"]]
+    assert lookups == ["web.example"]
+    assert fake_nmap.calls == [[*SWEEP, "192.0.2.10"]]
+    assert set(probed) == {"192.0.2.10"}
+    assert (devices[0].ip, devices[0].address, devices[0].alive) == (
+        "web.example",
+        "192.0.2.10",
+        True,
+    )
+
+
+async def test_nmap_backend_unresolvable_hostname_is_unknown_without_a_sweep(
+    fake_nmap, monkeypatch
+):
+    def fail(host, port, **kwargs):
+        raise socket.gaierror(socket.EAI_NONAME, "Name or service not known")
+
+    monkeypatch.setattr(socket, "getaddrinfo", fail)
+    devices = await NetworkScanner(backend="nmap").scan_network("gone.example")
+
+    assert fake_nmap.calls == []
+    assert devices[0].errors[0].startswith("Cannot resolve gone.example")
+    assert {s.state for s in devices[0].services} == {"unknown"}
 
 
 async def test_nmap_full_prefix_is_one_process_with_scaled_deadline(fake_nmap, monkeypatch):
@@ -477,12 +504,6 @@ async def test_service_budget_replaces_the_scan_timeout(monkeypatch):
         ],
     ).scan_device("127.0.0.1")
     assert seen == [0.3, 1.0]
-
-
-def test_host_key_never_falls_back_to_a_different_ip():
-    assert scanner._host_key(["10.0.0.9"], "10.0.0.1") is None
-    assert scanner._host_key(["10.0.0.9"], "10.0.0.9") == "10.0.0.9"
-    assert scanner._host_key(["10.0.0.9", "10.0.0.8"], "name.example") is None
 
 
 async def test_local_socket_exhaustion_is_unknown_not_down(monkeypatch):
