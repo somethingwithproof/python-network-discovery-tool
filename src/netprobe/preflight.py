@@ -25,6 +25,8 @@ class Check(TypedDict):
 
 
 class PreflightResult(TypedDict):
+    format: Literal["netprobe-preflight"]
+    version: Literal[1]
     target: str
     host_count: int
     services: list[dict[str, Any]]
@@ -103,6 +105,8 @@ def check_plan(
     if tls_ca_file is not None:
         checks.append(check_ca(tls_ca_file))
     return {
+        "format": "netprobe-preflight",
+        "version": 1,
         "target": network,
         "host_count": len(targets),
         "services": [asdict(spec) for spec in specs],

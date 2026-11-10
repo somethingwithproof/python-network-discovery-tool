@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/somethingwithproof/python-network-discovery-tool/schemas/preflight-v1.schema.json",
+  "title": "netprobe preflight result, version 1",
+  "description": "Printed by `preflight`. The command exits 1 when any check has status `error`.",
+  "type": "object",
+  "required": [
+    "format",
+    "version",
+    "target",
+    "host_count",
+    "services",
+    "backend",
+    "checks"
+  ],
+  "properties": {
+    "format": {
+      "const": "netprobe-preflight"
+    },
+    "version": {
+      "const": 1
+    },
+    "target": {
+      "type": "string"
+    },
+    "host_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "services": {
+      "type": "array",
+      "items": {
+        "$ref": "common-v1.schema.json#/$defs/serviceSpec"
+      }
+    },
+    "backend": {
+      "enum": [
+        "asyncio",
+        "nmap"
+      ]
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "check",
+          "status",
+          "detail"
+        ],
+        "properties": {
+          "check": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "error"
+            ]
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

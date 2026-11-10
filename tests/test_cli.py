@@ -3,6 +3,8 @@
 
 import json
 import socket
+import subprocess
+import sys
 from importlib.metadata import version
 from unittest.mock import MagicMock, patch
 
@@ -56,7 +58,7 @@ def test_cli_scan_writes_report(tmp_path, args, suffix):
     if suffix == ".csv" or "csv" in args:
         assert text.startswith("ip,alive")
     else:
-        assert json.loads(text)[0]["ip"] == "10.0.0.1"
+        assert json.loads(text)["devices"][0]["ip"] == "10.0.0.1"
 
 
 def test_cli_scan_prints_table_without_output_file():
@@ -192,7 +194,7 @@ def test_cli_snmp_secrets_reach_probe_but_never_output(tmp_path, monkeypatch, ca
         )
 
     assert result.exit_code == 0, result.output
-    service = json.loads(out.read_text())[0]["services"][0]
+    service = json.loads(out.read_text())["devices"][0]["services"][0]
     assert "No SNMP response" in service["details"]["snmp_error"]
     everything = out.read_text() + result.output + caplog.text
     for name, value in secrets.items():
@@ -398,3 +400,27 @@ def test_version_flag_prints_the_installed_version():
     result = runner.invoke(cli.app, ["--version"])
     assert result.exit_code == 0
     assert result.output == f"netprobe {version('netprobe')}\n"
+
+
+def test_json_report_on_stdout_is_one_document(tmp_path):
+    """A real run, so Rich's progress output reaches the real stdout."""
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        port = listener.getsockname()[1]
+        config = tmp_path / "lab.toml"
+        config.write_text(f"[services.lab]\nport = {port}\n")
+        result = subprocess.run(
+            [
+                *(sys.executable, "-m", "netprobe", "scan", "127.0.0.1"),
+                *("--config", str(config), "--services", "lab", "--format", "json"),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert report["devices"][0]["services"][0]["state"] == "open"

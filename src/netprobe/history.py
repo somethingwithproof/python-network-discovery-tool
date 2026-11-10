@@ -201,6 +201,8 @@ def compare_scans(before: JSONDocument, after: JSONDocument) -> JSONDocument:
     if old.keys() != new.keys() or before["metadata"]["ports"] != after["metadata"]["ports"]:
         raise ValueError("Cannot compare scans with different targets or selected ports")
     report: JSONDocument = {
+        "format": "netprobe-compare",
+        "version": 1,
         "before": before["id"],
         "after": after["id"],
         "newly_responsive": [],
