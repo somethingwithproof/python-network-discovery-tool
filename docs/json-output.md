@@ -44,7 +44,8 @@ Each device keeps the original `ip`, `alive`, `ssh`, `snmp`, `mysql`,
 `hostname` and `errors` fields, the `services` it probed with their `state`
 (`open`, `closed`, `filtered` or `unknown`), and `address`, the address every
 probe used. `ip` is the target as given, so for a hostname target it is the
-name.
+name; an IPv4-mapped IPv6 target (`::ffff:a.b.c.d`) is recorded as the IPv4
+address it reaches.
 
 `diff` and `export` read reports, snapshots, and the bare device lists that
 netprobe 2.x wrote. Files are untrusted input: `diff`, `export` and `compare`
