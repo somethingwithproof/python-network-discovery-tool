@@ -229,6 +229,9 @@ def test_validate_target_accepts(target):
         "bad-.example",
         "a" * 64 + ".example",
         ("a." * 130) + "com",
+        "example.com\n",
+        "host\n.example",
+        "a.b\n",
     ],
 )
 def test_validate_target_rejects(target):

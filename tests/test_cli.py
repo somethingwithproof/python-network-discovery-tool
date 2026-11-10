@@ -201,14 +201,74 @@ def test_cli_snmp_secrets_reach_probe_but_never_output(tmp_path, monkeypatch, ca
     assert "process list" not in caplog.text  # env vars do not trigger the warning
 
 
-def test_cli_warns_when_secret_given_as_option(caplog):
-    with patched_scanner([]):
-        result = runner.invoke(cli.app, ["scan", "10.0.0.1", "--snmp-community", "c0mmunity"])
+@pytest.mark.parametrize("flag", ["--snmp-community", "--snmp-auth-key", "--snmp-priv-key"])
+def test_cli_refuses_secret_values_on_the_command_line(flag):
+    with patched_scanner([]) as scanner:
+        result = runner.invoke(cli.app, ["scan", "10.0.0.1", flag, "c0mmunity"])
+
+    assert result.exit_code == 2
+    assert "visible in the process list" in result.output
+    assert f"{flag}-file" in result.output
+    assert "c0mmunity" not in result.output
+    scanner.assert_not_called()
+
+
+def test_cli_reads_secrets_from_files(tmp_path):
+    community = tmp_path / "community"
+    community.write_text("file-s3cret\n")
+    with patched_scanner([]) as scanner:
+        result = runner.invoke(
+            cli.app, ["scan", "10.0.0.1", "--snmp-community-file", str(community)]
+        )
 
     assert result.exit_code == 0, result.output
-    assert "visible in the process list" in caplog.text
-    assert "NETPROBE_SNMP_COMMUNITY" in caplog.text
-    assert "c0mmunity" not in caplog.text
+    assert scanner.call_args.kwargs["snmp"].community == "file-s3cret"
+    assert "file-s3cret" not in result.output
+
+
+def test_cli_reads_secret_file_named_by_environment(tmp_path, monkeypatch):
+    key = tmp_path / "auth"
+    key.write_text("auth-passphrase")
+    monkeypatch.setenv("NETPROBE_SNMP_AUTH_KEY_FILE", str(key))
+    with patched_scanner([]) as scanner:
+        result = runner.invoke(cli.app, ["scan", "10.0.0.1", "--snmp-user", "ops"])
+
+    assert result.exit_code == 0, result.output
+    assert scanner.call_args.kwargs["snmp"].auth_key == "auth-passphrase"
+
+
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [(b"", "is empty"), (b"\n", "is empty"), (b"\xff\xfe", "not UTF-8"), (b"x" * 4097, "larger")],
+)
+def test_cli_rejects_unusable_secret_files(tmp_path, content, message):
+    secret = tmp_path / "community"
+    secret.write_bytes(content)
+    with patched_scanner([]) as scanner:
+        result = runner.invoke(cli.app, ["scan", "10.0.0.1", "--snmp-community-file", str(secret)])
+
+    assert result.exit_code == 2
+    assert message in result.output
+    scanner.assert_not_called()
+
+
+def test_cli_rejects_missing_secret_file_and_conflicts(tmp_path, monkeypatch):
+    with patched_scanner([]):
+        missing = runner.invoke(
+            cli.app, ["scan", "10.0.0.1", "--snmp-priv-key-file", str(tmp_path / "nope")]
+        )
+    assert missing.exit_code == 2
+    assert "cannot read" in missing.output
+
+    secret = tmp_path / "community"
+    secret.write_text("from-file")
+    monkeypatch.setenv("NETPROBE_SNMP_COMMUNITY", "from-env")
+    with patched_scanner([]):
+        both = runner.invoke(cli.app, ["scan", "10.0.0.1", "--snmp-community-file", str(secret)])
+    assert both.exit_code == 2
+    assert "use one" in both.output
+    assert "from-env" not in both.output
+    assert "from-file" not in both.output
 
 
 @pytest.mark.parametrize(
