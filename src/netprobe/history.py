@@ -53,7 +53,20 @@ class HistoryStore:
             raise ValueError("History database must not be a symbolic link")
         if readonly:
             return sqlite3.connect(self.path.absolute().as_uri() + "?mode=ro", uri=True, timeout=5)
+        self._create_private()
         return sqlite3.connect(self.path, timeout=5)
+
+    def _create_private(self) -> None:
+        """Create a missing database owner-only; it holds the network inventory.
+
+        SQLite gives its journal and WAL files the database file's mode, so
+        they stay private too. An existing file keeps the mode its owner chose.
+        """
+        try:
+            descriptor = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            return
+        os.close(descriptor)
 
     @staticmethod
     def _validate(connection: sqlite3.Connection, allow_empty: bool = False) -> None:

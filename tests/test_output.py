@@ -8,7 +8,7 @@ import stat
 import pytest
 
 from netprobe.models import Device, Service
-from netprobe.output import print_results, save_csv, save_json
+from netprobe.output import print_results, save_csv, save_json, write_text
 
 
 def sample() -> list[Device]:
@@ -168,3 +168,23 @@ def test_print_results_summary(capsys):
     assert "SSH servers: 1" in out
     assert "SNMP devices: 0" in out
     assert "MySQL servers: 1" in out
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="no FIFOs on this platform")
+def test_write_text_to_fifo_without_reader_fails_fast(tmp_path):
+    fifo = tmp_path / "pipe"
+    os.mkfifo(fifo)
+    with pytest.raises(OSError, match="no reader"):
+        write_text(fifo, "data")
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="no FIFOs on this platform")
+def test_write_text_to_fifo_with_reader_writes(tmp_path):
+    fifo = tmp_path / "pipe"
+    os.mkfifo(fifo)
+    reader = os.open(fifo, os.O_RDONLY | os.O_NONBLOCK)
+    try:
+        write_text(fifo, "data")
+        assert os.read(reader, 16) == b"data"
+    finally:
+        os.close(reader)

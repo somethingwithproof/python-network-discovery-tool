@@ -297,3 +297,39 @@ def test_cli_scan_unwritable_snapshot_exits_1(tmp_path):
             cli.app, ["scan", "10.0.0.1", "-q", "--save-snapshot", str(tmp_path / "no" / "s.json")]
         )
     assert result.exit_code == 1
+
+
+def _scan_streams(*extra):
+    import subprocess
+    import sys
+
+    return subprocess.run(
+        [sys.executable, "-m", "netprobe", "scan", "127.0.0.1", "--services", "ssh", *extra],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+
+
+def test_scan_logs_go_to_stderr_not_stdout():
+    result = _scan_streams()
+    assert result.returncode == 0, result.stderr
+    assert "Scanning 1 hosts" in result.stderr
+    assert "Scanning 1 hosts" not in result.stdout
+
+
+def test_quiet_scan_prints_no_informational_logs():
+    result = _scan_streams("-q")
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == ""
+    assert "INFO" not in result.stderr
+
+
+def test_importing_netprobe_leaves_root_logging_alone():
+    import subprocess
+    import sys
+
+    code = "import logging, netprobe.cli; print(len(logging.getLogger().handlers))"
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert out.stdout.strip() == "0"

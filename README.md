@@ -137,7 +137,7 @@ netprobe scan 10.0.0.0/24 -q -o out.json  # no table, file only
 | `-o, --output PATH` | Write a report. The format follows the extension (`.json`, `.csv`); other extensions fall back to JSON. |
 | `-f, --format json\|csv\|kadupul\|auto` | Force the report format. Has no effect without `--output`. `.sh` selects `kadupul`. |
 | `-v, --verbose` | Debug logging. |
-| `-q, --quiet` | Suppress results and progress output; errors still appear. |
+| `-q, --quiet` | Suppress results, progress and informational logs; warnings and errors still appear on stderr. |
 | `--backend asyncio\|nmap` | Host discovery. `asyncio` (default) probes the service ports directly; `nmap` runs an nmap ping sweep first and needs `pip install 'netprobe[nmap]'` plus the `nmap` binary. |
 | `--timeout SECONDS` | Wait for probes that do not set their own budget (default 1.0). Built-in connect probes use 0.3s unless the service table sets `timeout`. |
 | `--concurrency N` | Probes in flight at once (default 256). |
@@ -242,7 +242,7 @@ rejected. Failed checks return 1; invalid scope/configuration returns 2.
 Report and export writes require `O_NOFOLLOW` support. On platforms without it,
 including Windows, these writes fail without opening or truncating the destination.
 New reports and export scripts are owner-only (mode 0600); replacing an existing file preserves its
-permissions. Exports containing credentials always force mode 0600.
+permissions. Writing to a named pipe with no reader fails at once instead of waiting. A new `--history` database is also created owner-only; an existing one keeps its mode. Log messages always go to stderr, so stdout carries only results. Exports containing credentials always force mode 0600.
 
 History is opt-in and complements the existing JSON snapshots and `diff` command:
 

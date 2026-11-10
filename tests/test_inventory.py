@@ -4,6 +4,7 @@
 """Inventory history/profile/preflight regressions; no target scans."""
 
 import json
+import os
 import sqlite3
 from contextlib import closing
 from dataclasses import dataclass, field
@@ -599,3 +600,25 @@ def test_scan_stops_when_the_open_file_limit_cannot_fit_concurrency(scanner, mon
     assert result.exit_code == 1
     assert "Preflight failed (open files)" in result.output
     scanner[1].assert_not_called()
+
+
+def test_history_database_is_created_owner_only(tmp_path):
+    import stat
+
+    path = tmp_path / "history.sqlite3"
+    old_umask = os.umask(0o022)
+    try:
+        history.HistoryStore(path).initialize()
+    finally:
+        os.umask(old_umask)
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+def test_history_keeps_mode_of_existing_database(tmp_path):
+    import stat
+
+    path = tmp_path / "history.sqlite3"
+    history.HistoryStore(path).initialize()
+    path.chmod(0o640)
+    history.HistoryStore(path).initialize()
+    assert stat.S_IMODE(path.stat().st_mode) == 0o640
