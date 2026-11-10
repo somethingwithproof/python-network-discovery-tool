@@ -12,6 +12,7 @@ hosts that expose none of the probed ports.
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import contextlib
 import ipaddress
 import logging
@@ -19,7 +20,8 @@ import math
 import re
 import shutil
 import socket
-from collections.abc import Awaitable, Callable, Iterable
+import threading
+from collections.abc import Callable, Iterable
 from dataclasses import replace
 from typing import Literal
 
@@ -321,8 +323,30 @@ def ensure_file_limit(concurrency: int) -> None:
         )
 
 
-async def _lookup[T](slots: asyncio.Semaphore | None, start: Callable[[], Awaitable[T]]) -> T:
-    """Run one resolver call in a lookup slot, giving up after HOSTNAME_TIMEOUT.
+def _in_daemon_thread[T](call: Callable[[], T]) -> asyncio.Future[T]:
+    """Run a blocking resolver call on its own daemon thread.
+
+    getaddrinfo and gethostbyaddr cannot be cancelled. On the default
+    executor, asyncio.run() and interpreter exit both wait for a hung call,
+    so --deadline would not bound the run. A daemon thread is abandoned
+    instead, and its late result is dropped once the loop has closed.
+    """
+    outcome: concurrent.futures.Future[T] = concurrent.futures.Future()
+
+    def run() -> None:
+        if not outcome.set_running_or_notify_cancel():
+            return
+        try:
+            outcome.set_result(call())
+        except Exception as e:
+            outcome.set_exception(e)
+
+    threading.Thread(target=run, name="netprobe-resolver", daemon=True).start()
+    return asyncio.wrap_future(outcome)
+
+
+async def _lookup[T](slots: asyncio.Semaphore | None, call: Callable[[], T]) -> T:
+    """Run one blocking resolver call in a lookup slot, giving up after HOSTNAME_TIMEOUT.
 
     The deadline starts once a slot is free, so a long queue does not expire
     lookups that never ran. The slot is freed when the resolver thread
@@ -332,7 +356,7 @@ async def _lookup[T](slots: asyncio.Semaphore | None, start: Callable[[], Awaita
     slots = slots or asyncio.Semaphore(1)
     await slots.acquire()
     try:
-        lookup = asyncio.ensure_future(start())
+        lookup = _in_daemon_thread(call)
     except BaseException:
         slots.release()
         raise
@@ -354,7 +378,7 @@ async def resolve_hostname(ip: str, lookups: asyncio.Semaphore | None = None) ->
     anything but hostname characters is dropped rather than printed.
     """
     try:
-        name, _, _ = await _lookup(lookups, lambda: asyncio.to_thread(socket.gethostbyaddr, ip))
+        name, _, _ = await _lookup(lookups, lambda: socket.gethostbyaddr(ip))
     except OSError as e:
         logger.debug(f"Could not resolve hostname for {ip}: {e}")
         return ""
@@ -375,8 +399,9 @@ async def resolve_address(
         return str(ipaddress.ip_address(target)), None
     except ValueError:
         pass
-    loop = asyncio.get_running_loop()
-    infos = await _lookup(lookups, lambda: loop.getaddrinfo(target, None, type=socket.SOCK_STREAM))
+    infos = await _lookup(
+        lookups, lambda: socket.getaddrinfo(target, None, type=socket.SOCK_STREAM)
+    )
     if not infos:
         raise OSError(f"no address for {target}")
     return str(infos[0][4][0]), target
