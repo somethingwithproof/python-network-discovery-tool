@@ -13,7 +13,6 @@ import os
 import sqlite3
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, fields
-from importlib.metadata import version as package_version
 from pathlib import Path
 from typing import Any, Literal, cast, get_type_hints
 
@@ -29,9 +28,10 @@ from netprobe.export import ExportError, KadupulOptions, kadupul_script, write_s
 from netprobe.history import HistoryStore, compare_scans, utc_now
 from netprobe.models import Device, ServiceSpec
 from netprobe.output import console, print_results, save_csv, save_json, write_text
-from netprobe.preflight import check_plan, paths_overlap
+from netprobe.preflight import PreflightResult, check_plan, paths_overlap
 from netprobe.probes import SnmpCredentials
 from netprobe.profiles import load_profiles, resolve_profile
+from netprobe.scan_settings import NETPROBE_VERSION
 from netprobe.scanner import (
     DEFAULT_CONCURRENCY,
     DEFAULT_TIMEOUT,
@@ -72,8 +72,22 @@ def configure_logging(level: int = logging.INFO) -> None:
     package.setLevel(level)
 
 
+def _print_version(requested: bool) -> None:
+    if requested:
+        typer.echo(f"netprobe {NETPROBE_VERSION}")
+        raise typer.Exit()
+
+
 @app.callback()
-def main() -> None:
+def main(
+    _version: bool = typer.Option(
+        False,
+        "--version",
+        callback=_print_version,
+        is_eager=True,
+        help="Show the version and exit.",
+    ),
+) -> None:
     """Network service inventory for networks you administer."""
     configure_logging()
 
@@ -347,12 +361,24 @@ def scan_credentials(ctx: typer.Context, options: ScanOptions) -> SnmpCredential
         raise typer.Exit(2) from exc
 
 
+# Options whose CLI value overrides a profile only when given explicitly;
+# otherwise the profile's value wins over the option's default.
+PROFILE_OVERRIDES = ("backend", "timeout", "concurrency", "max_hosts")
+
+
 def scan_plan(ctx: typer.Context, options: ScanOptions) -> ScanPlan:
+    return build_plan(options, {n for n in PROFILE_OVERRIDES if explicit_option(ctx, n)})
+
+
+def build_plan(options: ScanOptions, explicit: set[str]) -> ScanPlan:
+    """Resolve options and an optional profile into one validated plan.
+
+    scan and preflight both use this, so preflight checks what scan would run.
+    """
     if options.profile is not None and options.config is None:
         options.config = DEFAULT_PROFILE_CONFIG
     overrides = {
-        name: getattr(options, name) if explicit_option(ctx, name) else None
-        for name in ("backend", "timeout", "concurrency", "max_hosts")
+        name: getattr(options, name) if name in explicit else None for name in PROFILE_OVERRIDES
     }
     overrides.update(services=options.services, ports=options.ports, exclusions=options.exclude)
     try:
@@ -371,14 +397,15 @@ def scan_plan(ctx: typer.Context, options: ScanOptions) -> ScanPlan:
             services=services,
             exclusions=settings.get("exclusions", []),
         )
-    except ConfigError as exc:
+    except ValueError as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(2) from exc
 
 
-def scan_preflight(options: ScanOptions, plan: ScanPlan) -> HistoryStore | None:
+def plan_checks(options: ScanOptions, plan: ScanPlan) -> PreflightResult:
+    """Run the no-traffic checks for a plan, exiting 2 on invalid input."""
     try:
-        result = check_plan(
+        return check_plan(
             plan.network,
             plan.services,
             plan.backend,
@@ -397,6 +424,10 @@ def scan_preflight(options: ScanOptions, plan: ScanPlan) -> HistoryStore | None:
     except ValueError as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(2) from exc
+
+
+def scan_preflight(options: ScanOptions, plan: ScanPlan) -> HistoryStore | None:
+    result = plan_checks(options, plan)
     failed = [check for check in result["checks"] if check["status"] == "error"]
     if failed:
         for check in failed:
@@ -477,7 +508,7 @@ def record_history(
         observations.append(record)
     metadata = {
         "schema_version": 1,
-        "netprobe_version": package_version("netprobe"),
+        "netprobe_version": NETPROBE_VERSION,
         "profile": options.profile,
         "target": plan.network,
         "backend": plan.backend,
@@ -696,7 +727,7 @@ def history_compare(
 @app.command()
 def version() -> None:
     """Show version information."""
-    rprint(f"[bold cyan]netprobe[/bold cyan] [green]v{package_version('netprobe')}[/green]")
+    rprint(f"[bold cyan]netprobe[/bold cyan] [green]v{NETPROBE_VERSION}[/green]")
     rprint("Modern network scanner built with Python 3.12+")
 
 
@@ -725,46 +756,34 @@ def preflight(
     ports: str | None = typer.Option(None, "--ports"),
     exclude: list[str] | None = typer.Option(None, "--exclude"),
     max_hosts: int | None = typer.Option(None, "--max-hosts", min=1, max=MAX_HOSTS),
+    concurrency: int | None = typer.Option(
+        None, "--concurrency", min=1, max=MAX_CONCURRENCY, help="Probes in flight to plan for"
+    ),
     output: Path | None = typer.Option(None, "--output", "-o"),
     save_snapshot: Path | None = typer.Option(None, "--save-snapshot"),
     history: Path | None = typer.Option(None, "--history"),
     tls_ca_file: Path | None = typer.Option(None, "--tls-ca-file", envvar="NETPROBE_TLS_CA_FILE"),
 ) -> None:
     """Check target limits, backend availability and destinations without scanning."""
-    try:
-        if profile is not None and config is None:
-            config = DEFAULT_PROFILE_CONFIG
-        settings = resolve_profile(
-            network,
-            config,
-            profile,
-            {
-                "backend": backend,
-                "services": services,
-                "ports": ports,
-                "exclusions": exclude,
-                "max_hosts": max_hosts,
-            },
-        )
-        specs = select_services(
-            load_services(config) if config else DEFAULT_SERVICES,
-            settings.get("services"),
-            settings.get("ports"),
-        )
-        result = check_plan(
-            settings["network"],
-            specs,
-            settings.get("backend", "asyncio"),
-            settings.get("max_hosts", MAX_HOSTS),
-            settings.get("exclusions", []),
-            [path for path in (output, save_snapshot, history) if path is not None],
-            config=config,
-            history=history,
-            tls_ca_file=tls_ca_file,
-        )
-    except ValueError as e:
-        typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(2) from e
+    options = ScanOptions(
+        network=network,
+        profile=profile,
+        config=config,
+        backend=backend or "asyncio",
+        services=services,
+        ports=ports,
+        exclude=exclude,
+        max_hosts=max_hosts or MAX_HOSTS,
+        concurrency=concurrency or DEFAULT_CONCURRENCY,
+        output=output,
+        save_snapshot=save_snapshot,
+        history=history,
+        tls_ca_file=tls_ca_file,
+    )
+    given = {"backend": backend, "max_hosts": max_hosts, "concurrency": concurrency}
+    result = plan_checks(
+        options, build_plan(options, {name for name, value in given.items() if value is not None})
+    )
     typer.echo(json.dumps(result, indent=2))
     if any(check["status"] == "error" for check in result["checks"]):
         raise typer.Exit(1)

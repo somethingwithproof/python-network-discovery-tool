@@ -601,3 +601,35 @@ def test_history_keeps_mode_of_existing_database(tmp_path):
     path.chmod(0o640)
     history.HistoryStore(path).initialize()
     assert stat.S_IMODE(path.stat().st_mode) == 0o640
+
+
+def _open_files_check(result):
+    report = json.loads(result.output)
+    return next(check for check in report["checks"] if check["check"] == "open files")
+
+
+def test_preflight_checks_the_concurrency_scan_would_use(monkeypatch, tmp_path):
+    import resource
+
+    monkeypatch.setattr(resource, "getrlimit", lambda kind: (128, 128))
+    monkeypatch.setattr(resource, "setrlimit", pytest.fail)
+    result = CliRunner().invoke(cli.app, ["preflight", "127.0.0.1", "--concurrency", "1024"])
+    assert result.exit_code == 1, result.output
+    assert _open_files_check(result)["status"] == "error"
+
+    profile = tmp_path / "busy.toml"
+    profile.write_text('[profiles.busy]\nnetwork = "127.0.0.1"\nconcurrency = 1024\n')
+    result = CliRunner().invoke(
+        cli.app, ["preflight", "--profile", "busy", "--config", str(profile)]
+    )
+    assert result.exit_code == 1, result.output
+    assert _open_files_check(result)["status"] == "error"
+
+
+def test_preflight_accepts_concurrency_within_the_limit(monkeypatch):
+    import resource
+
+    monkeypatch.setattr(resource, "getrlimit", lambda kind: (1024, 1024))
+    result = CliRunner().invoke(cli.app, ["preflight", "127.0.0.1", "--concurrency", "8"])
+    assert result.exit_code == 0, result.output
+    assert _open_files_check(result)["status"] == "ok"

@@ -443,3 +443,18 @@ def test_host_failing_in_both_scans_is_unsettled(tmp_path):
         {"ip": "10.0.0.1", "before": "uncertain", "after": "uncertain"}
     ]
     assert diff_exit(old, new).exit_code == 3
+
+
+@pytest.mark.parametrize(
+    ("port", "protocol"), [(True, "tcp"), (0, "tcp"), (70000, "tcp"), ("22", "tcp"), (22, "sctp")]
+)
+def test_snapshot_with_impossible_endpoint_is_rejected(tmp_path, port, protocol):
+    path = snap(tmp_path, "s.json", [host("10.0.0.1", SSH)])
+    document = json.loads(path.read_text())
+    document["devices"][0]["services"][0].update(port=port, protocol=protocol)
+    path.write_text(json.dumps(document))
+
+    with pytest.raises(SnapshotError, match="invalid service endpoint"):
+        load_inventory(path)
+    result = CliRunner().invoke(cli.app, ["export", str(path), "-o", str(tmp_path / "x.sh")])
+    assert result.exit_code == 2, result.output
