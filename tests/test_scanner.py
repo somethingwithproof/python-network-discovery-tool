@@ -260,7 +260,18 @@ up = json.loads(os.environ.get("FAKE_NMAP_UP", "[]"))
 hosts = "".join(
     f'<host><status state="up"/><address addr="{a}" addrtype="ipv4"/></host>' for a in up
 )
-sys.stdout.write(os.environ.get("FAKE_NMAP_XML") or f"<nmaprun>{hosts}</nmaprun>")
+# Like nmap: a prefix counts every address in it, a netmask form none.
+targets = sys.argv[sys.argv.index("-") + 1 :]
+total = 0
+for target in targets:
+    base, _, bits = target.partition("/")
+    if bits.isdigit():
+        total += 2 ** ((128 if ":" in base else 32) - int(bits))
+    elif not bits:
+        total += 1
+total = os.environ.get("FAKE_NMAP_TOTAL", total)
+stats = f'<runstats><hosts up="{len(up)}" total="{total}"/></runstats>'
+sys.stdout.write(os.environ.get("FAKE_NMAP_XML") or f"<nmaprun>{hosts}{stats}</nmaprun>")
 sys.exit(int(os.environ.get("FAKE_NMAP_EXIT", "0")))
 """
 
@@ -395,7 +406,7 @@ async def test_nmap_oversized_output_is_refused(fake_nmap, monkeypatch):
 )
 def test_nmap_xml_parser_rejects_malformed_and_entity_documents(document):
     with pytest.raises(BackendUnavailableError, match="unreadable XML"):
-        scanner.parse_nmap_hosts(document)
+        scanner.parse_nmap_hosts(document, 1)
 
 
 def test_nmap_xml_parser_reads_only_up_hosts():
@@ -406,9 +417,37 @@ def test_nmap_xml_parser_reads_only_up_hosts():
         b'<host><status state="down"/><address addr="10.0.0.2" addrtype="ipv4"/></host>'
         b'<host><address addr="10.0.0.3" addrtype="ipv4"/></host>'
         b'<host><status state="up"/><address addr="::1" addrtype="ipv6"/></host>'
+        b'<runstats><hosts up="2" down="2" total="4"/></runstats>'
         b"</nmaprun>"
     )
-    assert scanner.parse_nmap_hosts(document) == ["10.0.0.1", "::1"]
+    assert scanner.parse_nmap_hosts(document, 4) == ["10.0.0.1", "::1"]
+
+
+@pytest.mark.parametrize(
+    "stats",
+    [b'<runstats><hosts up="0" down="0" total="0"/></runstats>', b"<runstats/>", b""],
+)
+def test_nmap_xml_without_every_requested_address_fails_closed(stats):
+    # nmap exits 0 with total="0" for targets it cannot read or resolve.
+    with pytest.raises(BackendUnavailableError, match="of 1 requested addresses"):
+        scanner.parse_nmap_hosts(b"<nmaprun>" + stats + b"</nmaprun>", 1)
+
+
+async def test_nmap_run_scanning_fewer_addresses_than_requested_fails(fake_nmap):
+    fake_nmap.set("TOTAL", "0")
+    with pytest.raises(BackendUnavailableError, match="reported 0 of 4 requested"):
+        await scanner.nmap_sweep(scanner.expand_targets("10.0.0.0/30"), "10.0.0.0/30")
+
+
+@pytest.mark.parametrize(
+    ("network", "prefix"),
+    [("10.0.0.0/255.255.255.252", "10.0.0.0/30"), ("127.0.0.1/255.255.255.255", "127.0.0.1/32")],
+)
+async def test_nmap_gets_netmask_targets_as_cidr(fake_nmap, network, prefix):
+    fake_nmap.up([prefix.split("/")[0]])
+    up = await scanner.nmap_sweep(scanner.expand_targets(network), network)
+    assert fake_nmap.calls == [[*SWEEP, prefix]]
+    assert up == {prefix.split("/")[0]}
 
 
 def test_nmap_backend_needs_the_executable(monkeypatch):
