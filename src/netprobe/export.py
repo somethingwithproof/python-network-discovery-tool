@@ -131,8 +131,17 @@ def device_arguments(
     return args, needs
 
 
-def kadupul_script(devices: Iterable[dict[str, Any]], opts: KadupulOptions, source: str) -> str:
-    """Render the sh script for every alive device."""
+def kadupul_script(
+    devices: Iterable[dict[str, Any]],
+    opts: KadupulOptions,
+    source: str,
+    *,
+    complete: bool = True,
+) -> str:
+    """Render the sh script for every alive device.
+
+    complete=False marks a script made from a scan stopped by --deadline.
+    """
     seen: set[str] = set()
     needs: set[str] = set()
     calls: list[str] = []
@@ -153,6 +162,12 @@ def kadupul_script(devices: Iterable[dict[str, Any]], opts: KadupulOptions, sour
         "# Each line runs Kadupul's cli/add_device.php once. A device whose",
         "# description or IP already exists is reported and skipped by add_device.php.",
     ]
+    if not complete:
+        header += [
+            "#",
+            "# WARNING: the scan stopped at its deadline; hosts it did not reach",
+            "# are not in this script.",
+        ]
     if opts.include_credentials:
         header += [
             "#",

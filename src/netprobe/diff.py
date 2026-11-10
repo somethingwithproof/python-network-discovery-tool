@@ -24,6 +24,7 @@ from netprobe.output import (
     scan_document,
     write_text,
 )
+from netprobe.probes import clean
 from netprobe.scan_settings import (
     UNKNOWN,
     PortTransition,
@@ -33,6 +34,7 @@ from netprobe.scan_settings import (
     port_transition,
     setting_warnings,
 )
+from netprobe.scanner import stored_target
 
 DIFF_FORMAT = "netprobe-diff"
 DIFF_VERSION = 1
@@ -105,6 +107,11 @@ class Inventory:
     timeout: float | None = None
     backend: str | None = None
     service_timeouts: dict[str, float] = field(default_factory=dict)
+    # False for a report from a scan stopped by --deadline: hosts it never
+    # reached are missing, not gone.
+    complete: bool = True
+    # Every address the file lists, including hosts reported down.
+    listed: set[str] = field(default_factory=set)
 
     @property
     def settings(self) -> RecordedSettings:
@@ -124,8 +131,19 @@ def _endpoint(service: dict[str, Any]) -> Port:
 
 
 def _host(entry: Any) -> Host:
-    if not isinstance(entry, dict) or not isinstance(entry.get("ip"), str):
+    """One stored device, validated and cleaned: files are untrusted input.
+
+    Every command that reads snapshots or reports goes through here, so an
+    address is canonical and text holds no control characters by the time
+    it reaches a terminal, a script or a comparison.
+    """
+    if not isinstance(entry, dict) or "ip" not in entry:
         raise SnapshotError("device entry without an ip")
+    try:
+        ip = stored_target(entry["ip"])
+    except ValueError as e:
+        raise SnapshotError(f"device entry with {e}") from e
+    hostname = clean(str(entry.get("hostname", "")))
     services = entry.get("services")
     if not isinstance(services, list):
         legacy = {
@@ -133,24 +151,25 @@ def _host(entry: Any) -> Host:
             for name, (port, protocol) in LEGACY_PORTS.items()
             if entry.get(name) is True
         }
-        return Host(entry["ip"], str(entry.get("hostname", "")), legacy)
+        return Host(ip, hostname, legacy)
     listed = [s for s in services if isinstance(s, dict)]
     found = {
-        (*_endpoint(s), str(s["name"])): str(s.get("version", ""))
+        (*_endpoint(s), clean(str(s["name"]))): clean(str(s.get("version", "")))
         for s in listed
         if s.get("state") == "open"
     }
-    unknown = {_endpoint(s): str(s["name"]) for s in listed if s.get("state") == "unknown"}
-    return Host(entry["ip"], str(entry.get("hostname", "")), found, unknown)
+    unknown = {_endpoint(s): clean(str(s["name"])) for s in listed if s.get("state") == UNKNOWN}
+    return Host(ip, hostname, found, unknown)
 
 
-def _partition(devices: list[Any]) -> tuple[list[Any], list[Host], set[str]]:
-    """Split stored devices into alive entries, their hosts, and uncertain IPs."""
+def _partition(devices: list[Any]) -> tuple[list[Any], list[Host], set[str], set[str]]:
+    """Split stored devices into alive entries, their hosts, uncertain IPs and every IP."""
     answered = [not isinstance(d, dict) or bool(d.get("alive", True)) for d in devices]
     alive = [d for d, up in zip(devices, answered, strict=True) if up]
-    quiet = [d for d, up in zip(devices, answered, strict=True) if not up]
-    uncertain = {h.ip for h in map(_host, quiet) if h.unknown}
-    return alive, [_host(d) for d in alive], uncertain
+    quiet = [_host(d) for d, up in zip(devices, answered, strict=True) if not up]
+    hosts = [_host(d) for d in alive]
+    uncertain = {h.ip for h in quiet if h.unknown}
+    return alive, hosts, uncertain, {h.ip for h in (*hosts, *quiet)}
 
 
 def _recorded_number(document: dict[str, Any], key: str) -> float | None:
@@ -169,7 +188,7 @@ def _recorded_settings(document: dict[str, Any]) -> tuple[float | None, str | No
     backend = document["backend"]
     if not isinstance(backend, str):
         raise ValueError("backend must be a string")
-    return timeout, backend
+    return timeout, clean(backend)
 
 
 def _snapshot_parts(path: Path, document: dict[str, Any]) -> dict[str, Any]:
@@ -183,16 +202,29 @@ def _snapshot_parts(path: Path, document: dict[str, Any]) -> dict[str, Any]:
     return {
         "devices": document["devices"],
         "probed": {_endpoint(s) for s in document["services"]},
-        "created": str(document.get("created", "")),
-        "target": str(document.get("target", "")),
+        "created": clean(str(document.get("created", ""))),
+        "target": clean(str(document.get("target", ""))),
         "timeout": timeout,
         "backend": backend,
         "service_timeouts": effective_timeouts(document),
+        "complete": _recorded_complete(document),
     }
 
 
-def load_inventory(path: Path) -> Inventory:
-    """Read a snapshot, or a plain `scan -o file.json` report."""
+def _recorded_complete(document: dict[str, Any]) -> bool:
+    # Files from before --deadline do not record it; they were complete.
+    complete = document.get("complete", True)
+    if not isinstance(complete, bool):
+        raise ValueError("complete must be a boolean")
+    return complete
+
+
+def load_inventory(path: Path, *, allow_partial: bool = False) -> Inventory:
+    """Read a snapshot, or a plain `scan -o file.json` report.
+
+    A report from a scan stopped by --deadline lists only the hosts it
+    reached, so it is refused unless allow_partial is given.
+    """
     try:
         document = json.loads(path.read_text())
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
@@ -210,11 +242,17 @@ def load_inventory(path: Path) -> Inventory:
             parts = _snapshot_parts(path, document)
         else:
             raise SnapshotError(f"{path}: not a netprobe snapshot or JSON report")
-        alive, hosts, uncertain = _partition(parts["devices"])
+        alive, hosts, uncertain, listed = _partition(parts["devices"])
     except SnapshotError:
         raise
     except (KeyError, TypeError, ValueError) as e:
         raise SnapshotError(f"{path}: malformed snapshot: {e}") from e
+    complete = parts.get("complete", True)
+    if not complete and not allow_partial:
+        raise SnapshotError(
+            f"{path}: the scan stopped before every host was reached (complete: false); "
+            "pass --allow-partial to use it anyway"
+        )
     return Inventory(
         str(path),
         parts["created"],
@@ -226,17 +264,25 @@ def load_inventory(path: Path) -> Inventory:
         backend=parts.get("backend"),
         service_timeouts=parts.get("service_timeouts", {}),
         uncertain=uncertain,
+        complete=complete,
+        listed=listed,
     )
 
 
-UP, UNCERTAIN, ABSENT = "up", "uncertain", "absent"
+UP, UNCERTAIN, ABSENT, UNSCANNED = "up", "uncertain", "absent", "unscanned"
+# States in which a host was not observed: never a vanished host or "no change".
+UNOBSERVED = frozenset({UNCERTAIN, UNSCANNED})
 
 
 def _host_state(inventory: Inventory, ip: str) -> str:
     """Whether a scan saw ip answer, saw only failed probes, or did not list it."""
     if ip in inventory.hosts:
         return UP
-    return UNCERTAIN if ip in inventory.uncertain else ABSENT
+    if ip in inventory.uncertain:
+        return UNCERTAIN
+    # An incomplete scan may simply not have reached a host it does not list;
+    # one it lists as down was reached.
+    return ABSENT if inventory.complete or ip in inventory.listed else UNSCANNED
 
 
 @dataclass
@@ -279,16 +325,20 @@ class Diff:
     # Ports that cannot be confirmed open or closed because a probe failed.
     unconfirmed: list[Unconfirmed] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    # A side was an incomplete scan, so hosts it never reached are unknown.
+    partial: bool = False
 
     @property
     def changed(self) -> bool:
         """True when anything changed or could not be confirmed unchanged.
 
         A failed observation must never read as "no change", so unsettled
-        hosts and unconfirmed ports count, and `diff` exits 3 for them.
+        hosts, unconfirmed ports and an incomplete scan count, and `diff`
+        exits 3 for them.
         """
         return bool(
-            self.new_hosts
+            self.partial
+            or self.new_hosts
             or self.vanished_hosts
             or self.opened
             or self.closed
@@ -328,6 +378,12 @@ def compare(old: Inventory, new: Inventory) -> Diff:
         new={"source": new.label, "created": new.created, "target": new.target},
     )
     diff.warnings.extend(setting_warnings(old.settings, new.settings))
+    for side in (old, new):
+        if not side.complete:
+            diff.partial = True
+            diff.warnings.append(
+                f"{side.label} is an incomplete scan; hosts it did not reach are unscanned"
+            )
     comparable: set[Port] | None = None
     if old.probed is not None and new.probed is not None:
         comparable = old.probed & new.probed
@@ -364,48 +420,51 @@ def print_diff(diff: Diff, console: Console) -> None:
     for entry in diff.new_hosts:
         table.add_row(
             "[green]new host[/green]",
-            entry["ip"],
+            escape(entry["ip"]),
             escape(services(entry)),
             escape(entry["hostname"]),
         )
     for entry in diff.vanished_hosts:
         table.add_row(
             "[red]vanished host[/red]",
-            entry["ip"],
+            escape(entry["ip"]),
             escape(services(entry)),
             escape(entry["hostname"]),
         )
     for c in diff.opened:
         table.add_row(
             "[green]opened[/green]",
-            c.ip,
+            escape(c.ip),
             f"{escape(c.name)}:{c.port}/{c.protocol}",
             escape(c.version),
         )
     for c in diff.closed:
         table.add_row(
             "[red]closed[/red]",
-            c.ip,
+            escape(c.ip),
             f"{escape(c.name)}:{c.port}/{c.protocol}",
             escape(c.old_version),
         )
     for c in diff.version_changes:
         table.add_row(
             "[yellow]version[/yellow]",
-            c.ip,
+            escape(c.ip),
             f"{escape(c.name)}:{c.port}/{c.protocol}",
             escape(f"{c.old_version or '-'} -> {c.version or '-'}"),
         )
     for h in diff.unsettled_hosts:
         table.add_row(
-            "[magenta]unsettled host[/magenta]", h["ip"], "", f"{h['before']} -> {h['after']}"
+            "[magenta]unsettled host[/magenta]",
+            escape(h["ip"]),
+            "",
+            escape(f"{h['before']} -> {h['after']}"),
         )
     for u in diff.unconfirmed:
         table.add_row(
             "[magenta]unconfirmed[/magenta]",
-            u.ip,
+            escape(u.ip),
             f"{escape(u.name)}:{u.port}/{u.protocol}",
-            f"{u.before} -> {u.after}",
+            escape(f"{u.before} -> {u.after}"),
         )
     console.print(table)
 
@@ -448,7 +507,7 @@ def compare_host(
         diff.new_hosts.append(_summary(new.hosts[ip]))
     elif before == UP and after == ABSENT:
         diff.vanished_hosts.append(_summary(old.hosts[ip]))
-    if UNCERTAIN in (before, after):
+    if UNOBSERVED & {before, after}:
         diff.unsettled_hosts.append({"ip": ip, "before": before, "after": after})
 
 

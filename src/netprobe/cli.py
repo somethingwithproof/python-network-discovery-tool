@@ -23,7 +23,14 @@ from rich.logging import RichHandler
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
 from netprobe.config import DEFAULT_SERVICES, ConfigError, load_services, select_services
-from netprobe.diff import SnapshotError, compare, load_inventory, print_diff, write_snapshot
+from netprobe.diff import (
+    Inventory,
+    SnapshotError,
+    compare,
+    load_inventory,
+    print_diff,
+    write_snapshot,
+)
 from netprobe.export import ExportError, KadupulOptions, kadupul_script, write_script
 from netprobe.history import HistoryStore, compare_scans, utc_now
 from netprobe.models import Device, ServiceSpec
@@ -756,6 +763,11 @@ def export(
         "--include-credentials",
         help="Write SNMP secrets from NETPROBE_SNMP_* into the script instead of env references",
     ),
+    allow_partial: bool = typer.Option(
+        False,
+        "--allow-partial",
+        help="Export a report from a scan stopped by --deadline; unreached hosts are left out",
+    ),
 ) -> None:
     """
     Write a Kadupul import script: one `php cli/add_device.php` call per host.
@@ -763,7 +775,8 @@ def export(
     Run the result on the Kadupul server: KADUPUL_ROOT=/path sh SCRIPT
     """
     try:
-        inventory = load_inventory(source)
+        inventory = load_inventory(source, allow_partial=allow_partial)
+        warn_partial([inventory])
         opts = KadupulOptions(
             template=template,
             snmp_user=snmp_user,
@@ -775,7 +788,7 @@ def export(
             priv_key=os.environ.get("NETPROBE_SNMP_PRIV_KEY") if include_credentials else None,
             include_credentials=include_credentials,
         )
-        script = kadupul_script(inventory.devices, opts, str(source))
+        script = kadupul_script(inventory.devices, opts, str(source), complete=inventory.complete)
     except (SnapshotError, ExportError) as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(2) from e
@@ -790,6 +803,16 @@ def export(
         raise typer.Exit(1) from e
 
 
+def warn_partial(inventories: list[Inventory]) -> None:
+    """Say on stderr which inputs --allow-partial let through."""
+    for inventory in inventories:
+        if not inventory.complete:
+            logger.warning(
+                f"{inventory.label} is from a scan stopped by --deadline; "
+                "hosts it did not reach are missing from it"
+            )
+
+
 # Distinct from 1 (error) and 2 (usage), so scripts can branch on "changed".
 EXIT_CHANGED = 3
 
@@ -802,19 +825,26 @@ def diff(
     output: Path | None = typer.Option(
         None, "--output", "-o", help="Also write the diff as JSON here"
     ),
+    allow_partial: bool = typer.Option(
+        False,
+        "--allow-partial",
+        help="Compare a report from a scan stopped by --deadline; its unreached hosts are unscanned",
+    ),
 ) -> None:
     """
     Compare two snapshots: new and vanished hosts, opened and closed ports,
     changed service versions.
 
     Exit status: 0 no changes, 3 changes or unconfirmed observations, 2 unreadable
-    input, 1 write error.
+    or incomplete input, 1 write error.
     """
     try:
-        result = compare(load_inventory(old), load_inventory(new))
+        inventories = [load_inventory(path, allow_partial=allow_partial) for path in (old, new)]
     except SnapshotError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(2) from e
+    warn_partial(inventories)
+    result = compare(*inventories)
 
     if format == "json":
         text = json.dumps(result.to_dict(), indent=2) + "\n"
