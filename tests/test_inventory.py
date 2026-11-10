@@ -565,3 +565,15 @@ async def test_async_version_check_bounded_read_and_cleanup(monkeypatch, failure
     if failure == "timeout":
         process.kill.assert_called_once()
         process.communicate.assert_awaited_once()
+
+
+def test_scan_stops_when_the_open_file_limit_cannot_fit_concurrency(scanner, monkeypatch):
+    import resource
+
+    monkeypatch.setattr(resource, "getrlimit", lambda kind: (128, 128))
+    monkeypatch.setattr(resource, "setrlimit", pytest.fail)
+    result = CliRunner().invoke(cli.app, ["scan", "127.0.0.1", "--concurrency", "256"])
+
+    assert result.exit_code == 1
+    assert "Preflight failed (open files)" in result.output
+    scanner[1].assert_not_called()

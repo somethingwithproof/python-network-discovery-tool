@@ -34,6 +34,7 @@ from netprobe.profiles import load_profiles, resolve_profile
 from netprobe.scanner import (
     DEFAULT_CONCURRENCY,
     DEFAULT_TIMEOUT,
+    HOST_DOWN,
     MAX_CONCURRENCY,
     MAX_HOSTS,
     BackendUnavailableError,
@@ -370,6 +371,7 @@ def scan_preflight(options: ScanOptions, plan: ScanPlan) -> HistoryStore | None:
             config=options.config,
             history=options.history,
             tls_ca_file=options.tls_ca_file,
+            concurrency=plan.concurrency,
         )
     except ValueError as exc:
         typer.echo(f"Error: {exc}", err=True)
@@ -434,7 +436,7 @@ def _port_states(device: Device) -> dict[str, str]:
 def observation_status(device: Device) -> str:
     if device.alive:
         return "up"
-    if device.errors == ["Host is down"]:
+    if device.errors == [HOST_DOWN]:
         return "unresponsive"
     return "error" if device.errors else "unknown"
 

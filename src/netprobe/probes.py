@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import errno
 import ipaddress
 import logging
 import ssl
@@ -25,7 +26,9 @@ from netprobe.models import Protocol
 
 logger = logging.getLogger(__name__)
 
-PortState = Literal["open", "closed", "filtered"]
+# "unknown" means netprobe could not make the observation (a local error or the
+# probe's hard deadline); it says nothing about the port.
+PortState = Literal["open", "closed", "filtered", "unknown"]
 Details = dict[str, Any]
 
 # Banners are attacker-controlled; keep stored strings short and printable.
@@ -52,6 +55,22 @@ SYSTEM_OIDS = {
     "sys_object_id": "1.3.6.1.2.1.1.2.0",
     "sys_name": "1.3.6.1.2.1.1.5.0",
 }
+
+# Errors raised by this host rather than an answer from the target. Reporting
+# them as "filtered" would turn file-descriptor exhaustion into hosts that look
+# down, so they propagate and the scanner records them.
+LOCAL_ERRNOS = frozenset(
+    {
+        errno.EMFILE,
+        errno.ENFILE,
+        errno.ENOBUFS,
+        errno.ENOMEM,
+        errno.EADDRNOTAVAIL,
+        errno.EAFNOSUPPORT,
+        errno.EPERM,
+        errno.EACCES,
+    }
+)
 
 # Names match the auth and privacy protocol lists Cacti and Kadupul accept.
 AUTH_PROTOCOLS = ("MD5", "SHA", "SHA224", "SHA256", "SHA384", "SHA512")
@@ -152,7 +171,9 @@ async def _open(
         return "closed"
     except ssl.SSLError:
         raise
-    except OSError:
+    except OSError as e:
+        if e.errno in LOCAL_ERRNOS:
+            raise
         return "filtered"
 
 
@@ -486,6 +507,8 @@ async def snmp_discover(
     except ConnectionRefusedError:
         return "closed", None
     except OSError as e:
+        if e.errno in LOCAL_ERRNOS:
+            raise
         logger.debug(f"SNMP probe of {host}:{port} failed: {e}")
         return "filtered", None
     engine_id = snmp_engine_id(reply) if reply else None

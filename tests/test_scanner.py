@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 import asyncio
+import errno
 import sys
 import types
 from typing import ClassVar
@@ -95,8 +96,9 @@ async def test_probe_exception_is_recorded(monkeypatch):
     stub_probes(monkeypatch, boom)
     device = await NetworkScanner(services=[ServiceSpec("ssh", 22)]).scan_device("10.0.0.1")
 
-    assert device.errors[0] == "Error checking port 22: bad socket"
-    assert device.services[0].state == "filtered"
+    assert device.errors == ["Error checking port 22: bad socket"]
+    assert device.services[0].state == "unknown"
+    assert not device.alive
 
 
 async def test_probe_budget_stops_a_stalled_probe(monkeypatch):
@@ -107,8 +109,8 @@ async def test_probe_budget_stops_a_stalled_probe(monkeypatch):
     scanner_ = NetworkScanner(services=[ServiceSpec("ssh", 22)], timeout=0.05)
     device = await scanner_.scan_device("10.0.0.1")
 
-    assert device.errors[0] == "Error checking port 22: probe timed out"
-    assert device.services[0].state == "filtered"
+    assert device.errors == ["Error checking port 22: probe timed out"]
+    assert device.services[0].state == "unknown"
 
 
 async def test_probe_errors_are_redacted(monkeypatch):
@@ -363,3 +365,74 @@ def test_nmap_backend_without_binary(fake_nmap, monkeypatch):
     monkeypatch.setattr(fake_nmap, "PortScanner", missing)
     with pytest.raises(BackendUnavailableError, match="nmap is not available"):
         NetworkScanner(backend="nmap")
+
+
+async def test_local_socket_exhaustion_is_unknown_not_down(monkeypatch):
+    async def exhausted(host, port, **kwargs):
+        raise OSError(errno.EMFILE, "Too many open files")
+
+    monkeypatch.setattr(asyncio, "open_connection", exhausted)
+    device = await NetworkScanner(services=[ServiceSpec("ssh", 22, "tcp", "ssh")]).scan_device(
+        "10.0.0.1"
+    )
+
+    assert device.services[0].state == "unknown"
+    assert not device.alive
+    assert device.errors == ["Error checking port 22: [Errno 24] Too many open files"]
+
+
+async def test_unknown_probe_does_not_hide_an_answer(monkeypatch):
+    async def mixed(host, port, timeout):
+        if port == 22:
+            raise RuntimeError("bad socket")
+        return "closed"
+
+    stub_probes(monkeypatch, mixed)
+    services = [ServiceSpec("ssh", 22), ServiceSpec("http", 80)]
+    device = await NetworkScanner(services=services).scan_device("10.0.0.1")
+
+    assert device.alive
+    assert [s.state for s in device.services] == ["unknown", "closed"]
+
+
+def test_file_limit_is_raised_toward_the_hard_limit(monkeypatch):
+    import resource
+
+    calls = []
+    monkeypatch.setattr(resource, "getrlimit", lambda kind: (256, 4096))
+    monkeypatch.setattr(resource, "setrlimit", lambda kind, limits: calls.append(limits))
+
+    scanner.ensure_file_limit(256)
+
+    assert calls == [(256 + scanner.FD_HEADROOM, 4096)]
+
+
+def test_file_limit_refuses_concurrency_beyond_the_hard_limit(monkeypatch):
+    import resource
+
+    calls = []
+    monkeypatch.setattr(resource, "getrlimit", lambda kind: (256, 300))
+    monkeypatch.setattr(resource, "setrlimit", lambda kind, limits: calls.append(limits))
+
+    with pytest.raises(ValueError, match=r"--concurrency 256 needs 320 open files .* 300"):
+        scanner.ensure_file_limit(256)
+    assert calls == [(300, 300)]
+
+
+async def test_scan_network_checks_the_file_limit_before_probing(monkeypatch):
+    import resource
+
+    monkeypatch.setattr(resource, "getrlimit", lambda kind: (64, 64))
+    monkeypatch.setattr(resource, "setrlimit", pytest.fail)
+    probed = []
+
+    async def never(host, port, timeout):
+        probed.append(host)
+        return "open"
+
+    stub_probes(monkeypatch, never)
+    with pytest.raises(ValueError, match="open files"):
+        await NetworkScanner(services=[ServiceSpec("ssh", 22)], concurrency=16).scan_network(
+            "10.0.0.1"
+        )
+    assert probed == []

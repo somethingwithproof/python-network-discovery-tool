@@ -12,6 +12,7 @@ hosts that expose none of the probed ports.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import ipaddress
 import logging
 import math
@@ -51,6 +52,11 @@ MAX_PROBES = 524288
 PROBE_BUDGET = 4
 HOSTNAME_TIMEOUT = 2.0
 SCOPE_ERROR = "IPv6 scope identifiers are not supported"
+HOST_DOWN = "Host is down"
+# Port states that prove something on the host answered.
+ANSWERED = frozenset({"open", "closed"})
+# File descriptors kept free for stdio, logging, pysnmp and the event loop.
+FD_HEADROOM = 64
 
 
 _HOSTNAME_LABEL = re.compile(r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$")
@@ -180,6 +186,32 @@ def nmap_sweep(targets: list[str], network: str) -> set[str]:
     return {targets[0]} if _host_key(up, targets[0]) else set()
 
 
+def ensure_file_limit(concurrency: int) -> None:
+    """Make room for one socket per in-flight probe, or refuse to start.
+
+    macOS defaults to a 256-descriptor soft limit, the same as the default
+    concurrency. Raise the soft limit toward the hard limit when needed.
+    """
+    try:
+        import resource
+    except ImportError:  # pragma: no cover - Windows has no RLIMIT_NOFILE
+        return
+    needed = concurrency + FD_HEADROOM
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    if soft == resource.RLIM_INFINITY or soft >= needed:
+        return
+    target = needed if hard == resource.RLIM_INFINITY else min(needed, hard)
+    if target > soft:
+        with contextlib.suppress(ValueError, OSError):
+            resource.setrlimit(resource.RLIMIT_NOFILE, (target, hard))
+            soft = target
+    if soft < needed:
+        raise ValueError(
+            f"--concurrency {concurrency} needs {needed} open files but the limit is {soft}; "
+            f"lower --concurrency or raise the limit (ulimit -n)"
+        )
+
+
 async def resolve_hostname(ip: str) -> str:
     try:
         async with asyncio.timeout(HOSTNAME_TIMEOUT):
@@ -250,43 +282,44 @@ class NetworkScanner:
             return device
 
         limit = probes or asyncio.Semaphore(self.concurrency)
-
-        async def run(spec: ServiceSpec) -> Service:
-            budget = self.timeout if spec.timeout is None else spec.timeout
-            context = replace(self.context, timeout=budget)
-            async with limit:
-                try:
-                    probe, _ = PROBES[spec.probe]
-                    async with asyncio.timeout(budget * PROBE_BUDGET):
-                        result = await probe(ip, spec.port, context)
-                except TimeoutError:
-                    device.errors.append(f"Error checking port {spec.port}: probe timed out")
-                    result = ProbeResult("filtered")
-                except Exception as e:
-                    message = str(e)
-                    if self.context.snmp:
-                        message = self.context.snmp.redact(message)
-                    device.errors.append(f"Error checking port {spec.port}: {message}")
-                    result = ProbeResult("filtered")
-            return Service(
-                spec.name, spec.port, spec.protocol, result.state, result.version, result.details
-            )
-
         async with asyncio.TaskGroup() as tg:
-            tasks = []
-            for spec in self.services:
-                tasks.append(tg.create_task(run(spec)))
+            tasks = [tg.create_task(self._probe(ip, spec, limit, device)) for spec in self.services]
 
         device.services = [t.result() for t in tasks]
         open_names = {s.name for s in device.open_services}
         for flag in LEGACY_FLAGS:
             setattr(device, flag, flag in open_names)
-        device.alive = known_up or any(s.state != "filtered" for s in device.services)
+        # Only an answer proves the host is up. A probe that failed locally or
+        # hit its deadline says nothing, so such a host is not reported down.
+        device.alive = known_up or any(s.state in ANSWERED for s in device.services)
         if device.alive:
             device.hostname = await resolve_hostname(ip)
-        else:
-            device.errors.append("Host is down")
+        elif all(s.state == "filtered" for s in device.services):
+            device.errors.append(HOST_DOWN)
         return device
+
+    async def _probe(
+        self, ip: str, spec: ServiceSpec, limit: asyncio.Semaphore, device: Device
+    ) -> Service:
+        budget = self.timeout if spec.timeout is None else spec.timeout
+        context = replace(self.context, timeout=budget)
+        async with limit:
+            try:
+                probe, _ = PROBES[spec.probe]
+                async with asyncio.timeout(budget * PROBE_BUDGET):
+                    result = await probe(ip, spec.port, context)
+            except TimeoutError:
+                device.errors.append(f"Error checking port {spec.port}: probe timed out")
+                result = ProbeResult("unknown")
+            except Exception as e:
+                message = str(e) or type(e).__name__
+                if self.context.snmp:
+                    message = self.context.snmp.redact(message)
+                device.errors.append(f"Error checking port {spec.port}: {message}")
+                result = ProbeResult("unknown")
+        return Service(
+            spec.name, spec.port, spec.protocol, result.state, result.version, result.details
+        )
 
     async def scan_network(self, network: str, progress: Progress | None = None) -> list[Device]:
         """Scan an entire network.
@@ -308,6 +341,7 @@ class NetworkScanner:
                 f"Scan too large: {len(targets)} hosts x {len(self.services)} services = "
                 f"{probes_needed} probes (max {MAX_PROBES}); narrow the range or the services"
             )
+        ensure_file_limit(self.concurrency)
         logger.info(f"Scanning {len(targets)} hosts...")
         task = (
             progress.add_task("[cyan]Scanning network...", total=len(targets)) if progress else None
@@ -340,5 +374,5 @@ class NetworkScanner:
         self, ip: str, swept: set[str] | None, probes: asyncio.Semaphore
     ) -> Device:
         if swept is not None and ip not in swept:
-            return Device(ip=ip, errors=["Host is down"])
+            return Device(ip=ip, errors=[HOST_DOWN])
         return await self.scan_device(ip, probes=probes, known_up=swept is not None)

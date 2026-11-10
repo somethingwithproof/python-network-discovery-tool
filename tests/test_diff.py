@@ -340,3 +340,40 @@ def test_cli_diff_warnings_are_shown(tmp_path):
 
     assert result.exit_code == 0
     assert "targets differ" in result.output
+
+
+def test_unknown_port_is_not_reported_closed(tmp_path):
+    failed = Device(
+        ip="10.0.0.1",
+        alive=True,
+        services=[Service("ssh", 22, "tcp", "unknown"), Service("http", 80, "tcp", "closed")],
+        errors=["Error checking port 22: probe timed out"],
+    )
+    old = snap(tmp_path, "old.json", [host("10.0.0.1", SSH)])
+    new = snap(tmp_path, "new.json", [failed])
+
+    result = compare(load_inventory(old), load_inventory(new))
+
+    assert not result.changed
+    assert result.closed == []
+    assert result.warnings == [
+        "ports with an unknown state in either scan are not compared: 10.0.0.1 22/tcp"
+    ]
+
+
+def test_host_with_only_failed_probes_has_not_vanished(tmp_path):
+    failed = Device(
+        ip="10.0.0.1",
+        services=[Service("ssh", 22, "tcp", "unknown")],
+        errors=["Error checking port 22: [Errno 24] Too many open files"],
+    )
+    old = snap(tmp_path, "old.json", [host("10.0.0.1", SSH)])
+    new = snap(tmp_path, "new.json", [failed])
+
+    assert [d["ip"] for d in json.loads(new.read_text())["devices"]] == ["10.0.0.1"]
+    result = compare(load_inventory(old), load_inventory(new))
+
+    assert result.vanished_hosts == []
+    assert result.warnings == [
+        "hosts whose probes failed without an answer are not compared: 10.0.0.1"
+    ]
