@@ -191,6 +191,7 @@ def compare_scans(before: JSONDocument, after: JSONDocument) -> JSONDocument:
         "uncertain_hosts": [],
         "status_changes": [],
         "port_changes": [],
+        "unconfirmed_ports": [],
         "warnings": _setting_warnings(before["metadata"], after["metadata"]),
     }
     for ip in sorted(old, key=host_sort_key):
@@ -301,7 +302,10 @@ def compare_host_observations(
         report["no_longer_responding"].append(ip)
     for port in sorted(previous["port_states"].keys() & current["port_states"].keys()):
         old_state, new_state = previous["port_states"][port], current["port_states"][port]
-        if old_state != new_state and "unknown" not in (old_state, new_state):
-            report["port_changes"].append(
-                {"ip": ip, "port": port, "before": old_state, "after": new_state}
-            )
+        change = {"ip": ip, "port": port, "before": old_state, "after": new_state}
+        # A failed observation is listed, never dropped: unknown -> open must
+        # not hide a port that now answers.
+        if "unknown" in (old_state, new_state):
+            report["unconfirmed_ports"].append(change)
+        elif old_state != new_state:
+            report["port_changes"].append(change)

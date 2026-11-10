@@ -16,7 +16,7 @@ from typing import Any, Literal, TypedDict
 
 from netprobe.history import HistoryStore, check_writable_path
 from netprobe.models import ServiceSpec
-from netprobe.scanner import MAX_PROBES, expand_targets
+from netprobe.scanner import DEFAULT_CONCURRENCY, MAX_PROBES, ensure_file_limit, expand_targets
 
 
 class Check(TypedDict):
@@ -77,6 +77,7 @@ def check_plan(
     config: Path | None = None,
     history: Path | None = None,
     tls_ca_file: Path | None = None,
+    concurrency: int = DEFAULT_CONCURRENCY,
 ) -> PreflightResult:
     targets = expand_targets(network, max_hosts, exclusions)
     if len(targets) * len(specs) > MAX_PROBES:
@@ -94,6 +95,7 @@ def check_plan(
     checks: list[Check] = [
         {"check": "targets", "status": "ok", "detail": f"{len(targets)} hosts after exclusions"}
     ]
+    checks.append(check_file_limit(concurrency))
     if backend == "nmap":
         checks.append(check_nmap())
     checks.extend(check_destination(path) for path in destinations)
@@ -108,6 +110,14 @@ def check_plan(
         "backend": backend,
         "checks": checks,
     }
+
+
+def check_file_limit(concurrency: int) -> Check:
+    try:
+        ensure_file_limit(concurrency)
+    except ValueError as exc:
+        return {"check": "open files", "status": "error", "detail": str(exc)}
+    return {"check": "open files", "status": "ok", "detail": f"room for {concurrency} probes"}
 
 
 def check_nmap() -> Check:

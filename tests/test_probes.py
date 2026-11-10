@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 import asyncio
+import errno
 import socket
 
 import pytest
@@ -140,3 +141,21 @@ def test_snmp_engine_id_is_capped_at_32_octets():
 )
 def test_host_header_brackets_ipv6_and_adds_non_default_port(host, port, default, expected):
     assert probes.host_header(host, port, default) == expected
+
+
+async def test_tcp_local_resource_error_is_not_a_port_state(monkeypatch):
+    async def exhausted(host, port, **kwargs):
+        raise OSError(errno.EMFILE, "Too many open files")
+
+    monkeypatch.setattr(asyncio, "open_connection", exhausted)
+    with pytest.raises(OSError, match="Too many open files"):
+        await probes.tcp_state("127.0.0.1", 1, 1.0)
+
+
+async def test_snmp_local_resource_error_is_not_a_port_state(monkeypatch):
+    async def exhausted(*args):
+        raise OSError(errno.ENFILE, "Too many open files in system")
+
+    monkeypatch.setattr(probes, "udp_exchange", exhausted)
+    with pytest.raises(OSError, match="open files"):
+        await probes.snmp_discover("127.0.0.1", 161, 1.0)

@@ -138,6 +138,28 @@ def test_compare_errors_and_unknown_states_are_not_disappearances(history_store)
     assert report["newly_responsive"] == []
     assert report["port_changes"] == []
     assert report["uncertain_hosts"] == ["127.0.0.1"]
+    assert report["unconfirmed_ports"] == [
+        {"ip": "127.0.0.1", "port": "22/tcp", "before": "open", "after": "unknown"}
+    ]
+
+
+@pytest.mark.parametrize(
+    ("before", "after"), [("unknown", "open"), ("unknown", "unknown"), ("open", "unknown")]
+)
+def test_compare_lists_every_unconfirmed_port(history_store, before, after):
+    first = save_snapshot(
+        history_store,
+        [Observation("127.0.0.1", status="error", errors=["x"], port_states={"22/tcp": before})],
+    )
+    second = save_snapshot(
+        history_store,
+        [Observation("127.0.0.1", alive=True, status="up", port_states={"22/tcp": after})],
+    )
+    report = history.compare_scans(history_store.get(first), history_store.get(second))
+    assert report["unconfirmed_ports"] == [
+        {"ip": "127.0.0.1", "port": "22/tcp", "before": before, "after": after}
+    ]
+    assert report["port_changes"] == []
 
 
 @pytest.mark.parametrize("changed", ["targets", "ports"])
@@ -565,3 +587,15 @@ async def test_async_version_check_bounded_read_and_cleanup(monkeypatch, failure
     if failure == "timeout":
         process.kill.assert_called_once()
         process.communicate.assert_awaited_once()
+
+
+def test_scan_stops_when_the_open_file_limit_cannot_fit_concurrency(scanner, monkeypatch):
+    import resource
+
+    monkeypatch.setattr(resource, "getrlimit", lambda kind: (128, 128))
+    monkeypatch.setattr(resource, "setrlimit", pytest.fail)
+    result = CliRunner().invoke(cli.app, ["scan", "127.0.0.1", "--concurrency", "256"])
+
+    assert result.exit_code == 1
+    assert "Preflight failed (open files)" in result.output
+    scanner[1].assert_not_called()
