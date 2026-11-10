@@ -832,14 +832,10 @@ version = "3.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
+    { name = "defusedxml" },
     { name = "pysnmp" },
     { name = "rich" },
     { name = "typer" },
-]
-
-[package.optional-dependencies]
-nmap = [
-    { name = "defusedxml" },
 ]
 
 [package.dev-dependencies]
@@ -866,7 +862,7 @@ fuzz = [
 [package.metadata]
 requires-dist = [
     { name = "cryptography", specifier = ">=46.0.0" },
-    { name = "defusedxml", marker = "extra == 'nmap'", specifier = ">=0.7.1" },
+    { name = "defusedxml", specifier = ">=0.7.1" },
     { name = "pysnmp", specifier = ">=7.1.0" },
     { name = "rich", specifier = ">=15.0.0" },
     { name = "typer", specifier = ">=0.25.1" },

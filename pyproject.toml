@@ -34,16 +34,17 @@ classifiers = [
 
 dependencies = [
     "cryptography>=46.0.0",
+    # Parses nmap's XML without entity expansion; small and pure Python.
+    "defusedxml>=0.7.1",
     "pysnmp>=7.1.0",
     "rich>=15.0.0",
     "typer>=0.25.1",
 ]
 
 [project.optional-dependencies]
-# The nmap backend runs the nmap executable and parses its XML safely.
-nmap = [
-    "defusedxml>=0.7.1",
-]
+# Kept so existing `netprobe[nmap]` installs still resolve. The nmap backend
+# needs only the nmap executable; its XML parser is a core dependency.
+nmap = []
 
 # PEP 735 groups: development tooling never ships as package metadata.
 # `uv sync --locked` installs the default `dev` group.

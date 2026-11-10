@@ -451,7 +451,6 @@ def test_missing_nmap_and_ca_stop_before_scanning(scanner, monkeypatch, tmp_path
 @pytest.mark.parametrize("failure", [None, "timeout", "error", "invalid"])
 def test_nmap_version_preflight(monkeypatch, failure):
     monkeypatch.setattr(checks.shutil, "which", lambda _: "/mock/nmap")
-    monkeypatch.setattr(checks.importlib.util, "find_spec", lambda _: object())
 
     def version(*args, **kwargs):
         if failure == "timeout":

@@ -23,6 +23,7 @@ from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import replace
 from typing import Literal
 
+from defusedxml.ElementTree import ParseError, fromstring
 from rich.progress import Progress
 
 from netprobe.config import DEFAULT_SERVICES
@@ -146,13 +147,7 @@ def _host_key(hosts: list[str], target: str) -> str | None:
 
 
 def _nmap_executable() -> str:
-    """Absolute path of nmap, after checking the XML parser it needs is installed."""
-    try:
-        import defusedxml.ElementTree  # noqa: F401
-    except ImportError as e:
-        raise BackendUnavailableError(
-            "the nmap backend needs defusedxml: pip install 'netprobe[nmap]'"
-        ) from e
+    """Absolute path of the nmap executable on PATH."""
     executable = shutil.which("nmap")
     if executable is None:
         raise BackendUnavailableError("nmap is not available: no nmap executable on PATH")
@@ -165,8 +160,6 @@ def parse_nmap_hosts(document: bytes) -> list[str]:
     defusedxml refuses entity expansion and external references, so a
     malformed or hostile document fails instead of exhausting memory.
     """
-    from defusedxml.ElementTree import ParseError, fromstring
-
     try:
         root = fromstring(document)
     except (ParseError, ValueError) as e:

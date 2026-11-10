@@ -442,12 +442,6 @@ def test_host_key_never_falls_back_to_a_different_ip():
     assert scanner._host_key(["10.0.0.9", "10.0.0.8"], "name.example") is None
 
 
-def test_nmap_backend_without_the_xml_extra(monkeypatch):
-    monkeypatch.setitem(sys.modules, "defusedxml.ElementTree", None)
-    with pytest.raises(BackendUnavailableError, match="netprobe\\[nmap\\]"):
-        NetworkScanner(backend="nmap")
-
-
 async def test_local_socket_exhaustion_is_unknown_not_down(monkeypatch):
     async def exhausted(host, port, **kwargs):
         raise OSError(errno.EMFILE, "Too many open files")

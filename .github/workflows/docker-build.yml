@@ -46,4 +46,4 @@ jobs:
 
     - name: Validate the installed container package
       run: |
-        docker run --rm --entrypoint python network-discovery:test -c "from netprobe.cli import app; from netprobe.scanner import NetworkScanner; import nmap; print('installed package and Nmap wrapper available')"
+        docker run --rm --entrypoint python network-discovery:test -c "from netprobe.cli import app; from netprobe.scanner import NetworkScanner; import defusedxml.ElementTree, shutil; assert shutil.which('nmap'); print('installed package, XML parser and nmap available')"

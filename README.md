@@ -64,8 +64,8 @@ uv run netprobe scan 127.0.0.1 --services ssh -o loopback.json
 ```
 
 For optional Nmap host discovery, install the Nmap executable using your platform's
-package manager and add the extra with `uv sync --locked --extra nmap`; it installs
-defusedxml, which parses Nmap's XML output without entity expansion. netprobe runs
+package manager; no extra Python package is needed. Nmap's XML output is parsed with
+defusedxml, a core dependency, so entity expansion is refused. netprobe runs
 the `nmap` found on `PATH` directly with a fixed argument list, a deadline that grows
 with the prefix size, and a 64 MiB output cap. Nmap is not needed for the default backend.
 
@@ -140,7 +140,7 @@ netprobe scan 10.0.0.0/24 -q -o out.json  # no table, file only
 | `-f, --format json\|csv\|kadupul\|auto` | Force the report format. Has no effect without `--output`. `.sh` selects `kadupul`. |
 | `-v, --verbose` | Debug logging. |
 | `-q, --quiet` | Suppress results, progress and informational logs; warnings and errors still appear on stderr. |
-| `--backend asyncio\|nmap` | Host discovery. `asyncio` (default) probes the service ports directly; `nmap` runs an nmap ping sweep first and needs `pip install 'netprobe[nmap]'` plus the `nmap` binary. |
+| `--backend asyncio\|nmap` | Host discovery. `asyncio` (default) probes the service ports directly; `nmap` runs an nmap ping sweep first and needs the `nmap` executable on `PATH`. |
 | `--timeout SECONDS` | Wait for probes that do not set their own budget (default 1.0). Built-in connect probes use 0.3s unless the service table sets `timeout`. |
 | `--concurrency N` | Probes in flight at once (default 256). |
 | `--config PATH` | TOML service definitions and optional named `[profiles]` settings. |
