@@ -414,6 +414,12 @@ class ScanDeadlineError(Exception):
         self.deadline = deadline
 
 
+def _advance(progress: Progress | None, task: TaskID | None) -> None:
+    """Count one finished host on the progress bar, when there is one."""
+    if progress and task is not None:
+        progress.update(task, advance=1)
+
+
 class NetworkScanner:
     """Async network scanner."""
 
@@ -612,8 +618,7 @@ class NetworkScanner:
                     pinned[name] = await resolve_address(name, lookups)
                 except OSError as e:
                     results[0] = self._unresolved(name, e)
-                    if progress and task is not None:
-                        progress.update(task, advance=1)
+                    _advance(progress, task)
                     return
             swept = await self._sweep(network, targets, pinned)
         pending = iter(enumerate(targets))
@@ -622,8 +627,7 @@ class NetworkScanner:
             for index, ip in pending:
                 device = await self._scan_target(ip, swept, probes, lookups, pinned.get(ip))
                 results[index] = device
-                if progress and task is not None:
-                    progress.update(task, advance=1)
+                _advance(progress, task)
 
         workers = max(1, min(len(targets), self.concurrency // max(1, len(self.services))))
         async with asyncio.TaskGroup() as tg:
