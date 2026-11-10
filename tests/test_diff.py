@@ -592,9 +592,8 @@ def test_loaded_text_is_stripped_of_control_characters(tmp_path):
     result = runner.invoke(cli.app, ["diff", str(old), str(new)])
 
     assert result.exit_code == 3
-    assert (
-        "\x1b" not in result.output and "\x9b" not in result.output and "\x07" not in result.output
-    )
+    for control in ("\x1b", "\x9b", "\x07"):
+        assert control not in result.output
     # Markup from the file is printed literally, not interpreted.
     assert "[bold red]ssh" in result.output
     inventory = load_inventory(old)
