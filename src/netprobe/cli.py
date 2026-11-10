@@ -557,7 +557,9 @@ def scan_devices(
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
         TaskProgressColumn(),
-        console=console,
+        # Progress is diagnostics, like the logs: stdout carries only the
+        # report, so `--format json` without -o stays one JSON document.
+        console=Console(stderr=True),
         disable=options.quiet,
     ) as progress:
         try:
