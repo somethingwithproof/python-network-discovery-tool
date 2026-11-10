@@ -24,7 +24,7 @@ from dataclasses import replace
 from typing import Literal
 
 from defusedxml.ElementTree import ParseError, fromstring
-from rich.progress import Progress
+from rich.progress import Progress, TaskID
 
 from netprobe.config import DEFAULT_SERVICES
 from netprobe.models import LEGACY_FLAGS, Device, Service, ServiceSpec
@@ -45,6 +45,10 @@ NMAP_TIMEOUT = 35
 # XML for a /16 of live hosts is a few tens of MB; refuse anything larger.
 NMAP_MAX_OUTPUT = 64 * 1024 * 1024
 DEFAULT_TIMEOUT = 1.0
+# The CLI's whole-scan limit, nmap sweep included. A /16 at the default
+# concurrency finishes well inside it; a stalled network does not run forever.
+DEFAULT_DEADLINE = 3600.0
+MAX_DEADLINE = 7 * 24 * 3600.0
 DEFAULT_CONCURRENCY = 256
 # Every socket in flight is a file descriptor.
 MAX_CONCURRENCY = 4096
@@ -346,6 +350,15 @@ async def resolve_address(
     return str(infos[0][4][0]), target
 
 
+class ScanDeadlineError(Exception):
+    """The whole scan ran past its deadline; ``devices`` holds the hosts that finished."""
+
+    def __init__(self, devices: list[Device], deadline: float) -> None:
+        super().__init__(f"scan stopped at its {deadline:g}s deadline")
+        self.devices = devices
+        self.deadline = deadline
+
+
 class NetworkScanner:
     """Async network scanner."""
 
@@ -360,6 +373,7 @@ class NetworkScanner:
         tls_ca_file: str | None = None,
         max_hosts: int = MAX_HOSTS,
         exclusions: Iterable[str] = (),
+        deadline: float | None = None,
     ) -> None:
         if not 1 <= concurrency <= MAX_CONCURRENCY:
             raise ValueError(f"concurrency must be from 1 to {MAX_CONCURRENCY}")
@@ -367,6 +381,9 @@ class NetworkScanner:
             raise ValueError("timeout must be positive")
         if not 1 <= max_hosts <= MAX_HOSTS:
             raise ValueError(f"host limit must be from 1 to {MAX_HOSTS}")
+        if deadline is not None and (not math.isfinite(deadline) or deadline <= 0):
+            raise ValueError("deadline must be positive")
+        self.deadline = deadline
         self.max_hosts = max_hosts
         self.exclusions = tuple(exclusions)
         self.backend = backend
@@ -480,6 +497,8 @@ class NetworkScanner:
 
         Raises:
             ValueError: if the target is malformed or larger than MAX_HOSTS
+            ScanDeadlineError: the scan, including any nmap sweep, outlasted
+                the deadline; it carries the hosts that finished, in address order
         """
         targets = expand_targets(network, self.max_hosts, self.exclusions)
         probes_needed = len(targets) * len(self.services)
@@ -494,13 +513,35 @@ class NetworkScanner:
             progress.add_task("[cyan]Scanning network...", total=len(targets)) if progress else None
         )
 
+        results: list[Device | None] = [None] * len(targets)
+        limit = asyncio.timeout(self.deadline)
+        try:
+            async with limit:
+                await self._scan_targets(network, targets, results, progress, task)
+        except TimeoutError:
+            if not limit.expired():
+                raise
+            # Cancelling the workers stops their probes and any nmap process.
+            finished = [device for device in results if device is not None]
+            raise ScanDeadlineError(finished, self.deadline or 0) from None
+        if any(device is None for device in results):
+            raise asyncio.CancelledError("Inventory worker cancelled before completion")
+        return [device for device in results if device is not None]
+
+    async def _scan_targets(
+        self,
+        network: str,
+        targets: list[str],
+        results: list[Device | None],
+        progress: Progress | None,
+        task: TaskID | None,
+    ) -> None:
         swept: set[str] | None = None
         if self.backend == "nmap":
             swept = await nmap_sweep(targets, network)
 
         probes = asyncio.Semaphore(self.concurrency)
         lookups = asyncio.Semaphore(DNS_CONCURRENCY)
-        results: list[Device | None] = [None] * len(targets)
         pending = iter(enumerate(targets))
 
         async def worker() -> None:
@@ -514,9 +555,6 @@ class NetworkScanner:
         async with asyncio.TaskGroup() as tg:
             for _ in range(workers):
                 tg.create_task(worker())
-        if any(device is None for device in results):
-            raise asyncio.CancelledError("Inventory worker cancelled before completion")
-        return [device for device in results if device is not None]
 
     async def _scan_target(
         self,
