@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+SPDX-License-Identifier: MIT
+-->
+
 # JSON output
 
 Every JSON document netprobe writes is an object with a `format` name and an
