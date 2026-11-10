@@ -22,7 +22,7 @@ from netprobe.scan_settings import (
     port_transition,
     setting_warnings,
 )
-from netprobe.scanner import validate_target
+from netprobe.scanner import stored_target
 
 type JSONDocument = dict[str, Any]
 type SnapshotRow = tuple[Any, ...]
@@ -266,8 +266,11 @@ def validate_observation(device: Any, ports: list[str], seen: set[str]) -> None:
     }
     if not isinstance(device, dict):
         raise ValueError(OBSERVATION_ERROR)
-    ip = device.get("ip")
-    if not isinstance(ip, str) or "%" in ip or validate_target(ip) != ip or ip in seen:
+    try:
+        ip = stored_target(device.get("ip"))
+    except ValueError as exc:
+        raise ValueError("Snapshot contains invalid or duplicate IP addresses") from exc
+    if ip in seen:
         raise ValueError("Snapshot contains invalid or duplicate IP addresses")
     seen.add(ip)
     errors, observed = device.get("errors"), device.get("port_states")

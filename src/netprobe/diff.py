@@ -24,6 +24,7 @@ from netprobe.output import (
     scan_document,
     write_text,
 )
+from netprobe.probes import clean
 from netprobe.scan_settings import (
     UNKNOWN,
     PortTransition,
@@ -33,6 +34,7 @@ from netprobe.scan_settings import (
     port_transition,
     setting_warnings,
 )
+from netprobe.scanner import stored_target
 
 DIFF_FORMAT = "netprobe-diff"
 DIFF_VERSION = 1
@@ -124,8 +126,19 @@ def _endpoint(service: dict[str, Any]) -> Port:
 
 
 def _host(entry: Any) -> Host:
-    if not isinstance(entry, dict) or not isinstance(entry.get("ip"), str):
+    """One stored device, validated and cleaned: files are untrusted input.
+
+    Every command that reads snapshots or reports goes through here, so an
+    address is canonical and text holds no control characters by the time
+    it reaches a terminal, a script or a comparison.
+    """
+    if not isinstance(entry, dict) or "ip" not in entry:
         raise SnapshotError("device entry without an ip")
+    try:
+        ip = stored_target(entry["ip"])
+    except ValueError as e:
+        raise SnapshotError(f"device entry with {e}") from e
+    hostname = clean(str(entry.get("hostname", "")))
     services = entry.get("services")
     if not isinstance(services, list):
         legacy = {
@@ -133,15 +146,15 @@ def _host(entry: Any) -> Host:
             for name, (port, protocol) in LEGACY_PORTS.items()
             if entry.get(name) is True
         }
-        return Host(entry["ip"], str(entry.get("hostname", "")), legacy)
+        return Host(ip, hostname, legacy)
     listed = [s for s in services if isinstance(s, dict)]
     found = {
-        (*_endpoint(s), str(s["name"])): str(s.get("version", ""))
+        (*_endpoint(s), clean(str(s["name"]))): clean(str(s.get("version", "")))
         for s in listed
         if s.get("state") == "open"
     }
-    unknown = {_endpoint(s): str(s["name"]) for s in listed if s.get("state") == "unknown"}
-    return Host(entry["ip"], str(entry.get("hostname", "")), found, unknown)
+    unknown = {_endpoint(s): clean(str(s["name"])) for s in listed if s.get("state") == UNKNOWN}
+    return Host(ip, hostname, found, unknown)
 
 
 def _partition(devices: list[Any]) -> tuple[list[Any], list[Host], set[str]]:
@@ -169,7 +182,7 @@ def _recorded_settings(document: dict[str, Any]) -> tuple[float | None, str | No
     backend = document["backend"]
     if not isinstance(backend, str):
         raise ValueError("backend must be a string")
-    return timeout, backend
+    return timeout, clean(backend)
 
 
 def _snapshot_parts(path: Path, document: dict[str, Any]) -> dict[str, Any]:
@@ -183,8 +196,8 @@ def _snapshot_parts(path: Path, document: dict[str, Any]) -> dict[str, Any]:
     return {
         "devices": document["devices"],
         "probed": {_endpoint(s) for s in document["services"]},
-        "created": str(document.get("created", "")),
-        "target": str(document.get("target", "")),
+        "created": clean(str(document.get("created", ""))),
+        "target": clean(str(document.get("target", ""))),
         "timeout": timeout,
         "backend": backend,
         "service_timeouts": effective_timeouts(document),
@@ -363,48 +376,51 @@ def print_diff(diff: Diff, console: Console) -> None:
     for entry in diff.new_hosts:
         table.add_row(
             "[green]new host[/green]",
-            entry["ip"],
+            escape(entry["ip"]),
             escape(services(entry)),
             escape(entry["hostname"]),
         )
     for entry in diff.vanished_hosts:
         table.add_row(
             "[red]vanished host[/red]",
-            entry["ip"],
+            escape(entry["ip"]),
             escape(services(entry)),
             escape(entry["hostname"]),
         )
     for c in diff.opened:
         table.add_row(
             "[green]opened[/green]",
-            c.ip,
+            escape(c.ip),
             f"{escape(c.name)}:{c.port}/{c.protocol}",
             escape(c.version),
         )
     for c in diff.closed:
         table.add_row(
             "[red]closed[/red]",
-            c.ip,
+            escape(c.ip),
             f"{escape(c.name)}:{c.port}/{c.protocol}",
             escape(c.old_version),
         )
     for c in diff.version_changes:
         table.add_row(
             "[yellow]version[/yellow]",
-            c.ip,
+            escape(c.ip),
             f"{escape(c.name)}:{c.port}/{c.protocol}",
             escape(f"{c.old_version or '-'} -> {c.version or '-'}"),
         )
     for h in diff.unsettled_hosts:
         table.add_row(
-            "[magenta]unsettled host[/magenta]", h["ip"], "", f"{h['before']} -> {h['after']}"
+            "[magenta]unsettled host[/magenta]",
+            escape(h["ip"]),
+            "",
+            escape(f"{h['before']} -> {h['after']}"),
         )
     for u in diff.unconfirmed:
         table.add_row(
             "[magenta]unconfirmed[/magenta]",
-            u.ip,
+            escape(u.ip),
             f"{escape(u.name)}:{u.port}/{u.protocol}",
-            f"{u.before} -> {u.after}",
+            escape(f"{u.before} -> {u.after}"),
         )
     console.print(table)
 

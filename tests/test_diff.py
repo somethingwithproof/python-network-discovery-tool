@@ -557,3 +557,63 @@ def test_versioned_report_is_read_like_a_snapshot(tmp_path):
     assert inventory.probed == {(s.port, s.protocol) for s in DEFAULT_SERVICES}
     snapshot = snap(tmp_path, "s.json", [host("10.0.0.1", SSH)], target="10.0.0.0/30", timeout=1.0)
     assert not compare(inventory, load_inventory(snapshot)).changed
+
+
+# --- untrusted file contents
+
+ESC = "\x1b[2J\x1b]0;owned\x07"
+CSI = "\x9b31m"
+
+
+def tampered(tmp_path, filename, **fields):
+    """A valid snapshot of 10.0.0.1 with the given device or service fields replaced."""
+    path = snap(tmp_path, filename, [host("10.0.0.1", SSH)])
+    document = json.loads(path.read_text())
+    device = document["devices"][0]
+    device.update({k: v for k, v in fields.items() if k in ("ip", "hostname")})
+    device["services"][0].update({k: v for k, v in fields.items() if k in ("name", "version")})
+    document.update({k: v for k, v in fields.items() if k in ("target", "backend")})
+    path.write_text(json.dumps(document))
+    return path
+
+
+def test_loaded_text_is_stripped_of_control_characters(tmp_path):
+    old = tampered(
+        tmp_path,
+        "old.json",
+        hostname=f"web{ESC}",
+        name=f"[bold red]ssh{CSI}",
+        version=f"Open{ESC}SSH",
+        target=f"10.0.0.0/24{ESC}",
+        backend=f"nmap{ESC}",
+    )
+    new = snap(tmp_path, "new.json", [], backend="asyncio")
+
+    result = runner.invoke(cli.app, ["diff", str(old), str(new)])
+
+    assert result.exit_code == 3
+    assert (
+        "\x1b" not in result.output and "\x9b" not in result.output and "\x07" not in result.output
+    )
+    # Markup from the file is printed literally, not interpreted.
+    assert "[bold red]ssh" in result.output
+    inventory = load_inventory(old)
+    assert inventory.hosts["10.0.0.1"].hostname.startswith("web")
+    assert all(c.isprintable() for c in inventory.target + inventory.hosts["10.0.0.1"].hostname)
+    [(_, _, name)] = inventory.hosts["10.0.0.1"].open
+    assert name.isprintable()
+
+
+@pytest.mark.parametrize(
+    "ip", [f"10.0.0.1{ESC}", "[red]10.0.0.1[/red]", "-oX", "10.0.0.1 10.0.0.2", "fe80::1%en0", 7]
+)
+def test_snapshot_with_unsafe_address_is_refused_by_every_reader(tmp_path, ip):
+    path = tampered(tmp_path, "bad.json", ip=ip)
+
+    with pytest.raises(SnapshotError, match=r"invalid stored address|Invalid target|scope"):
+        load_inventory(path)
+    good = snap(tmp_path, "good.json", [host("10.0.0.1", SSH)])
+    assert runner.invoke(cli.app, ["diff", str(good), str(path)]).exit_code == 2
+    exported = runner.invoke(cli.app, ["export", str(path), "-o", str(tmp_path / "x.sh")])
+    assert exported.exit_code == 2
+    assert not (tmp_path / "x.sh").exists()

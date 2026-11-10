@@ -47,7 +47,10 @@ probe used. `ip` is the target as given, so for a hostname target it is the
 name.
 
 `diff` and `export` read reports, snapshots, and the bare device lists that
-netprobe 2.x wrote.
+netprobe 2.x wrote. Files are untrusted input: `diff`, `export` and `compare`
+refuse a device whose `ip` is not an address or hostname in the form netprobe
+writes (exit 2, or 1 for history), and `diff` and `export` strip control
+characters from hostnames, service names, versions and settings before use.
 
 ## Stability
 
