@@ -23,7 +23,9 @@ LABEL org.opencontainers.image.title="netprobe" \
 # The runtime needs only Python, the locked virtualenv and nmap. pip,
 # setuptools and the package lists are removed so nothing in the image can
 # install code at run time, and the user has no home directory or shell.
-RUN apt-get update && apt-get install -y --no-install-recommends nmap \
+# Take Debian security fixes newer than the pinned base before adding nmap.
+RUN apt-get update && apt-get upgrade -y --no-install-recommends \
+    && apt-get install -y --no-install-recommends nmap \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
     && rm -rf /usr/local/lib/python3.*/site-packages/pip* \
         /usr/local/lib/python3.*/site-packages/setuptools* \
