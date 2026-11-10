@@ -25,9 +25,12 @@ from netprobe.output import (
     write_text,
 )
 from netprobe.scan_settings import (
+    UNKNOWN,
+    PortTransition,
     RecordedSettings,
     effective_timeouts,
     host_sort_key,
+    port_transition,
     setting_warnings,
 )
 
@@ -40,6 +43,10 @@ INVENTORY_FORMATS = {REPORT_FORMAT: REPORT_VERSION, SNAPSHOT_FORMAT: SNAPSHOT_VE
 LEGACY_PORTS = {"ssh": (22, "tcp"), "snmp": (161, "udp"), "mysql": (3306, "tcp")}
 
 Port = tuple[int, str]
+# A probed port that answered closed or filtered; snapshots keep only open and unknown.
+NOT_OPEN = "not-open"
+# (before, after) service versions of one port.
+Versions = tuple[str, str]
 # port, protocol, service name. The name keeps two open services on one socket apart.
 OpenKey = tuple[int, str, str]
 
@@ -222,6 +229,15 @@ def load_inventory(path: Path) -> Inventory:
     )
 
 
+UP, UNCERTAIN, ABSENT = "up", "uncertain", "absent"
+
+
+def _host_state(inventory: Inventory, ip: str) -> str:
+    if ip in inventory.hosts:
+        return UP
+    return UNCERTAIN if ip in inventory.uncertain else ABSENT
+
+
 @dataclass
 class Change:
     ip: str
@@ -234,7 +250,10 @@ class Change:
 
 @dataclass
 class Unconfirmed:
-    """A port whose state is "unknown" in at least one scan and is not now open."""
+    """A port whose state is "unknown" in at least one scan and is not now open.
+
+    before is open, unknown or not-open; after is unknown or not-open.
+    """
 
     ip: str
     name: str
@@ -253,7 +272,8 @@ class Diff:
     opened: list[Change] = field(default_factory=list)
     closed: list[Change] = field(default_factory=list)
     version_changes: list[Change] = field(default_factory=list)
-    # Hosts answering in one scan whose probes all failed in the other.
+    # Hosts whose probes all failed in at least one scan: before and after
+    # are up, uncertain or absent.
     unsettled_hosts: list[dict[str, str]] = field(default_factory=list)
     # Ports that cannot be confirmed open or closed because a probe failed.
     unconfirmed: list[Unconfirmed] = field(default_factory=list)
@@ -317,29 +337,10 @@ def compare(old: Inventory, new: Inventory) -> Diff:
                 + ", ".join(f"{p}/{proto}" for p, proto in skipped)
             )
 
-    # A host now answering is reported with its open ports even when the
-    # earlier scan could not observe it; only the reverse is held back,
-    # because failed probes do not show that a host went away.
-    appeared = sorted(new.hosts.keys() - old.hosts.keys(), key=host_sort_key)
-    diff.new_hosts.extend(_summary(new.hosts[ip]) for ip in appeared)
-    diff.unsettled_hosts.extend(
-        {"ip": ip, "before": "uncertain", "after": "up"} for ip in appeared if ip in old.uncertain
-    )
-    for ip in sorted(old.hosts.keys() - new.hosts.keys(), key=host_sort_key):
-        if ip in new.uncertain:
-            diff.unsettled_hosts.append({"ip": ip, "before": "up", "after": "uncertain"})
-        else:
-            diff.vanished_hosts.append(_summary(old.hosts[ip]))
-    # Failed in both scans: nothing was observed either time, which still
-    # needs attention rather than a "no changes" result.
-    diff.unsettled_hosts.extend(
-        {"ip": ip, "before": "uncertain", "after": "uncertain"}
-        for ip in sorted(old.uncertain & new.uncertain, key=host_sort_key)
-    )
-
-    for ip in sorted(old.hosts.keys() & new.hosts.keys(), key=host_sort_key):
-        compare_host_ports(diff, ip, old.hosts[ip], new.hosts[ip], comparable)
-
+    for ip in sorted(
+        old.hosts.keys() | new.hosts.keys() | old.uncertain | new.uncertain, key=host_sort_key
+    ):
+        compare_host(diff, ip, old, new, comparable)
     return diff
 
 
@@ -429,29 +430,67 @@ def _relabel(old: Host, new: Host) -> dict[OpenKey, str]:
     }
 
 
-def _compare_port(diff: Diff, ip: str, key: OpenKey, before: dict[OpenKey, str], new: Host) -> None:
+def compare_host(
+    diff: Diff, ip: str, old: Inventory, new: Inventory, comparable: set[Port] | None
+) -> None:
+    """Classify one host present in either scan.
+
+    A host answering now is reported with its open ports even when the
+    earlier scan could not observe it. A failed observation on either side
+    is unsettled, never a vanished host or "no change".
+    """
+    before, after = _host_state(old, ip), _host_state(new, ip)
+    if before == after == UP:
+        compare_host_ports(diff, ip, old.hosts[ip], new.hosts[ip], comparable)
+        return
+    if after == UP:
+        diff.new_hosts.append(_summary(new.hosts[ip]))
+    elif before == UP and after == ABSENT:
+        diff.vanished_hosts.append(_summary(old.hosts[ip]))
+    if UNCERTAIN in (before, after):
+        diff.unsettled_hosts.append({"ip": ip, "before": before, "after": after})
+
+
+def _state(host: Host, key: OpenKey, open_ports: dict[OpenKey, str]) -> str:
+    """A port's state in one scan: open, unknown, or not open (closed or filtered)."""
+    if key in open_ports:
+        return "open"
+    return UNKNOWN if key[:2] in host.unknown else NOT_OPEN
+
+
+def _record(diff: Diff, ip: str, key: OpenKey, states: tuple[str, str], versions: Versions) -> None:
     port, protocol, name = key
-    after = new.open
-    if key not in before:
-        # Reported even when the earlier probe failed: an open port is news.
-        diff.opened.append(Change(ip, name, port, protocol, after[key]))
-    elif key in after:
-        if before[key] != after[key]:
-            diff.version_changes.append(Change(ip, name, port, protocol, after[key], before[key]))
-    elif (port, protocol) in new.unknown:
-        diff.unconfirmed.append(Unconfirmed(ip, name, port, protocol, "open", "unknown"))
-    else:
-        diff.closed.append(Change(ip, name, port, protocol, "", before[key]))
+    before, after = states
+    old_version, version = versions
+    match port_transition(before, after):
+        case PortTransition.OPENED:
+            diff.opened.append(Change(ip, name, port, protocol, version))
+        case PortTransition.CLOSED:
+            diff.closed.append(Change(ip, name, port, protocol, "", old_version))
+        case PortTransition.UNCONFIRMED:
+            diff.unconfirmed.append(Unconfirmed(ip, name, port, protocol, before, after))
+        case PortTransition.UNCHANGED if before == "open" and old_version != version:
+            diff.version_changes.append(Change(ip, name, port, protocol, version, old_version))
 
 
 def compare_host_ports(
     diff: Diff, ip: str, old: Host, new: Host, comparable: set[Port] | None
 ) -> None:
+    """Compare the ports of a host up in both scans.
+
+    Every comparable port open in either scan is classified, then every
+    port whose probe failed in either scan and that is open in neither.
+    """
     before = _relabel(old, new)
+    seen: set[Port] = set()
     for key in sorted(before.keys() | new.open.keys()):
+        seen.add(key[:2])
         if comparable is None or key[:2] in comparable:
-            _compare_port(diff, ip, key, before, new)
-    for port, protocol in sorted(old.unknown.keys() & new.unknown.keys()):
+            states = (_state(old, key, before), _state(new, key, new.open))
+            _record(diff, ip, key, states, (before.get(key, ""), new.open.get(key, "")))
+    for port, protocol in sorted((old.unknown.keys() | new.unknown.keys()) - seen):
         if comparable is None or (port, protocol) in comparable:
-            name = new.unknown[(port, protocol)]
-            diff.unconfirmed.append(Unconfirmed(ip, name, port, protocol, "unknown", "unknown"))
+            name = new.unknown.get((port, protocol)) or old.unknown[(port, protocol)]
+            key = (port, protocol, name)
+            states = (_state(old, key, {}), _state(new, key, {}))
+            _record(diff, ip, key, states, ("", ""))

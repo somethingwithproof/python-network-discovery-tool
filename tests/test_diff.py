@@ -4,6 +4,7 @@
 import json
 
 import pytest
+from conftest import validator
 from typer.testing import CliRunner
 
 from netprobe import cli
@@ -443,6 +444,88 @@ def test_host_failing_in_both_scans_is_unsettled(tmp_path):
         {"ip": "10.0.0.1", "before": "uncertain", "after": "uncertain"}
     ]
     assert diff_exit(old, new).exit_code == 3
+
+
+def up_host(ip, **states):
+    """An answering host whose services have the given states, e.g. http="closed"."""
+    ports = {"ssh": (22, "tcp"), "http": (80, "tcp"), "mysql": (3306, "tcp")}
+    return Device(
+        ip=ip,
+        alive=True,
+        services=[Service(name, *ports[name], state) for name, state in states.items()],
+    )
+
+
+def changed_exit(old, new):
+    """The CLI's JSON diff, checked against the published schema, and its exit code."""
+    outcome = diff_exit(old, new)
+    document = json.loads(outcome.output)
+    validator("diff").validate(document)
+    return document, outcome.exit_code
+
+
+def test_host_absent_before_and_uncertain_now_is_unsettled(tmp_path):
+    old = snap(tmp_path, "old.json", [])
+    new = snap(tmp_path, "new.json", [failed_host("10.0.0.1", SSH_PORT)])
+
+    result = compare(load_inventory(old), load_inventory(new))
+
+    assert result.unsettled_hosts == [{"ip": "10.0.0.1", "before": "absent", "after": "uncertain"}]
+    assert result.new_hosts == result.vanished_hosts == []
+    assert result.changed
+    document, status = changed_exit(old, new)
+    assert (document["changed"], status) == (True, 3)
+
+
+def test_host_uncertain_before_and_absent_now_is_unsettled(tmp_path):
+    old = snap(tmp_path, "old.json", [failed_host("10.0.0.1", SSH_PORT)])
+    new = snap(tmp_path, "new.json", [])
+
+    result = compare(load_inventory(old), load_inventory(new))
+
+    assert result.unsettled_hosts == [{"ip": "10.0.0.1", "before": "uncertain", "after": "absent"}]
+    assert result.new_hosts == result.vanished_hosts == []
+    document, status = changed_exit(old, new)
+    assert (document["changed"], status) == (True, 3)
+
+
+@pytest.mark.parametrize("state", ["closed", "filtered"])
+def test_port_not_open_now_unknown_is_unconfirmed(tmp_path, state):
+    old = snap(tmp_path, "old.json", [up_host("10.0.0.1", ssh="open", http=state)])
+    new = snap(tmp_path, "new.json", [up_host("10.0.0.1", ssh="open", http="unknown")])
+
+    result = compare(load_inventory(old), load_inventory(new))
+
+    assert [(u.name, u.port, u.before, u.after) for u in result.unconfirmed] == [
+        ("http", 80, "not-open", "unknown")
+    ]
+    assert result.opened == result.closed == []
+    document, status = changed_exit(old, new)
+    assert (document["changed"], status) == (True, 3)
+
+
+@pytest.mark.parametrize("state", ["closed", "filtered"])
+def test_port_unknown_now_not_open_is_unconfirmed(tmp_path, state):
+    old = snap(tmp_path, "old.json", [up_host("10.0.0.1", ssh="open", http="unknown")])
+    new = snap(tmp_path, "new.json", [up_host("10.0.0.1", ssh="open", http=state)])
+
+    result = compare(load_inventory(old), load_inventory(new))
+
+    assert [(u.name, u.port, u.before, u.after) for u in result.unconfirmed] == [
+        ("http", 80, "unknown", "not-open")
+    ]
+    document, status = changed_exit(old, new)
+    assert (document["changed"], status) == (True, 3)
+
+
+def test_unchanged_closed_and_filtered_ports_exit_zero(tmp_path):
+    devices = [up_host("10.0.0.1", ssh="open", http="closed", mysql="filtered")]
+    old = snap(tmp_path, "old.json", devices)
+    new = snap(tmp_path, "new.json", devices)
+
+    document, status = changed_exit(old, new)
+
+    assert (document["changed"], status) == (False, 0)
 
 
 @pytest.mark.parametrize(

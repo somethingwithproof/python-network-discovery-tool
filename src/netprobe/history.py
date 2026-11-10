@@ -15,9 +15,11 @@ from pathlib import Path
 from typing import Any
 
 from netprobe.scan_settings import (
+    PortTransition,
     RecordedSettings,
     effective_timeouts,
     host_sort_key,
+    port_transition,
     setting_warnings,
 )
 from netprobe.scanner import validate_target
@@ -297,11 +299,12 @@ def compare_host_observations(
     for port in sorted(previous["port_states"].keys() & current["port_states"].keys()):
         old_state, new_state = previous["port_states"][port], current["port_states"][port]
         change = {"ip": ip, "port": port, "before": old_state, "after": new_state}
-        # A failed observation is listed, never dropped: unknown -> open must
-        # not hide a port that now answers.
-        if "unknown" in (old_state, new_state):
+        # The same classification as `diff`: a failed observation is listed,
+        # never dropped, and a port open now is a change even after a failure.
+        transition = port_transition(old_state, new_state)
+        if transition is PortTransition.UNCONFIRMED:
             report["unconfirmed_ports"].append(change)
-        elif old_state != new_state:
+        elif transition is not PortTransition.UNCHANGED:
             report["port_changes"].append(change)
 
 

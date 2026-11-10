@@ -67,7 +67,7 @@
     },
     "unsettled_hosts": {
       "type": "array",
-      "description": "Hosts answering in one scan, or neither, whose probes all failed otherwise.",
+      "description": "Hosts whose probes all failed without an answer in at least one scan. `absent` means the scan did not list the host.",
       "items": {
         "type": "object",
         "required": [
@@ -82,13 +82,15 @@
           "before": {
             "enum": [
               "up",
-              "uncertain"
+              "uncertain",
+              "absent"
             ]
           },
           "after": {
             "enum": [
               "up",
-              "uncertain"
+              "uncertain",
+              "absent"
             ]
           }
         }
@@ -96,7 +98,7 @@
     },
     "unconfirmed": {
       "type": "array",
-      "description": "Ports whose state is unknown in at least one scan and not open now.",
+      "description": "Ports whose state is unknown in at least one scan and not open now. `not-open` means the port was probed and answered closed or filtered.",
       "items": {
         "type": "object",
         "required": [
@@ -123,11 +125,15 @@
           "before": {
             "enum": [
               "open",
-              "unknown"
+              "unknown",
+              "not-open"
             ]
           },
           "after": {
-            "const": "unknown"
+            "enum": [
+              "unknown",
+              "not-open"
+            ]
           }
         }
       }
