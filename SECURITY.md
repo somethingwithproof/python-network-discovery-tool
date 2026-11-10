@@ -30,8 +30,8 @@ host/service caps, and preflight checks bound work; they do not grant authorizat
 HTTPS certificate and hostname verification must succeed before collecting HTTP
 headers or certificate details. Use `--tls-ca-file` for a private CA.
 
-SNMP secrets come from runtime options or environment variables; prefer the latter
-so they do not appear in the local process list. Inventory reports and history
+SNMP secrets come only from environment variables or secret files (`--snmp-*-file`),
+never from command-line values, so they do not appear in the local process list. Inventory reports and history
 store observations and non-secret settings. Explicit credential exports write
 owner-only scripts but still expose arguments to Kadupul during execution.
 Protect history databases, reports, and exported scripts as network inventory.

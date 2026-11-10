@@ -192,6 +192,8 @@ class ScanOptions:
             )
         },
     )
+    # Read from NETPROBE_SNMP_COMMUNITY only. The option stays defined, hidden, so a value
+    # given on the command line is refused with a pointer to the replacement.
     snmp_community: str | None = field(
         default=None,
         metadata={
@@ -199,7 +201,19 @@ class ScanOptions:
                 None,
                 "--snmp-community",
                 envvar="NETPROBE_SNMP_COMMUNITY",
-                help="SNMPv2c community for the system MIB query (prefer the env var)",
+                hidden=True,
+                show_default=False,
+            )
+        },
+    )
+    snmp_community_file: Path | None = field(
+        default=None,
+        metadata={
+            "cli": typer.Option(
+                None,
+                "--snmp-community-file",
+                envvar="NETPROBE_SNMP_COMMUNITY_FILE",
+                help="File holding the SNMPv2c community (or set NETPROBE_SNMP_COMMUNITY)",
                 show_default=False,
             )
         },
@@ -218,6 +232,8 @@ class ScanOptions:
             "cli": typer.Option("SHA", "--snmp-auth-protocol", envvar="NETPROBE_SNMP_AUTH_PROTOCOL")
         },
     )
+    # Read from NETPROBE_SNMP_AUTH_KEY only. The option stays defined, hidden, so a value
+    # given on the command line is refused with a pointer to the replacement.
     snmp_auth_key: str | None = field(
         default=None,
         metadata={
@@ -225,7 +241,19 @@ class ScanOptions:
                 None,
                 "--snmp-auth-key",
                 envvar="NETPROBE_SNMP_AUTH_KEY",
-                help="SNMPv3 authentication passphrase (prefer the env var)",
+                hidden=True,
+                show_default=False,
+            )
+        },
+    )
+    snmp_auth_key_file: Path | None = field(
+        default=None,
+        metadata={
+            "cli": typer.Option(
+                None,
+                "--snmp-auth-key-file",
+                envvar="NETPROBE_SNMP_AUTH_KEY_FILE",
+                help="File holding the SNMPv3 authentication passphrase (or set NETPROBE_SNMP_AUTH_KEY)",
                 show_default=False,
             )
         },
@@ -236,6 +264,8 @@ class ScanOptions:
             "cli": typer.Option("AES", "--snmp-priv-protocol", envvar="NETPROBE_SNMP_PRIV_PROTOCOL")
         },
     )
+    # Read from NETPROBE_SNMP_PRIV_KEY only. The option stays defined, hidden, so a value
+    # given on the command line is refused with a pointer to the replacement.
     snmp_priv_key: str | None = field(
         default=None,
         metadata={
@@ -243,7 +273,19 @@ class ScanOptions:
                 None,
                 "--snmp-priv-key",
                 envvar="NETPROBE_SNMP_PRIV_KEY",
-                help="SNMPv3 privacy passphrase (prefer the env var)",
+                hidden=True,
+                show_default=False,
+            )
+        },
+    )
+    snmp_priv_key_file: Path | None = field(
+        default=None,
+        metadata={
+            "cli": typer.Option(
+                None,
+                "--snmp-priv-key-file",
+                envvar="NETPROBE_SNMP_PRIV_KEY_FILE",
+                help="File holding the SNMPv3 privacy passphrase (or set NETPROBE_SNMP_PRIV_KEY)",
                 show_default=False,
             )
         },
@@ -336,13 +378,56 @@ def scan(ctx: typer.Context, **values: Any) -> None:
     report_scan(options, plan, devices)
 
 
-def scan_credentials(ctx: typer.Context, options: ScanOptions) -> SnmpCredentials | None:
-    for name in ("snmp_community", "snmp_auth_key", "snmp_priv_key"):
+SECRET_OPTIONS = ("snmp_community", "snmp_auth_key", "snmp_priv_key")
+MAX_SECRET_BYTES = 4096
+
+
+def read_secret_file(path: Path, flag: str) -> str:
+    """Return a secret file's text without one trailing newline.
+
+    Errors name the file but never include any of its contents.
+    """
+    try:
+        with path.open("rb") as handle:
+            data = handle.read(MAX_SECRET_BYTES + 1)
+    except OSError as exc:
+        raise ValueError(f"{flag}: cannot read {path}: {exc.strerror or exc}") from exc
+    if len(data) > MAX_SECRET_BYTES:
+        raise ValueError(f"{flag}: {path} is larger than {MAX_SECRET_BYTES} bytes")
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"{flag}: {path} is not UTF-8 text") from exc
+    text = text.removesuffix("\n").removesuffix("\r")
+    if not text:
+        raise ValueError(f"{flag}: {path} is empty")
+    return text
+
+
+def load_secrets(ctx: typer.Context, options: ScanOptions) -> None:
+    """Fill secret options from their files, refusing command-line values."""
+    for name in SECRET_OPTIONS:
+        flag = "--" + name.replace("_", "-")
+        env = f"NETPROBE_{name.upper()}"
         if explicit_option(ctx, name):
-            logger.warning(
-                f"--{name.replace('_', '-')} on the command line is visible in the process "
-                f"list; prefer NETPROBE_{name.upper()}"
+            raise ValueError(
+                f"{flag} is no longer accepted because command-line values are visible in "
+                f"the process list; set {env} or use {flag}-file"
             )
+        path = getattr(options, f"{name}_file")
+        if path is None:
+            continue
+        if getattr(options, name) is not None:
+            raise ValueError(f"both {env} and {flag}-file are set; use one")
+        setattr(options, name, read_secret_file(path, f"{flag}-file"))
+
+
+def scan_credentials(ctx: typer.Context, options: ScanOptions) -> SnmpCredentials | None:
+    try:
+        load_secrets(ctx, options)
+    except ValueError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(2) from exc
     if not any(
         (options.snmp_community, options.snmp_user, options.snmp_auth_key, options.snmp_priv_key)
     ):
