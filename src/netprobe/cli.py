@@ -19,6 +19,7 @@ from typing import Any, Literal, cast, get_type_hints
 
 import typer
 from rich import print as rprint
+from rich.console import Console
 from rich.logging import RichHandler
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
@@ -41,11 +42,6 @@ from netprobe.scanner import (
     NetworkScanner,
 )
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(message)s",
-    handlers=[RichHandler(rich_tracebacks=True, show_time=False)],
-)
 logger = logging.getLogger(__name__)
 DEFAULT_PROFILE_CONFIG = Path("netprobe.toml")
 
@@ -61,6 +57,25 @@ app = typer.Typer(
     pretty_exceptions_show_locals=False,
     add_completion=False,
 )
+
+
+def configure_logging(level: int = logging.INFO) -> None:
+    """Send netprobe's log records to stderr, keeping stdout for results.
+
+    Configured per invocation rather than at import, so importing netprobe as
+    a library leaves the caller's logging alone.
+    """
+    package = logging.getLogger("netprobe")
+    package.handlers = [
+        RichHandler(console=Console(stderr=True), rich_tracebacks=True, show_time=False)
+    ]
+    package.setLevel(level)
+
+
+@app.callback()
+def main() -> None:
+    """Network service inventory for networks you administer."""
+    configure_logging()
 
 
 def explicit_option(ctx: typer.Context, name: str) -> bool:
@@ -103,7 +118,11 @@ class ScanOptions:
     )
     quiet: bool = field(
         default=False,
-        metadata={"cli": typer.Option(False, "--quiet", "-q", help="Suppress table output")},
+        metadata={
+            "cli": typer.Option(
+                False, "--quiet", "-q", help="Suppress table output and informational logs"
+            )
+        },
     )
     backend: Literal["asyncio", "nmap"] = field(
         default="asyncio",
@@ -290,7 +309,9 @@ def scan(ctx: typer.Context, **values: Any) -> None:
     """Scan services, record inventory, and export observations on an administered network."""
     options = ScanOptions(**values)
     if options.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
+        configure_logging(logging.DEBUG)
+    elif options.quiet:
+        configure_logging(logging.WARNING)
     snmp = scan_credentials(ctx, options)
     plan = scan_plan(ctx, options)
     store = scan_preflight(options, plan)

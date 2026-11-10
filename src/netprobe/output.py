@@ -52,13 +52,18 @@ def write_text(path: Path, text: str, *, private: bool = False) -> None:
         raise OSError(errno.ENOTSUP, "Safe output requires no-follow file opens on this platform")
     flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_CLOEXEC", 0) | no_follow
     try:
-        descriptor = os.open(path, flags, 0o600)
+        # O_NONBLOCK makes opening a FIFO without a reader fail with ENXIO
+        # instead of hanging the scan's final step forever.
+        descriptor = os.open(path, flags | os.O_NONBLOCK, 0o600)
     except OSError as exc:
         if exc.errno == errno.ELOOP:
             raise OSError(errno.ELOOP, f"Destination must not be a symbolic link: {path}") from exc
+        if exc.errno == errno.ENXIO:
+            raise OSError(errno.ENXIO, f"Destination is a pipe with no reader: {path}") from exc
         raise
     owned = True
     try:
+        os.set_blocking(descriptor, True)
         if private:
             os.fchmod(descriptor, 0o600)
         handle = os.fdopen(descriptor, "w", encoding="utf-8")
