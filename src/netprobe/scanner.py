@@ -385,6 +385,15 @@ async def resolve_address(target: str, lookups: asyncio.Semaphore | None = None)
     return str(infos[0][4][0]), target
 
 
+def _hostname(targets: list[str]) -> str | None:
+    """The target when it is a single DNS name; expand_targets allows no others."""
+    try:
+        ipaddress.ip_address(targets[0])
+    except ValueError:
+        return targets[0]
+    return None
+
+
 class ScanDeadlineError(Exception):
     """The whole scan ran past its deadline; ``devices`` holds the hosts that finished."""
 
@@ -583,14 +592,19 @@ class NetworkScanner:
         swept: set[str] | None = None
         pinned: dict[str, Resolved] = {}
         if self.backend == "nmap":
-            try:
-                swept, pinned = await self._sweep(network, targets, lookups)
-            except OSError as e:
-                # Only a hostname target is resolved here, and it is the only target.
-                results[0] = self._unresolved(targets[0], e)
-                if progress and task is not None:
-                    progress.update(task, advance=1)
-                return
+            name = _hostname(targets)
+            if name is not None:
+                # Resolve once, before discovery: letting nmap resolve the name
+                # again could reach a different machine than the probes do
+                # under round-robin or rebinding DNS.
+                try:
+                    pinned[name] = await resolve_address(name, lookups)
+                except OSError as e:
+                    results[0] = self._unresolved(name, e)
+                    if progress and task is not None:
+                        progress.update(task, advance=1)
+                    return
+            swept = await self._sweep(network, targets, pinned)
         pending = iter(enumerate(targets))
 
         async def worker() -> None:
@@ -605,23 +619,16 @@ class NetworkScanner:
             for _ in range(workers):
                 tg.create_task(worker())
 
-    async def _sweep(
-        self, network: str, targets: list[str], lookups: asyncio.Semaphore
-    ) -> tuple[set[str], dict[str, Resolved]]:
-        """Run nmap discovery; return the targets that answered and pinned hostnames.
+    @staticmethod
+    async def _sweep(network: str, targets: list[str], pinned: dict[str, Resolved]) -> set[str]:
+        """Run nmap discovery and return the targets that answered.
 
-        A hostname target is resolved once, here, and nmap gets the address:
-        letting nmap resolve it again could reach a different machine than the
-        probes do under round-robin or rebinding DNS.
+        A pinned hostname is swept by its resolved address.
         """
-        try:
-            ipaddress.ip_address(targets[0])
-        except ValueError:
-            name = targets[0]
-            pinned = {name: await resolve_address(name, lookups)}
-            address = pinned[name][0]
-            return ({name} if await nmap_sweep([address], address) else set()), pinned
-        return await nmap_sweep(targets, network), {}
+        if not pinned:
+            return await nmap_sweep(targets, network)
+        [(name, (address, _))] = pinned.items()
+        return {name} if await nmap_sweep([address], address) else set()
 
     async def _scan_target(
         self,
