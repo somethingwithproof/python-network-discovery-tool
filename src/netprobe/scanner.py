@@ -63,7 +63,8 @@ ANSWERED = frozenset({"open", "closed"})
 FD_HEADROOM = 64
 
 
-_HOSTNAME_LABEL = re.compile(r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$")
+# Applied with fullmatch: "$" with match() also accepts a trailing newline.
+_HOSTNAME_LABEL = re.compile(r"(?!-)[A-Za-z0-9-]{1,63}(?<!-)")
 # Reverse DNS names in the wild also use underscores.
 _PTR_NAME = re.compile(r"\w(?:[\w.-]{0,251}\w)?", re.ASCII)
 # Concurrent forward and reverse lookups; each occupies a resolver thread.
@@ -92,7 +93,7 @@ def validate_target(target: str) -> str:
     # A purely numeric last label means a malformed IPv4 address, not a hostname.
     if (
         len(target) > 253
-        or not all(_HOSTNAME_LABEL.match(label) for label in labels)
+        or not all(_HOSTNAME_LABEL.fullmatch(label) for label in labels)
         or labels[-1].isdigit()
     ):
         raise ValueError(f"Invalid target: {target!r}")
