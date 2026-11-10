@@ -145,7 +145,15 @@ def test_compare_errors_and_unknown_states_are_not_disappearances(history_store)
 
 
 @pytest.mark.parametrize(
-    ("before", "after"), [("unknown", "open"), ("unknown", "unknown"), ("open", "unknown")]
+    ("before", "after"),
+    [
+        ("unknown", "unknown"),
+        ("open", "unknown"),
+        ("closed", "unknown"),
+        ("filtered", "unknown"),
+        ("unknown", "closed"),
+        ("unknown", "filtered"),
+    ],
 )
 def test_compare_lists_every_unconfirmed_port(history_store, before, after):
     first = save_snapshot(
@@ -161,6 +169,23 @@ def test_compare_lists_every_unconfirmed_port(history_store, before, after):
         {"ip": "127.0.0.1", "port": "22/tcp", "before": before, "after": after}
     ]
     assert report["port_changes"] == []
+
+
+def test_compare_reports_port_open_after_failed_probe_like_diff(history_store):
+    # diff lists unknown -> open under opened; compare must agree it changed.
+    first = save_snapshot(
+        history_store,
+        [Observation("127.0.0.1", status="error", errors=["x"], port_states={"22/tcp": "unknown"})],
+    )
+    second = save_snapshot(
+        history_store,
+        [Observation("127.0.0.1", alive=True, status="up", port_states={"22/tcp": "open"})],
+    )
+    report = history.compare_scans(history_store.get(first), history_store.get(second))
+    assert report["port_changes"] == [
+        {"ip": "127.0.0.1", "port": "22/tcp", "before": "unknown", "after": "open"}
+    ]
+    assert report["unconfirmed_ports"] == []
 
 
 @pytest.mark.parametrize("changed", ["targets", "ports"])

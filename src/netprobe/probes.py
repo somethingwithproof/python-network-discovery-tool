@@ -186,6 +186,15 @@ async def _close(writer: asyncio.StreamWriter) -> None:
             await writer.wait_closed()
 
 
+def _abort(writer: asyncio.StreamWriter) -> None:
+    """Drop a connection at once, without a TLS close_notify exchange.
+
+    A graceful TLS close waits for the peer's close_notify, which a peer can
+    withhold; the probe has its observation by then, so it does not wait.
+    """
+    writer.transport.abort()
+
+
 async def tcp_state(host: str, port: int, timeout_seconds: float) -> PortState:
     """Classify a TCP port by attempting a full connect.
 
@@ -418,7 +427,7 @@ async def https_probe(host: str, port: int, ctx: ProbeContext) -> ProbeResult:
                     details["cert_error"] = clean(str(e))
         details.update(await _http_exchange(reader, writer, name, port, 443, ctx.timeout))
     finally:
-        await _close(writer)
+        _abort(writer)
     return ProbeResult("open", details.get("server", ""), details)
 
 

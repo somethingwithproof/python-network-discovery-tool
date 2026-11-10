@@ -2,19 +2,30 @@
 # SPDX-License-Identifier: MIT
 
 """Property tests for the untrusted input every scan starts from or reads back:
-targets and CIDR ranges, and the BER in SNMPv3 replies."""
+targets and CIDR ranges, the BER in SNMPv3 replies, and comparisons of scans."""
 
 from __future__ import annotations
 
 import ipaddress
 import string
+import tempfile
+from pathlib import Path
 
 import pytest
 from hypothesis import assume, given
 from hypothesis import strategies as st
 
+from netprobe.diff import compare, load_inventory, write_snapshot
+from netprobe.history import compare_scans
+from netprobe.models import Device, Service, ServiceSpec
 from netprobe.probes import MAX_ENGINE_ID_OCTETS, snmp_engine_id
-from netprobe.scanner import MAX_HOSTS, canonical_network, expand_targets, validate_target
+from netprobe.scanner import (
+    ANSWERED,
+    MAX_HOSTS,
+    canonical_network,
+    expand_targets,
+    validate_target,
+)
 
 LABEL = st.from_regex(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", fullmatch=True)
 HOSTNAME = (
@@ -187,3 +198,62 @@ def test_arbitrary_replies_never_raise(reply):
     if engine_id is not None:
         assert 0 < len(engine_id) <= 2 * MAX_ENGINE_ID_OCTETS
         int(engine_id, 16)
+
+
+# --- comparisons -------------------------------------------------------------
+
+SPECS = (ServiceSpec("ssh", 22), ServiceSpec("http", 80), ServiceSpec("mysql", 3306))
+OBSERVED = st.sampled_from(["open", "closed", "filtered"])
+# Hosts, each a tuple of observed states for SPECS.
+SCANS = st.lists(st.tuples(*(OBSERVED for _ in SPECS)), min_size=1, max_size=4)
+
+
+def _devices(scan: list[tuple[str, ...]]) -> list[Device]:
+    # alive follows the scanner's rule: only an answer proves the host is up.
+    return [
+        Device(
+            ip=f"10.0.0.{index + 1}",
+            alive=any(state in ANSWERED for state in states),
+            services=[
+                Service(spec.name, spec.port, spec.protocol, state)
+                for spec, state in zip(SPECS, states, strict=True)
+            ],
+        )
+        for index, states in enumerate(scan)
+    ]
+
+
+def _history(scan_id: int, devices: list[Device]) -> dict:
+    return {
+        "id": scan_id,
+        "metadata": {"ports": [f"{spec.port}/{spec.protocol}" for spec in SPECS]},
+        "devices": [
+            {
+                "ip": device.ip,
+                "alive": device.alive,
+                "status": "up" if device.alive else "unresponsive",
+                "errors": [],
+                "port_states": {f"{s.port}/{s.protocol}": s.state for s in device.services},
+            }
+            for device in devices
+        ],
+    }
+
+
+@given(SCANS, st.data())
+def test_an_observation_becoming_unknown_is_never_no_change(scan, data):
+    host = data.draw(st.integers(0, len(scan) - 1))
+    port = data.draw(st.integers(0, len(SPECS) - 1))
+    failed = [list(states) for states in scan]
+    failed[host][port] = "unknown"
+    before, after = _devices(scan), _devices([tuple(states) for states in failed])
+
+    for old, new in ((before, after), (after, before)):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = Path(directory) / "old.json", Path(directory) / "new.json"
+            for path, devices in zip(paths, (old, new), strict=True):
+                write_snapshot(path, "10.0.0.0/29", SPECS, devices)
+            assert compare(*map(load_inventory, paths)).changed
+
+        report = compare_scans(_history(1, old), _history(2, new))
+        assert report["port_changes"] or report["unconfirmed_ports"]
