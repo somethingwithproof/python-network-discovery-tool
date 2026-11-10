@@ -134,8 +134,9 @@ def test_release_please_notes_stop_at_the_previous_release(release, project):
     ],
 )
 def test_unrecognised_headings_are_not_release_notes(release, heading):
+    version = release.parse_version("3.1.0")
     with pytest.raises(ValueError, match=r"needs a dated 3\.1\.0 section"):
-        release.release_notes(f"{heading}\n\n- notes\n", release.parse_version("3.1.0"))
+        release.release_notes(f"{heading}\n\n- notes\n", version)
 
 
 def test_empty_release_notes_rejected(release):
