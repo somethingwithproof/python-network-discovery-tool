@@ -138,10 +138,9 @@ def _host(entry: Any) -> Host:
 
 def _partition(devices: list[Any]) -> tuple[list[Any], list[Host], set[str]]:
     """Split stored devices into alive entries, their hosts, and uncertain IPs."""
-    alive: list[Any] = []
-    quiet: list[Any] = []
-    for d in devices:
-        (alive if not isinstance(d, dict) or d.get("alive", True) else quiet).append(d)
+    answered = [not isinstance(d, dict) or bool(d.get("alive", True)) for d in devices]
+    alive = [d for d, up in zip(devices, answered, strict=True) if up]
+    quiet = [d for d, up in zip(devices, answered, strict=True) if not up]
     uncertain = {h.ip for h in map(_host, quiet) if h.unknown}
     return alive, [_host(d) for d in alive], uncertain
 
@@ -345,6 +344,12 @@ def compare(old: Inventory, new: Inventory) -> Diff:
             diff.unsettled_hosts.append({"ip": ip, "before": "up", "after": "uncertain"})
         else:
             diff.vanished_hosts.append(_summary(old.hosts[ip]))
+    # Failed in both scans: nothing was observed either time, which still
+    # needs attention rather than a "no changes" result.
+    diff.unsettled_hosts.extend(
+        {"ip": ip, "before": "uncertain", "after": "uncertain"}
+        for ip in sorted(old.uncertain & new.uncertain, key=_ip_key)
+    )
 
     for ip in sorted(old.hosts.keys() & new.hosts.keys(), key=_ip_key):
         compare_host_ports(diff, ip, old.hosts[ip], new.hosts[ip], comparable)

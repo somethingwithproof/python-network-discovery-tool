@@ -431,3 +431,15 @@ def test_unchanged_scans_still_exit_zero(tmp_path):
     report = json.loads(outcome.output)
     assert report["changed"] is False
     assert report["unsettled_hosts"] == report["unconfirmed"] == []
+
+
+def test_host_failing_in_both_scans_is_unsettled(tmp_path):
+    old = snap(tmp_path, "old.json", [failed_host("10.0.0.1", SSH_PORT)])
+    new = snap(tmp_path, "new.json", [failed_host("10.0.0.1", SSH_PORT)])
+
+    result = compare(load_inventory(old), load_inventory(new))
+
+    assert result.unsettled_hosts == [
+        {"ip": "10.0.0.1", "before": "uncertain", "after": "uncertain"}
+    ]
+    assert diff_exit(old, new).exit_code == 3
