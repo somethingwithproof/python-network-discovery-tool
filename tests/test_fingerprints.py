@@ -6,7 +6,9 @@
 import asyncio
 import datetime as dt
 import ipaddress
+import socket
 import ssl
+import threading
 
 import pytest
 from conftest import closed_port, fixture_bytes
@@ -17,6 +19,7 @@ from cryptography.x509.oid import NameOID
 
 from netprobe import probes
 from netprobe.probes import ProbeContext, SnmpCredentials
+from netprobe.scanner import PROBE_BUDGET
 
 CTX = ProbeContext(timeout=1.0)
 
@@ -323,6 +326,42 @@ async def test_https_probe_hostname_mismatch(tls_server):
     assert "cert_sans" not in result.details
 
 
+@pytest.fixture
+def silent_tls_server(tmp_path):
+    """A TLS listener that completes the handshake, then never answers or closes.
+
+    A blocking socket in a thread, so nothing replies to the client's
+    close_notify the way an asyncio server would.
+    """
+    ca, cert, key = make_cert(tmp_path)
+    context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    context.load_cert_chain(cert, key)
+    listener = socket.create_server(("127.0.0.1", 0))
+    release = threading.Event()
+
+    def serve():
+        with listener, context.wrap_socket(listener.accept()[0], server_side=True) as tls:
+            tls.recv(4096)
+            release.wait(10)
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    yield listener.getsockname()[1], str(ca)
+    release.set()
+    thread.join(10)
+
+
+async def test_https_probe_finishes_within_its_budget_without_close_notify(silent_tls_server):
+    port, ca = silent_tls_server
+    timeout = 0.2
+    async with asyncio.timeout(timeout * PROBE_BUDGET):
+        result = await probes.https_probe("127.0.0.1", port, ProbeContext(timeout, tls_ca_file=ca))
+
+    assert result.state == "open"
+    assert result.details["cert_verified"] is True
+    assert result.details["error"].startswith("no response")
+
+
 async def test_https_probe_plain_tcp_service(tcp_server):
     port = await tcp_server(fixture_bytes("ssh-banner.bin"))
     result = await probes.https_probe("127.0.0.1", port, CTX)
@@ -368,11 +407,12 @@ class FakeTlsWriter:
         error.verify_message = "certificate has expired"
         raise error
 
-    def close(self):
-        self.closed = True
+    @property
+    def transport(self):
+        return self
 
-    async def wait_closed(self):
-        return None
+    def abort(self):
+        self.closed = True
 
 
 async def test_https_probe_verification_failure_never_retries(monkeypatch):
