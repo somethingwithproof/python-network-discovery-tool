@@ -150,7 +150,7 @@ netprobe scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on stdo
 | `--deadline SECONDS` | Stop the whole scan, nmap sweep included, after this long (default 3600, at most 604800; env `NETPROBE_DEADLINE`). Hosts that finished are written to the report with `"complete": false`, no history or snapshot is written, and `scan` exits 4. |
 | `--config PATH` | TOML service definitions and optional named `[profiles]` settings. |
 | `--profile NAME` | Use a named profile; defaults to `netprobe.toml` when `--config` is omitted. |
-| `--exclude IP/CIDR` | Add an exclusion; repeat as needed. |
+| `--exclude IP/CIDR` | Add an exclusion; repeat as needed. An excluded IPv4 host also excludes the IPv6 addresses that reach it: IPv4-mapped (`::ffff:a.b.c.d`), NAT64 (`64:ff9b::/96`) and 6to4. IPv4-mapped targets and exclusions are treated as the IPv4 addresses they denote. |
 | `--max-hosts N` | Address limit checked before exclusions (default/hard maximum 65,536). |
 | `--history PATH` | Record the completed scan in an opt-in SQLite history database. |
 | `--services NAMES` | Comma list of service names to check, in that order (default: all). |

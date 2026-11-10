@@ -104,6 +104,49 @@ def validate_target(target: str) -> str:
     return target
 
 
+type Address = ipaddress.IPv4Address | ipaddress.IPv6Address
+type Network = ipaddress.IPv4Network | ipaddress.IPv6Network
+
+_MAPPED = ipaddress.IPv6Network("::ffff:0:0/96")
+# RFC 6052 well-known prefix: a NAT64 gateway forwards these to the embedded IPv4.
+_NAT64 = ipaddress.IPv6Network("64:ff9b::/96")
+
+
+def canonical_network(value: str) -> Network:
+    """Parse a prefix, rewriting IPv4-mapped IPv6 as the IPv4 range it denotes.
+
+    The socket layer sends ::ffff:a.b.c.d to a.b.c.d over IPv4, so both
+    spellings must expand, exclude and compare as one host.
+    """
+    network = ipaddress.ip_network(value, strict=False)
+    if isinstance(network, ipaddress.IPv6Network) and network.subnet_of(_MAPPED):
+        mapped = int(network.network_address) & 0xFFFFFFFF
+        return ipaddress.IPv4Network((mapped, network.prefixlen - 96))
+    return network
+
+
+def _canonical(target: str) -> str:
+    """An IP target in canonical form, IPv4-mapped IPv6 as IPv4; names unchanged."""
+    try:
+        return str(canonical_network(target).network_address)
+    except ValueError:
+        return target
+
+
+def _aliases(address: Address) -> list[Address]:
+    """Every spelling that reaches this host: itself, its IPv4-mapped form, or the
+    IPv4 address a 6to4 or NAT64 address embeds."""
+    if isinstance(address, ipaddress.IPv4Address):
+        return [address, ipaddress.IPv6Address(int(_MAPPED.network_address) | int(address))]
+    if address in _NAT64:
+        return [address, ipaddress.IPv4Address(int(address) & 0xFFFFFFFF)]
+    return [address] if address.sixtofour is None else [address, address.sixtofour]
+
+
+def _excluded(address: Address, blocked: list[Network]) -> bool:
+    return any(alias in net for alias in _aliases(address) for net in blocked)
+
+
 def expand_targets(
     network: str, max_hosts: int = MAX_HOSTS, exclusions: Iterable[str] = ()
 ) -> list[str]:
@@ -114,25 +157,25 @@ def expand_targets(
         if "%" in network:
             raise ValueError(SCOPE_ERROR)
         if "/" in network:
-            net = ipaddress.ip_network(network, strict=False)
+            net = canonical_network(network)
             if net.num_addresses > max_hosts:
                 raise ValueError(
                     f"Network too large: {net.num_addresses} addresses (max {max_hosts})"
                 )
             targets = [str(ip) for ip in net.hosts()]
         else:
-            targets = [validate_target(network)]
+            targets = [_canonical(validate_target(network))]
         blocked = []
         for value in exclusions:
             if "%" in value:
                 raise ValueError(SCOPE_ERROR)
-            blocked.append(ipaddress.ip_network(value, strict=False))
+            blocked.append(canonical_network(value))
         if blocked:
             try:
                 addresses = [ipaddress.ip_address(target) for target in targets]
             except ValueError as exc:
                 raise ValueError("IP exclusions require an IP or CIDR target") from exc
-            targets = [str(ip) for ip in addresses if not any(ip in net for net in blocked)]
+            targets = [str(ip) for ip in addresses if not _excluded(ip, blocked)]
         if not targets:
             raise ValueError("No targets remain after exclusions")
         return targets

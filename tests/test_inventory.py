@@ -397,6 +397,34 @@ def test_exclusion_target_expansion():
             expand_targets(*args)
 
 
+@pytest.mark.parametrize(
+    ("network", "exclusion"),
+    [
+        ("::ffff:127.0.0.1/128", "127.0.0.1"),
+        ("::ffff:127.0.0.1", "127.0.0.0/8"),
+        ("127.0.0.1", "::ffff:127.0.0.1/128"),
+        ("64:ff9b::7f00:1", "127.0.0.1"),
+        ("2002:7f00:1::1", "127.0.0.1"),
+    ],
+)
+def test_exclusions_cover_ipv6_spellings_of_ipv4_hosts(network, exclusion):
+    with pytest.raises(ValueError, match="No targets remain"):
+        expand_targets(network, exclusions=[exclusion])
+
+
+def test_ipv4_mapped_targets_expand_as_ipv4():
+    assert expand_targets("::ffff:127.0.0.1/128") == ["127.0.0.1"]
+    assert expand_targets("::ffff:7f00:1") == ["127.0.0.1"]
+    assert expand_targets("::ffff:127.0.0.0/126") == ["127.0.0.1", "127.0.0.2"]
+
+
+def test_scan_of_mapped_address_honours_ipv4_exclusion(scanner):
+    result = CliRunner().invoke(cli.app, ["scan", "::ffff:127.0.0.1/128", "--exclude", "127.0.0.1"])
+    assert result.exit_code == 2
+    assert "No targets remain" in result.output
+    scanner[1].assert_not_called()
+
+
 def test_preflight_no_traffic_and_no_database_creation(scanner, tmp_path):
     out = tmp_path / "report.json"
     out.write_text("existing")

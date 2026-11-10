@@ -14,7 +14,7 @@ from hypothesis import assume, given
 from hypothesis import strategies as st
 
 from netprobe.probes import MAX_ENGINE_ID_OCTETS, snmp_engine_id
-from netprobe.scanner import MAX_HOSTS, expand_targets, validate_target
+from netprobe.scanner import MAX_HOSTS, canonical_network, expand_targets, validate_target
 
 LABEL = st.from_regex(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", fullmatch=True)
 HOSTNAME = (
@@ -79,6 +79,8 @@ def test_accepted_targets_are_safe_nmap_arguments(text):
 
 @given(NETWORK)
 def test_expansion_lists_each_host_of_the_network_once_in_order(network):
+    # IPv4-mapped IPv6 expands as the IPv4 range it denotes.
+    network = canonical_network(str(network))
     targets = expand_targets(str(network))
     addresses = [ipaddress.ip_address(target) for target in targets]
     assert addresses == sorted(set(addresses))
@@ -97,7 +99,7 @@ def test_host_limit_is_checked_against_the_whole_network(network, limit):
 
 @given(NETWORK, st.data())
 def test_exclusions_remove_exactly_the_excluded_hosts(network, data):
-    hosts = list(network.hosts())
+    hosts = list(canonical_network(str(network)).hosts())
     excluded = data.draw(
         st.lists(st.sampled_from(hosts), max_size=8, unique=True), label="excluded"
     )
@@ -109,6 +111,26 @@ def test_exclusions_remove_exactly_the_excluded_hosts(network, data):
         return
     targets = expand_targets(str(network), exclusions=exclusions)
     assert [ipaddress.ip_address(target) for target in targets] == remaining
+
+
+@given(NETWORK, st.data())
+def test_every_spelling_of_an_excluded_host_is_excluded(network, data):
+    host = data.draw(st.sampled_from(list(canonical_network(str(network)).hosts())))
+    # An excluded IPv4 host, written either way, also excludes the IPv6
+    # addresses that reach it: mapped, NAT64 and 6to4.
+    names = [host]
+    targets = [host]
+    if host.version == 4:
+        names.append(ipaddress.IPv6Address(f"::ffff:{host}"))
+        targets += [
+            names[-1],
+            ipaddress.IPv6Address(f"64:ff9b::{host}"),
+            ipaddress.IPv6Address((0x2002 << 112) | (int(host) << 80) | 1),
+        ]
+    for target in targets:
+        for exclusion in names:
+            with pytest.raises(ValueError, match="No targets remain"):
+                expand_targets(str(target), exclusions=[str(exclusion)])
 
 
 @given(NETWORK, st.integers(0, 32))
