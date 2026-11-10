@@ -38,7 +38,7 @@ timeout, the scan `timeout` and `backend`, and `devices`. A report lists every
 scanned device. A snapshot lists only devices that answered or had a probe
 fail, so that `diff` can tell a failed observation from a vanished host.
 `complete` is false only in a report from a scan stopped by `--deadline`; its
-`devices` then lists just the hosts that finished, and no snapshot is written.
+`devices` then lists just the hosts that finished, and no snapshot is written. `diff` and `export` refuse such a report unless `--allow-partial` is given.
 
 Each device keeps the original `ip`, `alive`, `ssh`, `snmp`, `mysql`,
 `hostname` and `errors` fields, the `services` it probed with their `state`
