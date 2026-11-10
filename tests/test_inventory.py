@@ -138,6 +138,28 @@ def test_compare_errors_and_unknown_states_are_not_disappearances(history_store)
     assert report["newly_responsive"] == []
     assert report["port_changes"] == []
     assert report["uncertain_hosts"] == ["127.0.0.1"]
+    assert report["unconfirmed_ports"] == [
+        {"ip": "127.0.0.1", "port": "22/tcp", "before": "open", "after": "unknown"}
+    ]
+
+
+@pytest.mark.parametrize(
+    ("before", "after"), [("unknown", "open"), ("unknown", "unknown"), ("open", "unknown")]
+)
+def test_compare_lists_every_unconfirmed_port(history_store, before, after):
+    first = save_snapshot(
+        history_store,
+        [Observation("127.0.0.1", status="error", errors=["x"], port_states={"22/tcp": before})],
+    )
+    second = save_snapshot(
+        history_store,
+        [Observation("127.0.0.1", alive=True, status="up", port_states={"22/tcp": after})],
+    )
+    report = history.compare_scans(history_store.get(first), history_store.get(second))
+    assert report["unconfirmed_ports"] == [
+        {"ip": "127.0.0.1", "port": "22/tcp", "before": before, "after": after}
+    ]
+    assert report["port_changes"] == []
 
 
 @pytest.mark.parametrize("changed", ["targets", "ports"])

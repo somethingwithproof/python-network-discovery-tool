@@ -269,7 +269,9 @@ scan ID must precede the later ID. When both scans recorded `timeout` or `backen
 and those values differ, the report lists a warning and still compares the
 observations. A different wait can make a filtered port look open. Scanner errors
 and unknown port observations are flagged as uncertain rather than treated as
-confirmed disappearance or closure.
+confirmed disappearance or closure: hosts with errors appear in `uncertain_hosts`, and
+every port transition involving `unknown` (including unknown in both scans) is listed
+in `unconfirmed_ports` instead of `port_changes`.
 `no_longer_responding` means lack of a response, not proof of device removal.
 Scan exit code 0 does not guarantee every host responded: inspect per-host errors. Comparison success returns 0 whether or not changes exist; existing file `diff`
 retains its exit code 3 contract. Unsupported or corrupt history returns 1.
