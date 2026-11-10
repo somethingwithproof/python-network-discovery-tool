@@ -11,7 +11,7 @@ import sys
 import atheris
 
 with atheris.instrument_imports():
-    from netprobe.probes import (
+    from hostcensus.probes import (
         MAX_ENGINE_ID_OCTETS,
         parse_certificate,
         parse_http_head,

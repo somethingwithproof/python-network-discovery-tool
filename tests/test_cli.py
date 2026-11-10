@@ -11,9 +11,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from netprobe import cli, preflight
-from netprobe.models import Device, Service
-from netprobe.scanner import BackendUnavailableError
+from hostcensus import cli, preflight
+from hostcensus.models import Device, Service
+from hostcensus.scanner import BackendUnavailableError
 
 runner = CliRunner()
 
@@ -39,7 +39,7 @@ def test_cli_version():
     result = runner.invoke(cli.app, ["version"])
 
     assert result.exit_code == 0
-    assert f"v{version('netprobe')}" in result.output
+    assert f"v{version('hostcensus')}" in result.output
 
 
 @pytest.mark.parametrize(
@@ -83,7 +83,7 @@ def test_cli_passes_engine_options(available_nmap_preflight):
 
 
 def test_cli_service_selection_reaches_scanner(tmp_path):
-    config = tmp_path / "netprobe.toml"
+    config = tmp_path / "hostcensus.toml"
     config.write_text("[services.redis]\nport = 6379\n")
     with patched_scanner([]) as factory:
         result = runner.invoke(
@@ -154,11 +154,11 @@ def test_cli_unwritable_output_exits_1(tmp_path):
 @pytest.mark.parametrize(
     "secrets",
     [
-        {"NETPROBE_SNMP_COMMUNITY": "community-s3cret"},
+        {"HOSTCENSUS_SNMP_COMMUNITY": "community-s3cret"},
         {
-            "NETPROBE_SNMP_USER": "netprobe",
-            "NETPROBE_SNMP_AUTH_KEY": "auth-s3cret",
-            "NETPROBE_SNMP_PRIV_KEY": "priv-s3cret",
+            "HOSTCENSUS_SNMP_USER": "hostcensus",
+            "HOSTCENSUS_SNMP_AUTH_KEY": "auth-s3cret",
+            "HOSTCENSUS_SNMP_PRIV_KEY": "priv-s3cret",
         },
     ],
     ids=["v2c", "v3"],
@@ -171,7 +171,7 @@ def test_cli_snmp_secrets_reach_probe_but_never_output(tmp_path, monkeypatch, ca
     # This checks real SNMP credential redaction, not the scanner deadline.
     # Leave time for initial MIB/key setup on slower macOS runners while keeping
     # the real SNMP request timeout at one second. Scanner tests cover its budget.
-    monkeypatch.setattr("netprobe.scanner.PROBE_BUDGET", 10)
+    monkeypatch.setattr("hostcensus.scanner.PROBE_BUDGET", 10)
 
     # A bound UDP socket that never answers: the real SNMP GET runs and times out.
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as agent:
@@ -198,7 +198,7 @@ def test_cli_snmp_secrets_reach_probe_but_never_output(tmp_path, monkeypatch, ca
     assert "No SNMP response" in service["details"]["snmp_error"]
     everything = out.read_text() + result.output + caplog.text
     for name, value in secrets.items():
-        if name != "NETPROBE_SNMP_USER":
+        if name != "HOSTCENSUS_SNMP_USER":
             assert value not in everything
     assert "process list" not in caplog.text  # env vars do not trigger the warning
 
@@ -231,7 +231,7 @@ def test_cli_reads_secrets_from_files(tmp_path):
 def test_cli_reads_secret_file_named_by_environment(tmp_path, monkeypatch):
     key = tmp_path / "auth"
     key.write_text("auth-passphrase")
-    monkeypatch.setenv("NETPROBE_SNMP_AUTH_KEY_FILE", str(key))
+    monkeypatch.setenv("HOSTCENSUS_SNMP_AUTH_KEY_FILE", str(key))
     with patched_scanner([]) as scanner:
         result = runner.invoke(cli.app, ["scan", "10.0.0.1", "--snmp-user", "ops"])
 
@@ -264,7 +264,7 @@ def test_cli_rejects_missing_secret_file_and_conflicts(tmp_path, monkeypatch):
 
     secret = tmp_path / "community"
     secret.write_text("from-file")
-    monkeypatch.setenv("NETPROBE_SNMP_COMMUNITY", "from-env")
+    monkeypatch.setenv("HOSTCENSUS_SNMP_COMMUNITY", "from-env")
     with patched_scanner([]):
         both = runner.invoke(cli.app, ["scan", "10.0.0.1", "--snmp-community-file", str(secret)])
     assert both.exit_code == 2
@@ -365,7 +365,7 @@ def _scan_streams(*extra):
     import sys
 
     return subprocess.run(
-        [sys.executable, "-m", "netprobe", "scan", "127.0.0.1", "--services", "ssh", *extra],
+        [sys.executable, "-m", "hostcensus", "scan", "127.0.0.1", "--services", "ssh", *extra],
         capture_output=True,
         text=True,
         timeout=60,
@@ -387,11 +387,11 @@ def test_quiet_scan_prints_no_informational_logs():
     assert "INFO" not in result.stderr
 
 
-def test_importing_netprobe_leaves_root_logging_alone():
+def test_importing_hostcensus_leaves_root_logging_alone():
     import subprocess
     import sys
 
-    code = "import logging, netprobe.cli; print(len(logging.getLogger().handlers))"
+    code = "import logging, hostcensus.cli; print(len(logging.getLogger().handlers))"
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
     assert out.stdout.strip() == "0"
 
@@ -399,7 +399,7 @@ def test_importing_netprobe_leaves_root_logging_alone():
 def test_version_flag_prints_the_installed_version():
     result = runner.invoke(cli.app, ["--version"])
     assert result.exit_code == 0
-    assert result.output == f"netprobe {version('netprobe')}\n"
+    assert result.output == f"hostcensus {version('hostcensus')}\n"
 
 
 def test_json_report_on_stdout_is_one_document(tmp_path):
@@ -412,7 +412,7 @@ def test_json_report_on_stdout_is_one_document(tmp_path):
         config.write_text(f"[services.lab]\nport = {port}\n")
         result = subprocess.run(
             [
-                *(sys.executable, "-m", "netprobe", "scan", "127.0.0.1"),
+                *(sys.executable, "-m", "hostcensus", "scan", "127.0.0.1"),
                 *("--config", str(config), "--services", "lab", "--format", "json"),
             ],
             capture_output=True,
@@ -427,7 +427,7 @@ def test_json_report_on_stdout_is_one_document(tmp_path):
 
 
 def test_scan_past_deadline_writes_partial_report_and_exits_4(tmp_path):
-    from netprobe.scanner import ScanDeadlineError
+    from hostcensus.scanner import ScanDeadlineError
 
     finished = [Device("10.0.0.1", alive=True)]
     scanner = MagicMock()

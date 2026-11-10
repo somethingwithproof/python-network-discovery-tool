@@ -13,12 +13,12 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from typer.testing import CliRunner
 
-from netprobe import cli, history
-from netprobe import preflight as checks
-from netprobe.cli import app
-from netprobe.models import Device, Service
-from netprobe.profiles import ConfigError, Profile, load_profiles
-from netprobe.scanner import expand_targets
+from hostcensus import cli, history
+from hostcensus import preflight as checks
+from hostcensus.cli import app
+from hostcensus.models import Device, Service
+from hostcensus.profiles import ConfigError, Profile, load_profiles
+from hostcensus.scanner import expand_targets
 
 
 @dataclass
@@ -577,8 +577,8 @@ def test_invalid_history_blocks_scan(scanner, tmp_path):
 async def test_bounded_workers_preserve_order(monkeypatch):
     import asyncio
 
-    from netprobe.config import DEFAULT_SERVICES
-    from netprobe.scanner import NetworkScanner
+    from hostcensus.config import DEFAULT_SERVICES
+    from hostcensus.scanner import NetworkScanner
 
     engine = NetworkScanner(concurrency=2, services=DEFAULT_SERVICES[:1])
     active = peak = 0
@@ -600,7 +600,7 @@ async def test_bounded_workers_preserve_order(monkeypatch):
 async def test_cancelled_worker_cannot_return_partial_results(monkeypatch):
     import asyncio
 
-    from netprobe.scanner import NetworkScanner
+    from hostcensus.scanner import NetworkScanner
 
     engine = NetworkScanner()
     monkeypatch.setattr(engine, "scan_device", AsyncMock(side_effect=asyncio.CancelledError))

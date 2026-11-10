@@ -10,8 +10,8 @@ import re
 import tomllib
 from pathlib import Path
 
-from netprobe.models import ServiceSpec
-from netprobe.probes import PROBES
+from hostcensus.models import ServiceSpec
+from hostcensus.probes import PROBES
 
 
 class ConfigError(ValueError):

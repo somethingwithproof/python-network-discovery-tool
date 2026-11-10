@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2025-2026 Thomas Vincent <thomasvincent@gmail.com>
 # SPDX-License-Identifier: MIT
 name: Release Planning
-about: Plan a netprobe release
+about: Plan a hostcensus release
 title: 'Release [VERSION] Planning'
 labels: ''
 assignees: ''

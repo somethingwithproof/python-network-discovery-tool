@@ -28,10 +28,10 @@ def release():
 @pytest.fixture
 def project(tmp_path):
     (tmp_path / "pyproject.toml").write_text(
-        '[build-system]\nrequires=["hatchling"]\n[project]\nname="netprobe"\nversion = "3.0.0"\n[tool.example]\nversion="keep-me"\n'
+        '[build-system]\nrequires=["hatchling"]\n[project]\nname="hostcensus"\nversion = "3.0.0"\n[tool.example]\nversion="keep-me"\n'
     )
     (tmp_path / "uv.lock").write_text(
-        'version=1\n[[package]]\nname = "other"\nversion = "1.2.3"\n[[package]]\nname = "netprobe"\nversion = "3.0.0"\n'
+        'version=1\n[[package]]\nname = "other"\nversion = "1.2.3"\n[[package]]\nname = "hostcensus"\nversion = "3.0.0"\n'
     )
     (tmp_path / "CHANGES.md").write_text(
         "# Changelog\n\n## Version 3.0.0 (2026-10-08)\n\n- Initial v3 package.\n"
@@ -108,7 +108,7 @@ def test_release_requires_matching_tag_notes_and_lock(release, project):
     lock = project / "uv.lock"
     lock.write_text(
         lock.read_text().replace(
-            'name = "netprobe"\nversion = "3.1.0"', 'name = "netprobe"\nversion = "3.0.0"'
+            'name = "hostcensus"\nversion = "3.1.0"', 'name = "hostcensus"\nversion = "3.0.0"'
         )
     )
     with pytest.raises(ValueError, match=r"uv\.lock disagree"):
@@ -151,20 +151,20 @@ def test_empty_release_notes_rejected(release):
 @pytest.fixture
 def distributions(tmp_path):
     def build(version="3.1.0", metadata_version=None, project_version=None):
-        wheel = tmp_path / f"netprobe-{version}-py3-none-any.whl"
+        wheel = tmp_path / f"hostcensus-{version}-py3-none-any.whl"
         metadata = (
-            f"Metadata-Version: 2.4\nName: netprobe\nVersion: {metadata_version or version}\n"
+            f"Metadata-Version: 2.4\nName: hostcensus\nVersion: {metadata_version or version}\n"
         )
         with ZipFile(wheel, "w") as archive:
-            archive.writestr(f"netprobe-{version}.dist-info/METADATA", metadata)
-        source = tmp_path / f"netprobe-{version}.tar.gz"
+            archive.writestr(f"hostcensus-{version}.dist-info/METADATA", metadata)
+        source = tmp_path / f"hostcensus-{version}.tar.gz"
         with tarfile.open(source, "w:gz") as archive:
             for name, text in {
                 "PKG-INFO": metadata,
-                "pyproject.toml": f'[project]\nname="netprobe"\nversion="{project_version or version}"\n',
+                "pyproject.toml": f'[project]\nname="hostcensus"\nversion="{project_version or version}"\n',
             }.items():
                 data = text.encode()
-                info = tarfile.TarInfo(f"netprobe-{version}/{name}")
+                info = tarfile.TarInfo(f"hostcensus-{version}/{name}")
                 info.size = len(data)
                 archive.addfile(info, io.BytesIO(data))
         return tmp_path, [wheel, source]
@@ -276,7 +276,7 @@ def test_release_please_config_matches_the_release_checks():
     assert lock == {
         "type": "toml",
         "path": "uv.lock",
-        "jsonpath": "$.package[?(@.name==='netprobe')].version",
+        "jsonpath": "$.package[?(@.name==='hostcensus')].version",
     }
 
 

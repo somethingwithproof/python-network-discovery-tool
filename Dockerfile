@@ -16,7 +16,7 @@ RUN uv sync --locked --no-dev --group build --no-build --no-install-project \
     && uv pip install --python .venv/bin/python --no-build --no-deps /wheels/*.whl
 
 FROM python:3.14-slim-trixie@sha256:9aaa474097d094040649f2162a627c0049b408f52138d980916788d80f04802f AS runtime
-LABEL org.opencontainers.image.title="netprobe" \
+LABEL org.opencontainers.image.title="hostcensus" \
       org.opencontainers.image.description="Service inventory for networks you administer" \
       org.opencontainers.image.source="https://github.com/somethingwithproof/python-network-discovery-tool" \
       org.opencontainers.image.licenses="MIT"
@@ -31,12 +31,12 @@ RUN apt-get update && apt-get upgrade -y --no-install-recommends \
         /usr/local/lib/python3.*/site-packages/setuptools* \
         /usr/local/lib/python3.*/ensurepip /usr/local/bin/pip* \
     && useradd --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin \
-        --uid 10001 --user-group netprobe \
-    && mkdir -p /app/output && chown netprobe:netprobe /app/output
+        --uid 10001 --user-group hostcensus \
+    && mkdir -p /app/output && chown hostcensus:hostcensus /app/output
 WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 # Numeric so Kubernetes runAsNonRoot can verify it without resolving names.
 USER 10001:10001
-ENTRYPOINT ["netprobe"]
+ENTRYPOINT ["hostcensus"]
 CMD ["--help"]

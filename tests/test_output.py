@@ -7,8 +7,8 @@ import stat
 
 import pytest
 
-from netprobe.models import Device, Service
-from netprobe.output import print_results, save_csv, save_json, write_text
+from hostcensus.models import Device, Service
+from hostcensus.output import print_results, save_csv, save_json, write_text
 
 
 def sample() -> list[Device]:
@@ -39,7 +39,7 @@ def test_save_json_keeps_legacy_fields_and_adds_services(tmp_path):
     save_json(sample(), out)
 
     document = json.loads(out.read_text())
-    assert (document["format"], document["version"]) == ("netprobe-report", 1)
+    assert (document["format"], document["version"]) == ("hostcensus-report", 1)
     data = document["devices"]
     assert list(data[0])[:7] == ["ip", "alive", "ssh", "snmp", "mysql", "hostname", "errors"]
     assert data[0]["ssh"] is True

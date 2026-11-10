@@ -13,9 +13,9 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 
-from netprobe.history import HistoryStore, check_writable_path
-from netprobe.models import ServiceSpec
-from netprobe.scanner import DEFAULT_CONCURRENCY, MAX_PROBES, ensure_file_limit, expand_targets
+from hostcensus.history import HistoryStore, check_writable_path
+from hostcensus.models import ServiceSpec
+from hostcensus.scanner import DEFAULT_CONCURRENCY, MAX_PROBES, ensure_file_limit, expand_targets
 
 
 class Check(TypedDict):
@@ -25,7 +25,7 @@ class Check(TypedDict):
 
 
 class PreflightResult(TypedDict):
-    format: Literal["netprobe-preflight"]
+    format: Literal["hostcensus-preflight"]
     version: Literal[1]
     target: str
     host_count: int
@@ -105,7 +105,7 @@ def check_plan(
     if tls_ca_file is not None:
         checks.append(check_ca(tls_ca_file))
     return {
-        "format": "netprobe-preflight",
+        "format": "hostcensus-preflight",
         "version": 1,
         "target": network,
         "host_count": len(targets),

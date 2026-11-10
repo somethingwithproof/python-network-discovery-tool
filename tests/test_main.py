@@ -8,8 +8,8 @@ import pytest
 
 
 def test_python_dash_m_runs_cli(capsys):
-    with patch("sys.argv", ["netprobe", "version"]), pytest.raises(SystemExit) as exit_info:
-        runpy.run_module("netprobe", run_name="__main__")
+    with patch("sys.argv", ["hostcensus", "version"]), pytest.raises(SystemExit) as exit_info:
+        runpy.run_module("hostcensus", run_name="__main__")
 
     assert exit_info.value.code == 0
-    assert "netprobe" in capsys.readouterr().out
+    assert "hostcensus" in capsys.readouterr().out

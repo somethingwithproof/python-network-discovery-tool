@@ -14,10 +14,10 @@ import pytest
 from conftest import closed_port, fixture_bytes
 from rich.progress import Progress
 
-from netprobe import probes, scanner
-from netprobe.models import Device, ServiceSpec
-from netprobe.probes import ProbeResult, SnmpCredentials
-from netprobe.scanner import BackendUnavailableError, NetworkScanner
+from hostcensus import probes, scanner
+from hostcensus.models import Device, ServiceSpec
+from hostcensus.probes import ProbeResult, SnmpCredentials
+from hostcensus.scanner import BackendUnavailableError, NetworkScanner
 
 
 async def lab_services(tcp_server, udp_server, *, ssh=True, mysql=False, snmp=False):
@@ -726,7 +726,7 @@ def test_abandoned_lookups_do_not_hold_the_event_loop_open(hung_resolver, monkey
 def test_cli_deadline_bounds_wall_time_with_a_hung_resolver(hung_resolver, monkeypatch, tmp_path):
     from typer.testing import CliRunner
 
-    from netprobe import cli
+    from hostcensus import cli
 
     monkeypatch.setattr(scanner, "HOSTNAME_TIMEOUT", 60)
     report = tmp_path / "report.json"

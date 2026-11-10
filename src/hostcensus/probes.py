@@ -22,11 +22,11 @@ from typing import Any, Literal
 
 from cryptography import x509
 
-from netprobe.models import Protocol
+from hostcensus.models import Protocol
 
 logger = logging.getLogger(__name__)
 
-# "unknown" means netprobe could not make the observation (a local error or the
+# "unknown" means hostcensus could not make the observation (a local error or the
 # probe's hard deadline); it says nothing about the port.
 PortState = Literal["open", "closed", "filtered", "unknown"]
 Details = dict[str, Any]
@@ -340,7 +340,7 @@ async def _http_exchange(
     writer.write(
         b"HEAD / HTTP/1.0\r\nHost: "
         + host_header(host, port, default_port).encode("ascii")
-        + b"\r\nUser-Agent: netprobe\r\nConnection: close\r\n\r\n"
+        + b"\r\nUser-Agent: hostcensus\r\nConnection: close\r\n\r\n"
     )
     try:
         async with asyncio.timeout(timeout_seconds):

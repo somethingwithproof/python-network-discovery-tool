@@ -12,11 +12,11 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from netprobe import cli
-from netprobe.config import DEFAULT_SERVICES
-from netprobe.diff import write_snapshot
-from netprobe.export import ExportError, KadupulOptions, kadupul_script, write_script
-from netprobe.models import Device, Service
+from hostcensus import cli
+from hostcensus.config import DEFAULT_SERVICES
+from hostcensus.diff import write_snapshot
+from hostcensus.export import ExportError, KadupulOptions, kadupul_script, write_script
+from hostcensus.models import Device, Service
 
 runner = CliRunner()
 
@@ -75,8 +75,8 @@ def test_v2c_device_references_env_and_runs(tmp_path):
         [device("10.0.0.5", SSH, SNMP_V2, hostname="sw1.lab")], KadupulOptions(), "t"
     )
 
-    assert "NETPROBE_SNMP_COMMUNITY" in script
-    result, calls = run_script(tmp_path, script, {"NETPROBE_SNMP_COMMUNITY": "pub lic"})
+    assert "HOSTCENSUS_SNMP_COMMUNITY" in script
+    result, calls = run_script(tmp_path, script, {"HOSTCENSUS_SNMP_COMMUNITY": "pub lic"})
     assert result.returncode == 0, result.stderr
     assert calls == [
         [
@@ -88,7 +88,7 @@ def test_v2c_device_references_env_and_runs(tmp_path):
             "--community=pub lic",
             "--port=161",
             "--avail=snmp",
-            "--notes=netprobe: ssh:22/tcp OpenSSH_10.0; snmp:161/udp Linux lab",
+            "--notes=hostcensus: ssh:22/tcp OpenSSH_10.0; snmp:161/udp Linux lab",
         ]
     ]
 
@@ -98,7 +98,7 @@ def test_script_refuses_to_run_without_the_secret(tmp_path):
     result, calls = run_script(tmp_path, script)
 
     assert result.returncode != 0
-    assert "set NETPROBE_SNMP_COMMUNITY" in result.stderr
+    assert "set HOSTCENSUS_SNMP_COMMUNITY" in result.stderr
     assert calls == []
 
 
@@ -107,7 +107,7 @@ def test_v3_authpriv(tmp_path):
         snmp_user="ops", auth_protocol="SHA256", priv_protocol="AES256", template=7
     )
     script = kadupul_script([device("10.0.0.6", SNMP_V3)], opts, "t")
-    env = {"NETPROBE_SNMP_AUTH_KEY": "a uth'key", "NETPROBE_SNMP_PRIV_KEY": "pr$iv"}
+    env = {"HOSTCENSUS_SNMP_AUTH_KEY": "a uth'key", "HOSTCENSUS_SNMP_PRIV_KEY": "pr$iv"}
     result, calls = run_script(tmp_path, script, env)
 
     assert result.returncode == 0, result.stderr
@@ -128,7 +128,7 @@ def test_v3_authnopriv_uses_quoted_none(tmp_path):
     script = kadupul_script(
         [device("10.0.0.6", SNMP_V3_AUTH)], KadupulOptions(snmp_user="ops"), "t"
     )
-    _, calls = run_script(tmp_path, script, {"NETPROBE_SNMP_AUTH_KEY": "authpass1"})
+    _, calls = run_script(tmp_path, script, {"HOSTCENSUS_SNMP_AUTH_KEY": "authpass1"})
 
     assert "--privproto=[None]" in calls[0]
     assert not any(a.startswith("--privpass") for a in calls[0])
@@ -159,7 +159,7 @@ def test_non_snmp_hosts_use_tcp_or_icmp_ping(tmp_path):
         "--avail=ping",
         "--ping_method=tcp",
         "--ping_port=8080",
-        "--notes=netprobe: http:8080/tcp",
+        "--notes=hostcensus: http:8080/tcp",
     ]
     assert calls[1][4:] == ["--version=0", "--avail=ping", "--ping_method=icmp"]
     assert len(calls) == 2
@@ -180,7 +180,7 @@ def test_hostile_scan_data_stays_inside_arguments(tmp_path):
     assert result.returncode == 0, result.stderr
     assert not canary.exists()
     assert calls[0][1] == "--description=10.0.0.10"  # unsafe hostname falls back to the IP
-    assert calls[0][-1].startswith("--notes=netprobe: http:80/tcp nginx'; touch ")
+    assert calls[0][-1].startswith("--notes=hostcensus: http:80/tcp nginx'; touch ")
     assert [c[1] for c in calls[1:]] == ["--description=dup.lab", "--description=dup.lab-10.0.0.12"]
 
 
@@ -237,7 +237,7 @@ def test_include_credentials_embeds_quoted_literals(tmp_path):
     script = kadupul_script([device("10.0.0.5", SNMP_V2)], opts, "t")
 
     assert "WARNING: this file contains SNMP credentials" in script
-    assert "NETPROBE_SNMP_COMMUNITY" not in script
+    assert "HOSTCENSUS_SNMP_COMMUNITY" not in script
     _, calls = run_script(tmp_path, script)
     assert "--community=it's" in calls[0]
 
@@ -296,7 +296,7 @@ def snapshot(tmp_path):
 
 
 def test_cli_export_without_credentials(tmp_path, monkeypatch, caplog):
-    monkeypatch.setenv("NETPROBE_SNMP_COMMUNITY", "c0mmunity")
+    monkeypatch.setenv("HOSTCENSUS_SNMP_COMMUNITY", "c0mmunity")
     out = tmp_path / "import.sh"
     result = runner.invoke(
         cli.app, ["export", str(snapshot(tmp_path)), "-o", str(out), "--template", "3"]
@@ -311,7 +311,7 @@ def test_cli_export_without_credentials(tmp_path, monkeypatch, caplog):
 
 
 def test_cli_export_with_credentials(tmp_path, monkeypatch, caplog):
-    monkeypatch.setenv("NETPROBE_SNMP_COMMUNITY", "c0mmunity")
+    monkeypatch.setenv("HOSTCENSUS_SNMP_COMMUNITY", "c0mmunity")
     out = tmp_path / "import.sh"
     result = runner.invoke(
         cli.app, ["export", str(snapshot(tmp_path)), "-o", str(out), "--include-credentials"]
@@ -329,7 +329,7 @@ def test_cli_export_with_credentials(tmp_path, monkeypatch, caplog):
     [["--include-credentials"], ["--template", "-1"]],
 )
 def test_cli_export_refusals_exit_2(tmp_path, monkeypatch, args):
-    monkeypatch.delenv("NETPROBE_SNMP_COMMUNITY", raising=False)
+    monkeypatch.delenv("HOSTCENSUS_SNMP_COMMUNITY", raising=False)
     result = runner.invoke(
         cli.app, ["export", str(snapshot(tmp_path)), "-o", str(tmp_path / "x.sh"), *args]
     )

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
 # SPDX-License-Identifier: MIT
 
-# Copy to netprobe.toml and set networks you administer.
+# Copy to hostcensus.toml and set networks you administer.
 [profiles.office]
 network = "192.168.1.0/24"
 exclusions = ["192.168.1.1", "192.168.1.128/25"]

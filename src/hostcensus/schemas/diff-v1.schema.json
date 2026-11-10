@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/somethingwithproof/python-network-discovery-tool/schemas/diff-v1.schema.json",
-  "title": "netprobe diff, version 1",
+  "title": "hostcensus diff, version 1",
   "description": "Written by `diff -f json`. `changed` is true when any list other than `warnings` is non-empty or `partial` is true; `diff` then exits 3.",
   "type": "object",
   "required": [
@@ -21,7 +21,10 @@
   ],
   "properties": {
     "format": {
-      "const": "netprobe-diff"
+      "enum": [
+        "hostcensus-diff",
+        "netprobe-diff"
+      ]
     },
     "version": {
       "const": 1
@@ -148,7 +151,7 @@
     },
     "partial": {
       "type": "boolean",
-      "description": "True when `--allow-partial` let an incomplete scan through; hosts it did not list are `unscanned`. Optional so diffs written before this field still validate; this netprobe always writes it."
+      "description": "True when `--allow-partial` let an incomplete scan through; hosts it did not list are `unscanned`. Optional so diffs written before this field still validate; this hostcensus always writes it."
     }
   },
   "$defs": {

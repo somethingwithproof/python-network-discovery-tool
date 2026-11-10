@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/somethingwithproof/python-network-discovery-tool/schemas/preflight-v1.schema.json",
-  "title": "netprobe preflight result, version 1",
+  "title": "hostcensus preflight result, version 1",
   "description": "Printed by `preflight`. The command exits 1 when any check has status `error`.",
   "type": "object",
   "required": [
@@ -15,7 +15,10 @@
   ],
   "properties": {
     "format": {
-      "const": "netprobe-preflight"
+      "enum": [
+        "hostcensus-preflight",
+        "netprobe-preflight"
+      ]
     },
     "version": {
       "const": 1

@@ -566,6 +566,72 @@ wheels = [
 ]
 
 [[package]]
+name = "hostcensus"
+version = "3.0.0"
+source = { editable = "." }
+dependencies = [
+    { name = "cryptography" },
+    { name = "defusedxml" },
+    { name = "pysnmp" },
+    { name = "rich" },
+    { name = "typer" },
+]
+
+[package.dev-dependencies]
+build = [
+    { name = "hatchling" },
+    { name = "setuptools" },
+    { name = "wheel" },
+]
+dev = [
+    { name = "bandit" },
+    { name = "hatchling" },
+    { name = "hypothesis" },
+    { name = "installer" },
+    { name = "jsonschema", extra = ["format-nongpl"] },
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "twine" },
+]
+fuzz = [
+    { name = "atheris", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cryptography", specifier = ">=46.0.0" },
+    { name = "defusedxml", specifier = ">=0.7.1" },
+    { name = "pysnmp", specifier = ">=7.1.0" },
+    { name = "rich", specifier = ">=15.0.0" },
+    { name = "typer", specifier = ">=0.25.1" },
+]
+provides-extras = ["nmap"]
+
+[package.metadata.requires-dev]
+build = [
+    { name = "hatchling", specifier = ">=1.33.0" },
+    { name = "setuptools", specifier = ">=84.2.1" },
+    { name = "wheel", specifier = ">=0.46.0" },
+]
+dev = [
+    { name = "bandit", specifier = ">=1.8.0" },
+    { name = "hatchling", specifier = ">=1.33.0" },
+    { name = "hypothesis", specifier = ">=6.140" },
+    { name = "installer", specifier = ">=1.1.0" },
+    { name = "jsonschema", extras = ["format-nongpl"], specifier = ">=4.25" },
+    { name = "mypy", specifier = ">=2.4.1" },
+    { name = "pytest", specifier = ">=9.2.0" },
+    { name = "pytest-asyncio", specifier = ">=1.4.1" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "ruff", specifier = ">=0.17.3" },
+    { name = "twine", specifier = ">=6.2.0" },
+]
+fuzz = [{ name = "atheris", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = ">=3.1.0" }]
+
+[[package]]
 name = "hypothesis"
 version = "6.170.15"
 source = { registry = "https://pypi.org/simple" }
@@ -1007,72 +1073,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/a2/6e/371856a3fb9d31ca8
 wheels = [
     { url = "https://files.pythonhosted.org/packages/79/7b/2c79738432f5c924bef5071f933bcc9efd0473bac3b4aa584a6f7c1c8df8/mypy_extensions-1.1.0-py3-none-any.whl", hash = "sha256:1be4cccdb0f2482337c4743e60421de3a356cd97508abadd57d47403e94f5505", size = 4963, upload-time = "2025-04-22T14:54:22.983Z" },
 ]
-
-[[package]]
-name = "netprobe"
-version = "3.0.0"
-source = { editable = "." }
-dependencies = [
-    { name = "cryptography" },
-    { name = "defusedxml" },
-    { name = "pysnmp" },
-    { name = "rich" },
-    { name = "typer" },
-]
-
-[package.dev-dependencies]
-build = [
-    { name = "hatchling" },
-    { name = "setuptools" },
-    { name = "wheel" },
-]
-dev = [
-    { name = "bandit" },
-    { name = "hatchling" },
-    { name = "hypothesis" },
-    { name = "installer" },
-    { name = "jsonschema", extra = ["format-nongpl"] },
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-    { name = "twine" },
-]
-fuzz = [
-    { name = "atheris", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "cryptography", specifier = ">=46.0.0" },
-    { name = "defusedxml", specifier = ">=0.7.1" },
-    { name = "pysnmp", specifier = ">=7.1.0" },
-    { name = "rich", specifier = ">=15.0.0" },
-    { name = "typer", specifier = ">=0.25.1" },
-]
-provides-extras = ["nmap"]
-
-[package.metadata.requires-dev]
-build = [
-    { name = "hatchling", specifier = ">=1.33.0" },
-    { name = "setuptools", specifier = ">=84.2.1" },
-    { name = "wheel", specifier = ">=0.46.0" },
-]
-dev = [
-    { name = "bandit", specifier = ">=1.8.0" },
-    { name = "hatchling", specifier = ">=1.33.0" },
-    { name = "hypothesis", specifier = ">=6.140" },
-    { name = "installer", specifier = ">=1.1.0" },
-    { name = "jsonschema", extras = ["format-nongpl"], specifier = ">=4.25" },
-    { name = "mypy", specifier = ">=2.4.1" },
-    { name = "pytest", specifier = ">=9.2.0" },
-    { name = "pytest-asyncio", specifier = ">=1.4.1" },
-    { name = "pytest-cov", specifier = ">=7.1.0" },
-    { name = "ruff", specifier = ">=0.17.3" },
-    { name = "twine", specifier = ">=6.2.0" },
-]
-fuzz = [{ name = "atheris", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = ">=3.1.0" }]
 
 [[package]]
 name = "nh3"

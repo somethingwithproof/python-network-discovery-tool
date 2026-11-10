@@ -28,9 +28,9 @@ from typing import Literal
 from defusedxml.ElementTree import ParseError, fromstring
 from rich.progress import Progress, TaskID
 
-from netprobe.config import DEFAULT_SERVICES
-from netprobe.models import LEGACY_FLAGS, Device, Service, ServiceSpec
-from netprobe.probes import PROBES, ProbeContext, ProbeResult, SnmpCredentials, clean
+from hostcensus.config import DEFAULT_SERVICES
+from hostcensus.models import LEGACY_FLAGS, Device, Service, ServiceSpec
+from hostcensus.probes import PROBES, ProbeContext, ProbeResult, SnmpCredentials, clean
 
 logger = logging.getLogger(__name__)
 
@@ -375,7 +375,7 @@ def _in_daemon_thread[T](call: Callable[[], T]) -> asyncio.Future[T]:
         except Exception as e:
             outcome.set_exception(e)
 
-    threading.Thread(target=run, name="netprobe-resolver", daemon=True).start()
+    threading.Thread(target=run, name="hostcensus-resolver", daemon=True).start()
     return asyncio.wrap_future(outcome)
 
 

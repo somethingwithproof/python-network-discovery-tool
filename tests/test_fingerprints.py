@@ -17,9 +17,9 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
 
-from netprobe import probes
-from netprobe.probes import ProbeContext, SnmpCredentials
-from netprobe.scanner import PROBE_BUDGET
+from hostcensus import probes
+from hostcensus.probes import ProbeContext, SnmpCredentials
+from hostcensus.scanner import PROBE_BUDGET
 
 CTX = ProbeContext(timeout=1.0)
 
@@ -198,7 +198,7 @@ def make_cert(tmp_path, *, sans=True):
     """Issue a CA and a leaf for 127.0.0.1; return (ca path, cert path, key path)."""
     now = dt.datetime.now(dt.UTC)
     ca_key = ec.generate_private_key(ec.SECP256R1())
-    ca_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "netprobe test CA")])
+    ca_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "hostcensus test CA")])
     ca = (
         x509.CertificateBuilder()
         .subject_name(ca_name)
@@ -300,7 +300,7 @@ async def test_https_probe_verifies_against_given_ca(tls_server):
     assert result.details["cert_verified"] is True
     assert "cert_verify_error" not in result.details
     assert "cert_read_unverified" not in result.details
-    assert result.details["cert_issuer"] == "CN=netprobe test CA"
+    assert result.details["cert_issuer"] == "CN=hostcensus test CA"
     assert result.details["cert_sans"] == ["IP:127.0.0.1"]
     assert result.details["tls_version"].startswith("TLS")
 
@@ -454,8 +454,8 @@ async def test_https_probe_stalled_handshake_is_open():
 
 
 async def test_scan_loads_the_trust_store_once_across_service_budgets(monkeypatch):
-    from netprobe.models import ServiceSpec
-    from netprobe.scanner import NetworkScanner
+    from hostcensus.models import ServiceSpec
+    from hostcensus.scanner import NetworkScanner
 
     calls = []
     real = probes._tls_context
@@ -509,7 +509,7 @@ async def test_snmp_probe_get_failure_keeps_discovery_state(udp_server, monkeypa
         raise RuntimeError("Wrong SNMP PDU digest")
 
     monkeypatch.setattr(probes, "snmp_system", failing)
-    creds = SnmpCredentials(user="netprobe", auth_key="k" * 10)
+    creds = SnmpCredentials(user="hostcensus", auth_key="k" * 10)
     result = await probes.snmp_probe("127.0.0.1", port, ProbeContext(1.0, snmp=creds))
 
     assert result.state == "open"

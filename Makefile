@@ -9,7 +9,7 @@ install:
 	uv sync --locked
 
 test:
-	uv run pytest --cov=netprobe --cov-report=term-missing
+	uv run pytest --cov=hostcensus --cov-report=term-missing
 
 lint:
 	uv run ruff check .
@@ -27,7 +27,7 @@ test-integration:
 	$(LAB) run --rm --build tester pytest -m integration -v -p no:cacheprovider
 
 demo:
-	$(LAB) run --rm --build tester python -m netprobe scan 172.30.57.8/29
+	$(LAB) run --rm --build tester python -m hostcensus scan 172.30.57.8/29
 
 clean:
 	rm -rf .pytest_cache htmlcov .coverage

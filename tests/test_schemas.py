@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
 # SPDX-License-Identifier: MIT
 
-"""Every JSON document netprobe writes validates against its published schema."""
+"""Every JSON document hostcensus writes validates against its published schema."""
 
 import json
 from unittest.mock import MagicMock, patch
@@ -11,10 +11,10 @@ from conftest import SCHEMAS, validator
 from jsonschema import Draft202012Validator, ValidationError
 from typer.testing import CliRunner
 
-from netprobe import cli
-from netprobe.config import DEFAULT_SERVICES
-from netprobe.diff import write_snapshot
-from netprobe.models import Device, Service
+from hostcensus import cli
+from hostcensus.config import DEFAULT_SERVICES
+from hostcensus.diff import write_snapshot
+from hostcensus.models import Device, Service
 
 runner = CliRunner()
 
@@ -127,12 +127,12 @@ def _minimal(name):
         side = {"source": "", "created": "", "target": ""}
         lists = ["new_hosts", "vanished_hosts", "opened", "closed", "version_changes"]
         lists += ["unsettled_hosts", "unconfirmed", "warnings"]
-        return {"format": "netprobe-diff", "changed": False, "old": side, "new": side} | {
+        return {"format": "hostcensus-diff", "changed": False, "old": side, "new": side} | {
             key: [] for key in lists
         }
     return {
-        "format": f"netprobe-{name}",
-        "netprobe_version": "0",
+        "format": f"hostcensus-{name}",
+        "hostcensus_version": "0",
         "created": "2026-01-01T00:00:00+00:00",
         "target": "10.0.0.1",
         "complete": True,

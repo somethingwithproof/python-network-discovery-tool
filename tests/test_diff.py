@@ -7,16 +7,16 @@ import pytest
 from conftest import validator
 from typer.testing import CliRunner
 
-from netprobe import cli
-from netprobe.config import DEFAULT_SERVICES
-from netprobe.diff import (
+from hostcensus import cli
+from hostcensus.config import DEFAULT_SERVICES
+from hostcensus.diff import (
     SNAPSHOT_VERSION,
     SnapshotError,
     compare,
     load_inventory,
     write_snapshot,
 )
-from netprobe.models import Device, Service, ServiceSpec
+from hostcensus.models import Device, Service, ServiceSpec
 
 runner = CliRunner()
 
@@ -54,7 +54,7 @@ def test_snapshot_format(tmp_path):
     path = snap(tmp_path, "a.json", [host("10.0.0.1", SSH), Device(ip="10.0.0.2")])
     document = json.loads(path.read_text())
 
-    assert document["format"] == "netprobe-snapshot"
+    assert document["format"] == "hostcensus-snapshot"
     assert document["version"] == SNAPSHOT_VERSION
     assert document["created"].endswith("+00:00")
     assert document["target"] == "10.0.0.0/24"
@@ -265,16 +265,16 @@ def test_plain_reports_and_legacy_booleans(tmp_path):
     ("content", "message"),
     [
         ("not json", "cannot read"),
-        ('{"format": "other"}', "not a netprobe snapshot"),
-        ('{"format": "netprobe-snapshot", "version": 99}', "version 99 is not supported"),
-        ('{"format": "netprobe-snapshot", "version": 1}', "malformed"),
+        ('{"format": "other"}', "not a hostcensus snapshot"),
+        ('{"format": "hostcensus-snapshot", "version": 99}', "version 99 is not supported"),
+        ('{"format": "hostcensus-snapshot", "version": 1}', "malformed"),
         (
-            '{"format": "netprobe-snapshot", "version": 1, "services": [], "devices": [], '
+            '{"format": "hostcensus-snapshot", "version": 1, "services": [], "devices": [], '
             '"timeout": "slow"}',
             "timeout must be a number",
         ),
         (
-            '{"format": "netprobe-snapshot", "version": 1, "services": [], "devices": [], '
+            '{"format": "hostcensus-snapshot", "version": 1, "services": [], "devices": [], '
             '"backend": 1}',
             "backend must be a string",
         ),
@@ -544,7 +544,7 @@ def test_snapshot_with_impossible_endpoint_is_rejected(tmp_path, port, protocol)
 
 
 def test_versioned_report_is_read_like_a_snapshot(tmp_path):
-    from netprobe.output import save_json
+    from hostcensus.output import save_json
 
     report = tmp_path / "report.json"
     devices = [host("10.0.0.1", SSH), Device("10.0.0.2", errors=["Host is down"])]
@@ -622,7 +622,7 @@ def test_snapshot_with_unsafe_address_is_refused_by_every_reader(tmp_path, ip):
 
 
 def report(tmp_path, name, devices, *, complete):
-    from netprobe.output import save_json
+    from hostcensus.output import save_json
 
     path = tmp_path / name
     save_json(devices, path, network="10.0.0.0/30", services=DEFAULT_SERVICES, complete=complete)

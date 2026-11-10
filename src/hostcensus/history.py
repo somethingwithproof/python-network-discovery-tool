@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from netprobe.scan_settings import (
+from hostcensus.scan_settings import (
     PortTransition,
     RecordedSettings,
     effective_timeouts,
@@ -22,7 +22,7 @@ from netprobe.scan_settings import (
     port_transition,
     setting_warnings,
 )
-from netprobe.scanner import stored_target
+from hostcensus.scanner import stored_target
 
 type JSONDocument = dict[str, Any]
 type SnapshotRow = tuple[Any, ...]
@@ -42,7 +42,7 @@ def check_writable_path(path: Path) -> None:
         raise ValueError(f"Destination is not a writable regular file: {path}")
     try:
         with tempfile.TemporaryFile(dir=path.parent) as stream:
-            stream.write(b"netprobe preflight\n")
+            stream.write(b"hostcensus preflight\n")
             stream.flush()
     except OSError as exc:
         raise ValueError(f"Destination directory is not writable: {path.parent}: {exc}") from exc
@@ -82,7 +82,7 @@ class HistoryStore:
         if allow_empty and app_id == 0 and schema == 0 and not tables:
             return
         if app_id != HISTORY_APPLICATION_ID or schema != HISTORY_SCHEMA_VERSION:
-            raise ValueError("Not a supported netprobe history database")
+            raise ValueError("Not a supported hostcensus history database")
         connection.execute(
             "SELECT id, started_at, finished_at, metadata, devices FROM scans LIMIT 0"
         )
@@ -203,7 +203,7 @@ def compare_scans(before: JSONDocument, after: JSONDocument) -> JSONDocument:
     if old.keys() != new.keys() or before["metadata"]["ports"] != after["metadata"]["ports"]:
         raise ValueError("Cannot compare scans with different targets or selected ports")
     report: JSONDocument = {
-        "format": "netprobe-compare",
+        "format": "hostcensus-compare",
         "version": 1,
         "before": before["id"],
         "after": after["id"],

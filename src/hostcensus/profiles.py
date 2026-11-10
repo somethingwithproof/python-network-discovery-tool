@@ -12,8 +12,8 @@ from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
-from netprobe.config import ConfigError
-from netprobe.scanner import DEFAULT_CONCURRENCY, DEFAULT_TIMEOUT, MAX_CONCURRENCY, MAX_HOSTS
+from hostcensus.config import ConfigError
+from hostcensus.scanner import DEFAULT_CONCURRENCY, DEFAULT_TIMEOUT, MAX_CONCURRENCY, MAX_HOSTS
 
 type IPNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
 type ProfileSettings = dict[str, Any]

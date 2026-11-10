@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/somethingwithproof/python-network-discovery-tool/schemas/snapshot-v1.schema.json",
-  "title": "netprobe snapshot, version 1",
+  "title": "hostcensus snapshot, version 1",
   "description": "Written by `scan --save-snapshot`. Lists devices that answered or had a probe fail.",
   "allOf": [
     {
@@ -10,7 +10,10 @@
   ],
   "properties": {
     "format": {
-      "const": "netprobe-snapshot"
+      "enum": [
+        "hostcensus-snapshot",
+        "netprobe-snapshot"
+      ]
     },
     "version": {
       "const": 1

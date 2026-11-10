@@ -97,7 +97,7 @@ def release_notes(changelog: str, version: ReleaseVersion) -> str:
 
 def check_lock(root: Path, version: ReleaseVersion) -> None:
     document = tomllib.loads((root / LOCK_FILE).read_text(encoding="utf-8"))
-    packages = [entry for entry in document["package"] if entry["name"] == "netprobe"]
+    packages = [entry for entry in document["package"] if entry["name"] == "hostcensus"]
     if len(packages) != 1 or packages[0]["version"] != version.package:
         raise ValueError("Package version and uv.lock disagree")
 
@@ -125,8 +125,8 @@ def check_distributions(directory: Path, version: ReleaseVersion) -> list[Path]:
         raise ValueError("Expected exactly one wheel and one source distribution")
     wheel, source = wheels[0], sources[0]
     if (
-        not wheel.name.startswith(f"netprobe-{version.package}-")
-        or source.name != f"netprobe-{version.package}.tar.gz"
+        not wheel.name.startswith(f"hostcensus-{version.package}-")
+        or source.name != f"hostcensus-{version.package}.tar.gz"
     ):
         raise ValueError("Distribution filenames disagree with the release version")
     with ZipFile(wheel) as archive:
@@ -135,7 +135,7 @@ def check_distributions(directory: Path, version: ReleaseVersion) -> list[Path]:
             raise ValueError("Wheel must contain exactly one metadata document")
         wheel_info = Parser().parsestr(archive.read(metadata[0]).decode("utf-8"))
     with tarfile.open(source, "r:gz") as archive:
-        prefix = f"netprobe-{version.package}"
+        prefix = f"hostcensus-{version.package}"
         metadata_file = archive.extractfile(f"{prefix}/PKG-INFO")
         project_file = archive.extractfile(f"{prefix}/pyproject.toml")
         if metadata_file is None or project_file is None:
@@ -143,7 +143,7 @@ def check_distributions(directory: Path, version: ReleaseVersion) -> list[Path]:
         source_info = Parser().parsestr(metadata_file.read().decode("utf-8"))
         project = tomllib.loads(project_file.read().decode("utf-8"))
     for info in (wheel_info, source_info):
-        if info["Name"] != "netprobe" or info["Version"] != version.package:
+        if info["Name"] != "hostcensus" or info["Version"] != version.package:
             raise ValueError("Distribution metadata disagrees with release")
     if project["project"]["version"] != version.package:
         raise ValueError("Source project version disagrees with release")

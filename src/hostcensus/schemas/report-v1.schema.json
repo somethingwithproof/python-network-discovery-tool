@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/somethingwithproof/python-network-discovery-tool/schemas/report-v1.schema.json",
-  "title": "netprobe scan report, version 1",
+  "title": "hostcensus scan report, version 1",
   "description": "Written by `scan -o FILE.json` and `scan --format json`. Lists every scanned device.",
   "allOf": [
     {
@@ -10,7 +10,10 @@
   ],
   "properties": {
     "format": {
-      "const": "netprobe-report"
+      "enum": [
+        "hostcensus-report",
+        "netprobe-report"
+      ]
     },
     "version": {
       "const": 1

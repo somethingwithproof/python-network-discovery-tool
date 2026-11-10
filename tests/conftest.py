@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import os
 import socket
 from collections.abc import AsyncIterator, Callable
 from importlib.resources import files
@@ -17,12 +18,25 @@ import pytest
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
+from hostcensus import compat
+
+
+@pytest.fixture(autouse=True)
+def isolated_environment(monkeypatch):
+    """Undo environment changes and warning state, since promoting NETPROBE_* writes os.environ."""
+    saved = dict(os.environ)
+    monkeypatch.setattr(compat, "_warned", set())
+    yield
+    os.environ.clear()
+    os.environ.update(saved)
+
+
 FIXTURES = Path(__file__).parent / "fixtures"
 
 # The published JSON Schemas, keyed by file name, resolved through their $id.
 SCHEMAS = {
     path.name: json.loads(path.read_text())
-    for path in files("netprobe").joinpath("schemas").iterdir()
+    for path in files("hostcensus").joinpath("schemas").iterdir()
     if path.name.endswith(".schema.json")
 }
 
@@ -42,7 +56,7 @@ def closed(node, name, pointer, skip):
     """Copy of a schema that rejects every property it does not declare.
 
     The published schemas accept unknown fields so that an additive change does
-    not break consumers; the tests use closed copies so a field netprobe writes
+    not break consumers; the tests use closed copies so a field hostcensus writes
     without documenting it fails here instead. unevaluatedProperties sees through
     allOf, so composed parts are left open and their composite is closed.
     Objects whose schema says additionalProperties: true stay open.

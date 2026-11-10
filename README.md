@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: 2016-2026 Thomas Vincent <thomasvincent@gmail.com>
 SPDX-License-Identifier: MIT
 -->
 
-# netprobe
+# hostcensus
 
 [![CI](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/ci.yml)
 [![Docker](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/docker-build.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/docker-build.yml)
@@ -15,15 +15,15 @@ SPDX-License-Identifier: MIT
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
 [![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
 
-netprobe is a Python CLI for repeatable service inventory on networks you administer.
+hostcensus is a Python CLI for repeatable service inventory on networks you administer.
 It records what devices expose, compares observations over time, and generates
 Kadupul import scripts. The default backend uses asyncio sockets without root;
 optional Nmap discovery can identify hosts beyond the configured service ports.
 
-## Why netprobe
+## Why hostcensus
 
 A one-off port report does not explain whether the next observation changed or
-simply failed. netprobe combines explicit service states, bounded probes, reusable
+simply failed. hostcensus combines explicit service states, bounded probes, reusable
 scan profiles, and local history. Operators can repeat the same scope, inspect
 errors, and distinguish uncertain observations from confirmed changes.
 
@@ -58,38 +58,55 @@ checkout, install the locked runtime dependencies:
 
 ```bash
 uv sync --locked
-uv run netprobe --help
-uv run netprobe --version
-uv run netprobe preflight 127.0.0.1
-uv run netprobe scan 127.0.0.1 --services ssh -o loopback.json
+uv run hostcensus --help
+uv run hostcensus --version
+uv run hostcensus preflight 127.0.0.1
+uv run hostcensus scan 127.0.0.1 --services ssh -o loopback.json
 ```
 
 For optional Nmap host discovery, install the Nmap executable using your platform's
 package manager; no extra Python package is needed. Nmap's XML output is parsed with
-defusedxml, a core dependency, so entity expansion is refused. netprobe runs
+defusedxml, a core dependency, so entity expansion is refused. hostcensus runs
 the `nmap` found on `PATH` directly with a fixed argument list, a deadline that grows
 with the prefix size, and a 64 MiB output cap. Nmap is not needed for the default backend.
+
+## Migrating from netprobe
+
+hostcensus is the new name of netprobe, released in 3.0.0. The project was never
+published to PyPI under either name, so installs came from a checkout or a GitHub
+release. The GitHub repository keeps its name.
+
+| Was | Now | Compatibility |
+| --- | --- | --- |
+| Distribution `netprobe` | `hostcensus` | Reinstall from the checkout; there is no old-name package. |
+| `netprobe` command | `hostcensus` | `netprobe` still runs and prints one deprecation line on stderr. Exit codes and stdout are unchanged. Removed in the next major release. |
+| `NETPROBE_*` environment variables | `HOSTCENSUS_*` | A `NETPROBE_*` variable is used when its `HOSTCENSUS_*` twin is unset, with one stderr warning that names the variables and never their values. `HOSTCENSUS_*` wins when both are set. Removed in the next major release. |
+| `import netprobe`, `python -m netprobe` | `import hostcensus`, `python -m hostcensus` | **Breaking.** No import shim is installed; update imports. |
+| Docker image tag `network-discovery:test` (CI only) and container user `netprobe` | `hostcensus:test`, user `hostcensus` | No registry image was ever published. Build the image again and use the `hostcensus` entrypoint. |
+| `netprobe.toml`, `netprobe-history.sqlite3` | `hostcensus.toml`, `hostcensus-history.sqlite3` | An existing file with the old default name is still used, with a warning, while the new name does not exist. Explicit `--config` and `--history` paths are untouched. |
+| Reports and snapshots with `"format": "netprobe-report"` or `"netprobe-snapshot"`, and the `netprobe_version` field | `hostcensus-report`, `hostcensus-snapshot`, `hostcensus_version` | `diff` and `export` still load files written under the old name, and the published JSON Schemas accept both spellings. New files use the new names. SQLite history databases are unchanged and load as before. |
+| Kadupul scripts from `netprobe export` | Scripts from `hostcensus export` | Old scripts keep working and still read `NETPROBE_SNMP_*` when they run. New scripts read `HOSTCENSUS_SNMP_*`. |
 
 ## Quick example
 
 Run from the tester container of the integration lab described under Development; output trimmed:
 
 ```console
-$ netprobe scan 172.30.57.8/29 --services ssh,http,snmp --save-snapshot after.json
+$ hostcensus scan 172.30.57.8/29 --services ssh,http,snmp --save-snapshot after.json
 ┃ IP Address   ┃ Hostname       ┃ SSH ┃ SNMP ┃ MySQL ┃ Open services  ┃ Status ┃
-│ 172.30.57.10 │ netprobe-it-s… │ ✅  │  ❌  │  ❌   │ ssh:22         │ UP     │
+│ 172.30.57.10 │ hostcensus-it-s… │ ✅  │  ❌  │  ❌   │ ssh:22         │ UP     │
 │              │                │     │      │       │ OpenSSH_10.0   │        │
-│ 172.30.57.13 │ netprobe-it-w… │ ❌  │  ❌  │  ❌   │ http:80        │ UP     │
+│ 172.30.57.13 │ hostcensus-it-w… │ ❌  │  ❌  │  ❌   │ http:80        │ UP     │
 │              │                │     │      │       │ nginx/1.28.3   │        │
 
-$ netprobe diff before.json after.json; echo "exit=$?"
+$ hostcensus diff before.json after.json; echo "exit=$?"
 Warning: targets differ: 172.30.57.10 vs 172.30.57.8/29
-│ new host │ 172.30.57.13 │ http:80/tcp  │ netprobe-it-web-1.netprobe-it_lab   │
+│ new host │ 172.30.57.13 │ http:80/tcp  │ hostcensus-it-web-1.hostcensus-it_lab   │
 exit=3
 
-$ netprobe export after.json -o kadupul-import.sh --template 1
+$ hostcensus export after.json -o kadupul-import.sh --template 1
 $ grep 57.13 kadupul-import.sh
-add --description=netprobe-it-web-1.netprobe-it_lab --ip=172.30.57.13 --template=1 --version=0 --avail=ping --ping_method=tcp --ping_port=80 '--notes=netprobe: http:80/tcp nginx/1.28.3'
+add --description=hostcensus-it-web-1.hostcensus-it_lab --ip=172.30.57.13 --template=1 --version=0 --avail=ping --ping_method=tcp --ping_port=80 '--notes=hostcensus: http:80/tcp nginx/1.28.3'
 ```
 
 ## Exit codes
@@ -130,11 +147,11 @@ boundaries, and [SECURITY.md](SECURITY.md#authorized-use) for authorized use.
 Scan only networks you administer.
 
 ```bash
-netprobe scan 192.168.1.0/24              # table of alive hosts
-netprobe scan 192.168.1.1 -o results.json # JSON report
-netprobe scan 10.0.0.0/24 -o report.csv   # CSV report
-netprobe scan 10.0.0.0/24 -q -o out.json  # no table, file only
-netprobe scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on stdout
+hostcensus scan 192.168.1.0/24              # table of alive hosts
+hostcensus scan 192.168.1.1 -o results.json # JSON report
+hostcensus scan 10.0.0.0/24 -o report.csv   # CSV report
+hostcensus scan 10.0.0.0/24 -q -o out.json  # no table, file only
+hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on stdout
 ```
 
 | Option | Meaning |
@@ -147,20 +164,20 @@ netprobe scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on stdo
 | `--backend asyncio\|nmap` | Host discovery. `asyncio` (default) probes the service ports directly; `nmap` runs an nmap ping sweep first and needs the `nmap` executable on `PATH`. |
 | `--timeout SECONDS` | Wait for probes that do not set their own budget (default 1.0). Built-in connect probes use 0.3s unless the service table sets `timeout`. |
 | `--concurrency N` | Probes in flight at once (default 256). |
-| `--deadline SECONDS` | Stop the whole scan, nmap sweep included, after this long (default 3600, at most 604800; env `NETPROBE_DEADLINE`). Hosts that finished are written to the report with `"complete": false`, no history or snapshot is written, and `scan` exits 4. |
+| `--deadline SECONDS` | Stop the whole scan, nmap sweep included, after this long (default 3600, at most 604800; env `HOSTCENSUS_DEADLINE`). Hosts that finished are written to the report with `"complete": false`, no history or snapshot is written, and `scan` exits 4. |
 | `--config PATH` | TOML service definitions and optional named `[profiles]` settings. |
-| `--profile NAME` | Use a named profile; defaults to `netprobe.toml` when `--config` is omitted. |
+| `--profile NAME` | Use a named profile; defaults to `hostcensus.toml` when `--config` is omitted. |
 | `--exclude IP/CIDR` | Add an exclusion; repeat as needed. An excluded IPv4 host also excludes the IPv6 addresses that reach it: IPv4-mapped (`::ffff:a.b.c.d`), NAT64 (`64:ff9b::/96`) and 6to4. IPv4-mapped targets and exclusions are treated as the IPv4 addresses they denote. |
 | `--max-hosts N` | Address limit checked before exclusions (default/hard maximum 65,536). |
 | `--history PATH` | Record the completed scan in an opt-in SQLite history database. |
 | `--services NAMES` | Comma list of service names to check, in that order (default: all). |
 | `--ports SPEC` | Comma list of `NAME=PORT` (move a service) or `PORT` (add a plain TCP check named `tcp-PORT`). |
-| `--snmp-community-file PATH` | File holding the SNMPv2c community for the system MIB query. Env: `NETPROBE_SNMP_COMMUNITY` (the value) or `NETPROBE_SNMP_COMMUNITY_FILE` (the path). |
-| `--snmp-user` | SNMPv3 user. Env: `NETPROBE_SNMP_USER`. |
-| `--snmp-auth-protocol`, `--snmp-auth-key-file PATH` | `MD5`, `SHA` (default), `SHA224`, `SHA256`, `SHA384`, `SHA512` and a file holding the passphrase. Env: `NETPROBE_SNMP_AUTH_PROTOCOL`, `NETPROBE_SNMP_AUTH_KEY` or `NETPROBE_SNMP_AUTH_KEY_FILE`. |
-| `--snmp-priv-protocol`, `--snmp-priv-key-file PATH` | `DES`, `AES` (default), `AES128`, `AES192`, `AES192C`, `AES256`, `AES256C` and a file holding the passphrase. Env: `NETPROBE_SNMP_PRIV_PROTOCOL`, `NETPROBE_SNMP_PRIV_KEY` or `NETPROBE_SNMP_PRIV_KEY_FILE`. |
-| `--save-snapshot PATH` | Also write a versioned snapshot for `netprobe diff`. |
-| `--tls-ca-file PATH` | Verify HTTPS certificates against this PEM bundle instead of the system store. Env: `NETPROBE_TLS_CA_FILE`. |
+| `--snmp-community-file PATH` | File holding the SNMPv2c community for the system MIB query. Env: `HOSTCENSUS_SNMP_COMMUNITY` (the value) or `HOSTCENSUS_SNMP_COMMUNITY_FILE` (the path). |
+| `--snmp-user` | SNMPv3 user. Env: `HOSTCENSUS_SNMP_USER`. |
+| `--snmp-auth-protocol`, `--snmp-auth-key-file PATH` | `MD5`, `SHA` (default), `SHA224`, `SHA256`, `SHA384`, `SHA512` and a file holding the passphrase. Env: `HOSTCENSUS_SNMP_AUTH_PROTOCOL`, `HOSTCENSUS_SNMP_AUTH_KEY` or `HOSTCENSUS_SNMP_AUTH_KEY_FILE`. |
+| `--snmp-priv-protocol`, `--snmp-priv-key-file PATH` | `DES`, `AES` (default), `AES128`, `AES192`, `AES192C`, `AES256`, `AES256C` and a file holding the passphrase. Env: `HOSTCENSUS_SNMP_PRIV_PROTOCOL`, `HOSTCENSUS_SNMP_PRIV_KEY` or `HOSTCENSUS_SNMP_PRIV_KEY_FILE`. |
+| `--save-snapshot PATH` | Also write a versioned snapshot for `hostcensus diff`. |
+| `--tls-ca-file PATH` | Verify HTTPS certificates against this PEM bundle instead of the system store. Env: `HOSTCENSUS_TLS_CA_FILE`. |
 
 By default each host is checked for SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) and HTTPS (TCP 443). TCP ports are tested with a full connect. SNMP is tested with an SNMPv3 engine-discovery request, which any SNMPv3 agent must answer without credentials; agents that only speak v1/v2c will not be detected by this probe. With the asyncio backend a host counts as alive when any probe gets an answer, including a refused connection, so a host that drops every probe has `alive=false` and the error "Host is down"; this does not prove it is physically down. With `--backend nmap`, nmap decides which hosts are alive (ICMP as root, TCP 80/443 otherwise).
 
@@ -178,13 +195,13 @@ Each open service is fingerprinted from what it sends before any login. Nothing 
 
 A hostname target is resolved once per host and every probe connects to that address, recorded as `address` in the results; the name is used only for TLS SNI, certificate verification and the HTTP `Host` header. A name that does not resolve gives `unknown` states and a `Cannot resolve` error. Reverse DNS names are kept only when they contain hostname characters, and at most 16 lookups run at once. HTTPS uses certificate and hostname verification against the system store or `--tls-ca-file`. The trust store is loaded once for the scan and reused for every HTTPS probe. The TCP connect and the TLS handshake are timed separately, so a port that accepts connections but stalls the handshake is `open` with `tls_error`, not `filtered`. If verification fails, the result records `cert_verified: false` and `cert_verify_error`; it does not retry with weaker settings or send an HTTP request. Certificate details and HTTP headers are collected only after verification succeeds. Supply the correct CA bundle for private-CA services. Older reports may contain `cert_read_unverified`, which current probes no longer produce.
 
-SNMP secrets are read only from environment variables or from files (`--snmp-*-file`, or the matching `NETPROBE_SNMP_*_FILE` variable), never from command-line values, which other local users can see in the process list. `--snmp-community`, `--snmp-auth-key` and `--snmp-priv-key` with a value exit with code 2 and name the replacement. A secret file must be non-empty UTF-8 of at most 4096 bytes; one trailing newline is ignored, and setting both a variable and a file for the same secret is an error. Errors name the file but never print its contents. Scan reports and history do not intentionally include credential values. The exporter has a separate, explicit `--include-credentials` option described below. A community selects SNMPv2c; a user selects SNMPv3, with authentication when an auth key is given and privacy when both keys are given (`snmp_security_level` records which). netprobe refuses, with exit code 2, to combine a community with a v3 user, to use a privacy key without an auth key, or to use keys without a user, and it never retries a failed v3 query with v2c or a lower security level. Agents that only speak v1/v2c ignore the credential-free v3 discovery, so they show as open only when a community is supplied.
+SNMP secrets are read only from environment variables or from files (`--snmp-*-file`, or the matching `HOSTCENSUS_SNMP_*_FILE` variable), never from command-line values, which other local users can see in the process list. `--snmp-community`, `--snmp-auth-key` and `--snmp-priv-key` with a value exit with code 2 and name the replacement. A secret file must be non-empty UTF-8 of at most 4096 bytes; one trailing newline is ignored, and setting both a variable and a file for the same secret is an error. Errors name the file but never print its contents. Scan reports and history do not intentionally include credential values. The exporter has a separate, explicit `--include-credentials` option described below. A community selects SNMPv2c; a user selects SNMPv3, with authentication when an auth key is given and privacy when both keys are given (`snmp_security_level` records which). hostcensus refuses, with exit code 2, to combine a community with a v3 user, to use a privacy key without an auth key, or to use keys without a user, and it never retries a failed v3 query with v2c or a lower security level. Agents that only speak v1/v2c ignore the credential-free v3 discovery, so they show as open only when a community is supplied.
 
 Banner text is reduced to printable characters and capped at 256 characters before it is stored or shown. Reads are bounded too: 4 KiB per line, 4 KiB for a MySQL greeting, 16 KiB of HTTP headers. An SNMP engine ID longer than 32 octets is truncated before it is stored. HTTP and HTTPS send a Host header with an IPv6 address in brackets and with the port when it is not 80 or 443. CSV cells that start with a spreadsheet formula trigger are prefixed so the cell stays text.
 
 ### Limits
 
-One run accepts at most 65,536 addresses, 64 services, and 524,288 probes (hosts times services); larger requests exit with code 2 before anything is sent. `--concurrency` is capped at 4096 sockets. Each probe has a hard deadline of four times its own budget. Connect probes (`tcp`, `ssh`, `mysql`, `http`) use 0.3 seconds unless that service sets `timeout`. SNMP and HTTPS use `--timeout` (default 1.0) when they do not set one. A probe that hits the deadline is reported as `unknown` with "probe timed out" in `errors`. Local socket failures (for example running out of file descriptors) are also `unknown` with the error recorded; they never count as a filtered port or a down host. Before probing, netprobe raises the open-file soft limit toward the hard limit to fit `--concurrency` plus 64 descriptors; when it cannot, the `open files` preflight check fails and `scan` exits 1 before sending traffic. Nmap discovery uses a 30-second host timeout. A prefix is passed to nmap in CIDR form, and a sweep fails with exit 1 when nmap reports fewer addresses than it was given (for example a name it cannot resolve) rather than marking hosts down. A hostname target is resolved once and nmap is given that address, so discovery and the probes reach the same machine. A full prefix is one nmap process whose subprocess deadline is 35 seconds for every 256 addresses, rounded up. Sweeps with exclusions use batches of 256 hosts and a 35-second deadline for each batch. Worker creation is bounded independently of range size. Reverse DNS and hostname resolution have a separate two-second deadline; a resolver call that never returns is abandoned on its own thread, so it cannot keep netprobe running past these limits. At most 16 lookups run at once, and an abandoned call keeps its slot until it returns, so the number of stuck threads stays bounded; if all 16 hang, later lookups queue for a slot outside the two-second deadline (which starts once a slot is free) until `--deadline` stops the scan. `NetworkScanner` used as a library without a `deadline` can wait for such a slot indefinitely. `--deadline` (default one hour) bounds the whole run on top of these.
+One run accepts at most 65,536 addresses, 64 services, and 524,288 probes (hosts times services); larger requests exit with code 2 before anything is sent. `--concurrency` is capped at 4096 sockets. Each probe has a hard deadline of four times its own budget. Connect probes (`tcp`, `ssh`, `mysql`, `http`) use 0.3 seconds unless that service sets `timeout`. SNMP and HTTPS use `--timeout` (default 1.0) when they do not set one. A probe that hits the deadline is reported as `unknown` with "probe timed out" in `errors`. Local socket failures (for example running out of file descriptors) are also `unknown` with the error recorded; they never count as a filtered port or a down host. Before probing, hostcensus raises the open-file soft limit toward the hard limit to fit `--concurrency` plus 64 descriptors; when it cannot, the `open files` preflight check fails and `scan` exits 1 before sending traffic. Nmap discovery uses a 30-second host timeout. A prefix is passed to nmap in CIDR form, and a sweep fails with exit 1 when nmap reports fewer addresses than it was given (for example a name it cannot resolve) rather than marking hosts down. A hostname target is resolved once and nmap is given that address, so discovery and the probes reach the same machine. A full prefix is one nmap process whose subprocess deadline is 35 seconds for every 256 addresses, rounded up. Sweeps with exclusions use batches of 256 hosts and a 35-second deadline for each batch. Worker creation is bounded independently of range size. Reverse DNS and hostname resolution have a separate two-second deadline; a resolver call that never returns is abandoned on its own thread, so it cannot keep hostcensus running past these limits. At most 16 lookups run at once, and an abandoned call keeps its slot until it returns, so the number of stuck threads stays bounded; if all 16 hang, later lookups queue for a slot outside the two-second deadline (which starts once a slot is free) until `--deadline` stops the scan. `NetworkScanner` used as a library without a `deadline` can wait for such a slot indefinitely. `--deadline` (default one hour) bounds the whole run on top of these.
 
 ### Configuring services
 
@@ -202,13 +219,13 @@ probe = "https"
 
 `probe` is one of `tcp`, `ssh`, `mysql`, `http`, `https` or `snmp` and defaults to the service name when that is a probe, else `tcp`. Only `snmp` uses UDP. Service names are lowercase letters, digits, `-` and `_`. Two services cannot share a port and protocol; history records one state for that pair. `timeout` is optional, in seconds, and at least 0.05. Connect-style probes (`tcp`, `ssh`, `mysql`, `http`) default to 0.3 seconds. `snmp` and `https` use the scan `--timeout` when the service does not set `timeout`. `--timeout` does not replace a budget the service already has.
 
-JSON reports are versioned documents (`"format": "netprobe-report"`, `"version": 1`) that record the target, probed services and settings next to `devices`; `--format json` without `-o` writes the report to stdout instead of the table. Every JSON output has a published schema; see [JSON output](docs/json-output.md). Devices keep the original `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` and `errors` fields and add a `services` list with each probe's `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, or `unknown` when the probe failed locally or hit its deadline), `version` and `details`. CSV output gains trailing `services` and `versions` columns for the open ones. The `ssh`, `snmp` and `mysql` booleans follow the services with exactly those names.
+JSON reports are versioned documents (`"format": "hostcensus-report"`, `"version": 1`) that record the target, probed services and settings next to `devices`; `--format json` without `-o` writes the report to stdout instead of the table. Every JSON output has a published schema; see [JSON output](docs/json-output.md). Devices keep the original `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` and `errors` fields and add a `services` list with each probe's `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, or `unknown` when the probe failed locally or hit its deadline), `version` and `details`. CSV output gains trailing `services` and `versions` columns for the open ones. The `ssh`, `snmp` and `mysql` booleans follow the services with exactly those names.
 
 
 ## Inventory profiles, preflight, and local history
 
 Named profiles share a TOML file with the existing `[services]` definitions. Copy
-[netprobe.example.toml](netprobe.example.toml) to `netprobe.toml` and set networks
+[hostcensus.example.toml](hostcensus.example.toml) to `hostcensus.toml` and set networks
 that you administer:
 
 ```toml
@@ -223,9 +240,9 @@ backend = "asyncio"
 ```
 
 ```bash
-netprobe profiles --config netprobe.toml
-netprobe preflight --profile office --config netprobe.toml
-netprobe scan --profile office --config netprobe.toml -o report.json
+hostcensus profiles --config hostcensus.toml
+hostcensus preflight --profile office --config hostcensus.toml
+hostcensus scan --profile office --config hostcensus.toml -o report.json
 ```
 
 `preflight` resolves options and profiles exactly as `scan` does, including
@@ -259,12 +276,12 @@ History is opt-in and complements the existing JSON snapshots and `diff` command
 
 ```bash
 mkdir -p output
-netprobe scan --profile office --history output/inventory.sqlite3
+hostcensus scan --profile office --history output/inventory.sqlite3
 # Repeat later with the same targets and service selection.
-netprobe scan --profile office --history output/inventory.sqlite3
-netprobe history --history output/inventory.sqlite3 --limit 20
-netprobe compare 1 2 --history output/inventory.sqlite3
-netprobe compare 1 2 --history output/inventory.sqlite3 -o output/changes.json
+hostcensus scan --profile office --history output/inventory.sqlite3
+hostcensus history --history output/inventory.sqlite3 --limit 20
+hostcensus compare 1 2 --history output/inventory.sqlite3
+hostcensus compare 1 2 --history output/inventory.sqlite3 -o output/changes.json
 ```
 
 Use IDs from `history`; the example assumes a new database. Snapshots are stored
@@ -295,13 +312,13 @@ credential handling continues through the existing runtime options/environment.
 ## Inventory diff
 
 ```bash
-netprobe scan 10.0.0.0/24 -q --save-snapshot monday.json
-netprobe scan 10.0.0.0/24 -q --save-snapshot tuesday.json
-netprobe diff monday.json tuesday.json             # table
-netprobe diff monday.json tuesday.json -f json     # JSON on stdout
+hostcensus scan 10.0.0.0/24 -q --save-snapshot monday.json
+hostcensus scan 10.0.0.0/24 -q --save-snapshot tuesday.json
+hostcensus diff monday.json tuesday.json             # table
+hostcensus diff monday.json tuesday.json -f json     # JSON on stdout
 ```
 
-A snapshot is JSON with `format: "netprobe-snapshot"`, `version: 1`, the netprobe version, the UTC creation time, the target, the scan `timeout` and `backend` when the scan recorded them, the services that were probed, and the alive hosts in the same shape as the `-o` report. Down hosts are left out. `diff` also accepts plain `scan -o` JSON reports, including ones from before the `services` field existed.
+A snapshot is JSON with `format: "hostcensus-snapshot"`, `version: 1`, the hostcensus version, the UTC creation time, the target, the scan `timeout` and `backend` when the scan recorded them, the services that were probed, and the alive hosts in the same shape as the `-o` report. Down hosts are left out. `diff` also accepts plain `scan -o` JSON reports, including ones from before the `services` field existed.
 
 `diff` reports new and vanished hosts, ports that opened or closed on hosts present in both, and services whose `version` changed. Ports that were probed in only one of the two scans are not compared, and a warning says so. Failed observations never read as "no change": a port that is `unknown` in either scan and not open in the later one is listed under `unconfirmed`, not `closed`, with `before` of `open`, `unknown` or `not-open` (probed and closed or filtered) and `after` of `unknown` or `not-open`; a port that is open now is reported under `opened` even if the earlier probe failed. A host whose probes all failed without an answer in either scan is listed under `unsettled_hosts` (with `before`/`after` of `up`, `uncertain` or `absent`, including when it failed in both scans or is missing from the other file) instead of `vanished_hosts`; if it answers in the later scan it is also reported as a new host with its open ports. Snapshots keep those failed hosts for this reason. A warning also appears when the targets differ, and when both files recorded a timeout or backend and those values differ. `-o PATH` writes the JSON form to a file as well.
 
@@ -311,15 +328,15 @@ A report from a scan stopped by `--deadline` (`"complete": false`) lists only th
 
 ## Kadupul export
 
-[Kadupul](https://github.com/kadupulhq/kadupul) (a fork of Cacti 1.2.31) has no bulk device file import. Its supported way to add devices from a script is `cli/add_device.php`, one device per call, with `--option=value` arguments. `netprobe export` writes a POSIX `sh` script of those calls:
+[Kadupul](https://github.com/kadupulhq/kadupul) (a fork of Cacti 1.2.31) has no bulk device file import. Its supported way to add devices from a script is `cli/add_device.php`, one device per call, with `--option=value` arguments. `hostcensus export` writes a POSIX `sh` script of those calls:
 
 ```bash
-netprobe scan 10.0.0.0/24 -q --save-snapshot inventory.json
-netprobe export inventory.json -o kadupul-import.sh --template 1
-# or in one step, with template 0: netprobe scan 10.0.0.0/24 -q -o kadupul-import.sh
+hostcensus scan 10.0.0.0/24 -q --save-snapshot inventory.json
+hostcensus export inventory.json -o kadupul-import.sh --template 1
+# or in one step, with template 0: hostcensus scan 10.0.0.0/24 -q -o kadupul-import.sh
 
 # on the Kadupul server, as the user that owns the install:
-export NETPROBE_SNMP_COMMUNITY=...        # only if the script asks for it
+export HOSTCENSUS_SNMP_COMMUNITY=...        # only if the script asks for it
 KADUPUL_ROOT=/var/www/html/kadupul sh kadupul-import.sh
 ```
 
@@ -329,13 +346,13 @@ Each alive host becomes `php "$KADUPUL_ROOT/cli/add_device.php" --description=..
 - Other hosts get `--version=0 --avail=ping`, with `--ping_method=tcp --ping_port=` the first open TCP port, or ICMP if none.
 - `--notes` lists the open services and versions. `--description` is the reverse-DNS name when it is plain (letters, digits, `.`, `_`, `-`), else the IP, and is made unique, because `add_device.php` treats an existing description as an update to that device.
 
-Every value is validated and shell-quoted with `shlex.quote`. By default no SNMP secret is written: the script expands `NETPROBE_SNMP_COMMUNITY`, `NETPROBE_SNMP_AUTH_KEY` or `NETPROBE_SNMP_PRIV_KEY` at run time and stops if one is unset. `--include-credentials` writes the values from those environment variables into the script instead, creates it with mode 0600, and logs a warning. `add_device.php` itself prints the community and receives secrets as arguments, which are visible in the Kadupul server's process list while each call runs.
+Every value is validated and shell-quoted with `shlex.quote`. By default no SNMP secret is written: the script expands `HOSTCENSUS_SNMP_COMMUNITY`, `HOSTCENSUS_SNMP_AUTH_KEY` or `HOSTCENSUS_SNMP_PRIV_KEY` at run time and stops if one is unset. `--include-credentials` writes the values from those environment variables into the script instead, creates it with mode 0600, and logs a warning. `add_device.php` itself prints the community and receives secrets as arguments, which are visible in the Kadupul server's process list while each call runs.
 
 `add_device.php` exits 1 for duplicates and errors; the script continues, counts failures, and exits 1 if any device was not added. Template ids come from `php cli/add_device.php --list-host-templates`. `export` exit codes: `0` written, `2` unreadable input, an incomplete scan without `--allow-partial`, or data that cannot be exported safely, `1` the script could not be written.
 
 ## Versioning and release process
 
-netprobe follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html): compatible
+hostcensus follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html): compatible
 fixes increment the patch version, compatible features/deprecations increment the
 minor version, and breaking compatibility changes increment the major version.
 Commands and options, exit codes and the JSON schemas are the public contract;
@@ -363,7 +380,7 @@ uv sync --locked                 # runtime plus the default `dev` group
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy
-uv run pytest --cov=netprobe
+uv run pytest --cov=hostcensus
 uv build --no-build-isolation
 uv run twine check --strict dist/*.whl dist/*.tar.gz
 ```
@@ -417,7 +434,7 @@ data-format contracts, and pass the quality checks above. See
 ## Security and license status
 
 See [SECURITY.md](SECURITY.md) for private reporting and supported versions.
-netprobe is licensed under the [MIT License](LICENSE).
+hostcensus is licensed under the [MIT License](LICENSE).
 
 Source headers use SPDX identifiers and preserve contributor credits from Git
 history. See [AUTHORS.md](AUTHORS.md) for attribution. Binary test captures and the

@@ -3,7 +3,7 @@
 
 """Scans of the docker compose lab in tests/integration/compose.yml.
 
-These run only inside the lab's tester container (NETPROBE_LAB=1), and only
+These run only inside the lab's tester container (HOSTCENSUS_LAB=1), and only
 ever scan the lab subnet.
 """
 
@@ -16,11 +16,11 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from netprobe.cli import app
+from hostcensus.cli import app
 
 pytestmark = [
     pytest.mark.integration,
-    pytest.mark.skipif(os.environ.get("NETPROBE_LAB") != "1", reason="needs the compose lab"),
+    pytest.mark.skipif(os.environ.get("HOSTCENSUS_LAB") != "1", reason="needs the compose lab"),
 ]
 
 LAB = "172.30.57.8/29"  # .9 to .14: the service containers
@@ -57,7 +57,7 @@ def test_lab_services_found(tmp_path, backend):
 
 
 def test_lab_config_and_port_selection(tmp_path):
-    config = tmp_path / "netprobe.toml"
+    config = tmp_path / "hostcensus.toml"
     config.write_text('[services.db]\nport = 3306\nprobe = "mysql"\n')
     devices = scan(
         tmp_path, "--config", str(config), "--services", "ssh,db", "--ports", "ssh=2222,8080"
@@ -104,11 +104,11 @@ def test_lab_fingerprints_without_credentials(tmp_path):
 @pytest.mark.parametrize(
     "env",
     [
-        {"NETPROBE_SNMP_COMMUNITY": "netprobe-test"},
+        {"HOSTCENSUS_SNMP_COMMUNITY": "hostcensus-test"},
         {
-            "NETPROBE_SNMP_USER": "netprobe",
-            "NETPROBE_SNMP_AUTH_KEY": "netprobe-auth",
-            "NETPROBE_SNMP_PRIV_KEY": "netprobe-priv",
+            "HOSTCENSUS_SNMP_USER": "hostcensus",
+            "HOSTCENSUS_SNMP_AUTH_KEY": "hostcensus-auth",
+            "HOSTCENSUS_SNMP_PRIV_KEY": "hostcensus-priv",
         },
     ],
     ids=["v2c", "v3-authpriv"],
@@ -125,17 +125,17 @@ def test_lab_snmp_system_mib(tmp_path, monkeypatch, env):
     snmp = json.loads(out.read_text())["devices"][0]["services"][0]
     assert snmp["details"]["sys_name"] == "snmp-lab"
     assert snmp["details"]["sys_object_id"] == "1.3.6.1.4.1.8072.3.2.10"
-    assert snmp["details"]["snmp_version"] == ("3" if "NETPROBE_SNMP_USER" in env else "2c")
-    if "NETPROBE_SNMP_USER" in env:
+    assert snmp["details"]["snmp_version"] == ("3" if "HOSTCENSUS_SNMP_USER" in env else "2c")
+    if "HOSTCENSUS_SNMP_USER" in env:
         assert snmp["details"]["snmp_security_level"] == "authPriv"
     assert snmp["version"].startswith("Linux")
-    for value in ("netprobe-test", "netprobe-auth", "netprobe-priv"):
+    for value in ("hostcensus-test", "hostcensus-auth", "hostcensus-priv"):
         assert value not in out.read_text()
 
 
 def test_lab_snmp_wrong_key_is_reported(tmp_path, monkeypatch):
-    monkeypatch.setenv("NETPROBE_SNMP_USER", "netprobe")
-    monkeypatch.setenv("NETPROBE_SNMP_AUTH_KEY", "not-the-key")
+    monkeypatch.setenv("HOSTCENSUS_SNMP_USER", "hostcensus")
+    monkeypatch.setenv("HOSTCENSUS_SNMP_AUTH_KEY", "not-the-key")
     out = tmp_path / "scan.json"
     CliRunner().invoke(app, ["scan", SNMP, "-q", "-o", str(out), "--services", "snmp"])
 
@@ -145,7 +145,7 @@ def test_lab_snmp_wrong_key_is_reported(tmp_path, monkeypatch):
 
 
 def test_lab_snapshot_diff(tmp_path, monkeypatch):
-    monkeypatch.setenv("NETPROBE_SNMP_COMMUNITY", "netprobe-test")
+    monkeypatch.setenv("HOSTCENSUS_SNMP_COMMUNITY", "hostcensus-test")
     runner = CliRunner()
     small, full = tmp_path / "small.json", tmp_path / "full.json"
     for target, path in ((SSH, small), (LAB, full)):
@@ -154,7 +154,7 @@ def test_lab_snapshot_diff(tmp_path, monkeypatch):
             ["scan", target, "-q", "--services", "ssh,http,snmp", "--save-snapshot", str(path)],
         )
         assert result.exit_code == 0, result.output
-    assert "netprobe-test" not in full.read_text()
+    assert "hostcensus-test" not in full.read_text()
 
     assert runner.invoke(app, ["diff", str(full), str(full)]).exit_code == 0
 
@@ -170,7 +170,7 @@ def test_lab_snapshot_diff(tmp_path, monkeypatch):
 def test_lab_kadupul_export(tmp_path, monkeypatch):
     from test_export import run_script
 
-    monkeypatch.setenv("NETPROBE_SNMP_COMMUNITY", "netprobe-test")
+    monkeypatch.setenv("HOSTCENSUS_SNMP_COMMUNITY", "hostcensus-test")
     runner = CliRunner()
     snap = tmp_path / "lab.json"
     scanned = runner.invoke(
@@ -181,15 +181,15 @@ def test_lab_kadupul_export(tmp_path, monkeypatch):
     script = tmp_path / "import.sh"
     exported = runner.invoke(app, ["export", str(snap), "-o", str(script), "--template", "1"])
     assert exported.exit_code == 0, exported.output
-    assert "netprobe-test" not in script.read_text()
+    assert "hostcensus-test" not in script.read_text()
 
     result, calls = run_script(
-        tmp_path, script.read_text(), {"NETPROBE_SNMP_COMMUNITY": "netprobe-test"}
+        tmp_path, script.read_text(), {"HOSTCENSUS_SNMP_COMMUNITY": "hostcensus-test"}
     )
     assert result.returncode == 0, result.stderr
     by_ip = {next(a for a in c if a.startswith("--ip="))[5:]: c for c in calls}
     assert sorted(by_ip) == sorted([SSH, DB, SNMP, WEB, QUIET])
-    assert "--community=netprobe-test" in by_ip[SNMP]
+    assert "--community=hostcensus-test" in by_ip[SNMP]
     assert "--version=2" in by_ip[SNMP]
     assert "--ping_port=22" in by_ip[SSH]
     assert "--ping_method=icmp" in by_ip[QUIET]
