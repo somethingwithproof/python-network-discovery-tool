@@ -4,6 +4,7 @@
 import json
 
 import pytest
+from conftest import validator
 from typer.testing import CliRunner
 
 from netprobe import cli
@@ -445,6 +446,88 @@ def test_host_failing_in_both_scans_is_unsettled(tmp_path):
     assert diff_exit(old, new).exit_code == 3
 
 
+def up_host(ip, **states):
+    """An answering host whose services have the given states, e.g. http="closed"."""
+    ports = {"ssh": (22, "tcp"), "http": (80, "tcp"), "mysql": (3306, "tcp")}
+    return Device(
+        ip=ip,
+        alive=True,
+        services=[Service(name, *ports[name], state) for name, state in states.items()],
+    )
+
+
+def changed_exit(old, new):
+    """The CLI's JSON diff, checked against the published schema, and its exit code."""
+    outcome = diff_exit(old, new)
+    document = json.loads(outcome.output)
+    validator("diff").validate(document)
+    return document, outcome.exit_code
+
+
+def test_host_absent_before_and_uncertain_now_is_unsettled(tmp_path):
+    old = snap(tmp_path, "old.json", [])
+    new = snap(tmp_path, "new.json", [failed_host("10.0.0.1", SSH_PORT)])
+
+    result = compare(load_inventory(old), load_inventory(new))
+
+    assert result.unsettled_hosts == [{"ip": "10.0.0.1", "before": "absent", "after": "uncertain"}]
+    assert result.new_hosts == result.vanished_hosts == []
+    assert result.changed
+    document, status = changed_exit(old, new)
+    assert (document["changed"], status) == (True, 3)
+
+
+def test_host_uncertain_before_and_absent_now_is_unsettled(tmp_path):
+    old = snap(tmp_path, "old.json", [failed_host("10.0.0.1", SSH_PORT)])
+    new = snap(tmp_path, "new.json", [])
+
+    result = compare(load_inventory(old), load_inventory(new))
+
+    assert result.unsettled_hosts == [{"ip": "10.0.0.1", "before": "uncertain", "after": "absent"}]
+    assert result.new_hosts == result.vanished_hosts == []
+    document, status = changed_exit(old, new)
+    assert (document["changed"], status) == (True, 3)
+
+
+@pytest.mark.parametrize("state", ["closed", "filtered"])
+def test_port_not_open_now_unknown_is_unconfirmed(tmp_path, state):
+    old = snap(tmp_path, "old.json", [up_host("10.0.0.1", ssh="open", http=state)])
+    new = snap(tmp_path, "new.json", [up_host("10.0.0.1", ssh="open", http="unknown")])
+
+    result = compare(load_inventory(old), load_inventory(new))
+
+    assert [(u.name, u.port, u.before, u.after) for u in result.unconfirmed] == [
+        ("http", 80, "not-open", "unknown")
+    ]
+    assert result.opened == result.closed == []
+    document, status = changed_exit(old, new)
+    assert (document["changed"], status) == (True, 3)
+
+
+@pytest.mark.parametrize("state", ["closed", "filtered"])
+def test_port_unknown_now_not_open_is_unconfirmed(tmp_path, state):
+    old = snap(tmp_path, "old.json", [up_host("10.0.0.1", ssh="open", http="unknown")])
+    new = snap(tmp_path, "new.json", [up_host("10.0.0.1", ssh="open", http=state)])
+
+    result = compare(load_inventory(old), load_inventory(new))
+
+    assert [(u.name, u.port, u.before, u.after) for u in result.unconfirmed] == [
+        ("http", 80, "unknown", "not-open")
+    ]
+    document, status = changed_exit(old, new)
+    assert (document["changed"], status) == (True, 3)
+
+
+def test_unchanged_closed_and_filtered_ports_exit_zero(tmp_path):
+    devices = [up_host("10.0.0.1", ssh="open", http="closed", mysql="filtered")]
+    old = snap(tmp_path, "old.json", devices)
+    new = snap(tmp_path, "new.json", devices)
+
+    document, status = changed_exit(old, new)
+
+    assert (document["changed"], status) == (False, 0)
+
+
 @pytest.mark.parametrize(
     ("port", "protocol"), [(True, "tcp"), (0, "tcp"), (70000, "tcp"), ("22", "tcp"), (22, "sctp")]
 )
@@ -474,3 +557,156 @@ def test_versioned_report_is_read_like_a_snapshot(tmp_path):
     assert inventory.probed == {(s.port, s.protocol) for s in DEFAULT_SERVICES}
     snapshot = snap(tmp_path, "s.json", [host("10.0.0.1", SSH)], target="10.0.0.0/30", timeout=1.0)
     assert not compare(inventory, load_inventory(snapshot)).changed
+
+
+# --- untrusted file contents
+
+ESC = "\x1b[2J\x1b]0;owned\x07"
+CSI = "\x9b31m"
+
+
+def tampered(tmp_path, filename, **fields):
+    """A valid snapshot of 10.0.0.1 with the given device or service fields replaced."""
+    path = snap(tmp_path, filename, [host("10.0.0.1", SSH)])
+    document = json.loads(path.read_text())
+    device = document["devices"][0]
+    device.update({k: v for k, v in fields.items() if k in ("ip", "hostname")})
+    device["services"][0].update({k: v for k, v in fields.items() if k in ("name", "version")})
+    document.update({k: v for k, v in fields.items() if k in ("target", "backend")})
+    path.write_text(json.dumps(document))
+    return path
+
+
+def test_loaded_text_is_stripped_of_control_characters(tmp_path):
+    old = tampered(
+        tmp_path,
+        "old.json",
+        hostname=f"web{ESC}",
+        name=f"[bold red]ssh{CSI}",
+        version=f"Open{ESC}SSH",
+        target=f"10.0.0.0/24{ESC}",
+        backend=f"nmap{ESC}",
+    )
+    new = snap(tmp_path, "new.json", [], backend="asyncio")
+
+    result = runner.invoke(cli.app, ["diff", str(old), str(new)])
+
+    assert result.exit_code == 3
+    for control in ("\x1b", "\x9b", "\x07"):
+        assert control not in result.output
+    # Markup from the file is printed literally, not interpreted.
+    assert "[bold red]ssh" in result.output
+    inventory = load_inventory(old)
+    assert inventory.hosts["10.0.0.1"].hostname.startswith("web")
+    assert all(c.isprintable() for c in inventory.target + inventory.hosts["10.0.0.1"].hostname)
+    [(_, _, name)] = inventory.hosts["10.0.0.1"].open
+    assert name.isprintable()
+
+
+@pytest.mark.parametrize(
+    "ip", [f"10.0.0.1{ESC}", "[red]10.0.0.1[/red]", "-oX", "10.0.0.1 10.0.0.2", "fe80::1%en0", 7]
+)
+def test_snapshot_with_unsafe_address_is_refused_by_every_reader(tmp_path, ip):
+    path = tampered(tmp_path, "bad.json", ip=ip)
+
+    with pytest.raises(SnapshotError, match=r"invalid stored address|Invalid target|scope"):
+        load_inventory(path)
+    good = snap(tmp_path, "good.json", [host("10.0.0.1", SSH)])
+    assert runner.invoke(cli.app, ["diff", str(good), str(path)]).exit_code == 2
+    exported = runner.invoke(cli.app, ["export", str(path), "-o", str(tmp_path / "x.sh")])
+    assert exported.exit_code == 2
+    assert not (tmp_path / "x.sh").exists()
+
+
+# --- incomplete scans
+
+
+def report(tmp_path, name, devices, *, complete):
+    from netprobe.output import save_json
+
+    path = tmp_path / name
+    save_json(devices, path, network="10.0.0.0/30", services=DEFAULT_SERVICES, complete=complete)
+    return path
+
+
+def test_diff_refuses_an_incomplete_report_by_default(tmp_path):
+    full = report(
+        tmp_path, "full.json", [host("10.0.0.1", SSH), host("10.0.0.2", SSH)], complete=True
+    )
+    partial = report(tmp_path, "partial.json", [host("10.0.0.1", SSH)], complete=False)
+
+    for args in ([full, partial], [partial, full]):
+        outcome = runner.invoke(cli.app, ["diff", *map(str, args), "-f", "json"])
+        assert outcome.exit_code == 2
+        assert "complete: false" in outcome.output
+        assert "--allow-partial" in outcome.output
+        assert "{" not in outcome.stdout
+
+
+def test_allow_partial_marks_unreached_hosts_unsettled(tmp_path):
+    full = report(
+        tmp_path, "full.json", [host("10.0.0.1", SSH), host("10.0.0.2", SSH)], complete=True
+    )
+    partial = report(tmp_path, "partial.json", [host("10.0.0.1", SSH)], complete=False)
+
+    outcome = runner.invoke(
+        cli.app, ["diff", str(full), str(partial), "-f", "json", "--allow-partial"]
+    )
+
+    assert outcome.exit_code == 3
+    document = json.loads(outcome.stdout)
+    validator("diff").validate(document)
+    assert document["partial"] is True
+    assert document["changed"] is True
+    assert document["vanished_hosts"] == []
+    assert document["unsettled_hosts"] == [{"ip": "10.0.0.2", "before": "up", "after": "unscanned"}]
+    assert any("incomplete scan" in warning for warning in document["warnings"])
+
+
+def test_allow_partial_still_reports_hosts_it_reached_as_down_vanished(tmp_path):
+    up = [host("10.0.0.1", SSH), host("10.0.0.2", SSH)]
+    full = report(tmp_path, "full.json", up, complete=True)
+    reached = [host("10.0.0.1", SSH), Device("10.0.0.2", errors=["Host is down"])]
+    partial = report(tmp_path, "partial.json", reached, complete=False)
+
+    result = compare(load_inventory(full), load_inventory(partial, allow_partial=True))
+
+    assert [h["ip"] for h in result.vanished_hosts] == ["10.0.0.2"]
+    assert result.unsettled_hosts == []
+    assert result.partial
+    assert result.changed
+
+
+def test_allow_partial_never_reports_no_change(tmp_path):
+    partial = report(tmp_path, "partial.json", [host("10.0.0.1", SSH)], complete=False)
+
+    outcome = runner.invoke(cli.app, ["diff", str(partial), str(partial), "--allow-partial"])
+
+    assert outcome.exit_code == 3
+    assert "No changes" not in outcome.output
+
+
+def test_export_refuses_an_incomplete_report_unless_allowed(tmp_path):
+    partial = report(tmp_path, "partial.json", [host("10.0.0.1", SSH)], complete=False)
+    script = tmp_path / "import.sh"
+
+    refused = runner.invoke(cli.app, ["export", str(partial), "-o", str(script)])
+    assert refused.exit_code == 2
+    assert "--allow-partial" in refused.output
+    assert not script.exists()
+
+    allowed = runner.invoke(cli.app, ["export", str(partial), "-o", str(script), "--allow-partial"])
+    assert allowed.exit_code == 0
+    text = script.read_text()
+    assert "# WARNING: the scan stopped at its deadline" in text
+    assert "--ip=10.0.0.1" in text
+
+
+def test_report_with_non_boolean_complete_is_malformed(tmp_path):
+    path = report(tmp_path, "r.json", [host("10.0.0.1", SSH)], complete=True)
+    document = json.loads(path.read_text())
+    document["complete"] = "false"
+    path.write_text(json.dumps(document))
+
+    with pytest.raises(SnapshotError, match="complete must be a boolean"):
+        load_inventory(path)

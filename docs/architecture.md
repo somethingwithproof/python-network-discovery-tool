@@ -76,8 +76,10 @@ per-service timeouts.
 
 Each service observation is `open`, `closed`, `filtered` or `unknown`. `unknown`
 means netprobe could not tell, for example because the probe timed out or a
-local socket error occurred; it never means "down". `diff` and `compare` report
-unknown observations as unconfirmed rather than as changes. A scan stopped by
+local socket error occurred; it never means "down". `diff` and `compare` share
+one port classification (`scan_settings.port_transition`): a port open in the
+later scan is reported as opened, and any other transition with an `unknown`
+side is unconfirmed, never "no change". A scan stopped by
 `--deadline` writes no snapshot or history, because the hosts it never reached
 would otherwise look vanished.
 
@@ -86,7 +88,7 @@ would otherwise look vanished.
 | Module | Responsibility |
 | --- | --- |
 | `cli.py` | Commands, option and profile resolution, secret loading, orchestration |
-| `scan_settings.py` | Shared settings, host ordering and settings-difference warnings |
+| `scan_settings.py` | Shared settings, host ordering, port-transition classification and settings-difference warnings |
 | `preflight.py` | Local checks before traffic |
 | `scanner.py` | Target validation and expansion, nmap discovery, workers, deadlines |
 | `probes.py` | Protocol probes and their parsers |

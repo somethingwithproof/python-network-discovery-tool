@@ -38,7 +38,7 @@ timeout, the scan `timeout` and `backend`, and `devices`. A report lists every
 scanned device. A snapshot lists only devices that answered or had a probe
 fail, so that `diff` can tell a failed observation from a vanished host.
 `complete` is false only in a report from a scan stopped by `--deadline`; its
-`devices` then lists just the hosts that finished, and no snapshot is written.
+`devices` then lists just the hosts that finished, and no snapshot is written. `diff` and `export` refuse such a report unless `--allow-partial` is given.
 
 Each device keeps the original `ip`, `alive`, `ssh`, `snmp`, `mysql`,
 `hostname` and `errors` fields, the `services` it probed with their `state`
@@ -47,7 +47,10 @@ probe used. `ip` is the target as given, so for a hostname target it is the
 name.
 
 `diff` and `export` read reports, snapshots, and the bare device lists that
-netprobe 2.x wrote.
+netprobe 2.x wrote. Files are untrusted input: `diff`, `export` and `compare`
+refuse a device whose `ip` is not an address or hostname in the form netprobe
+writes (exit 2, or 1 for history), and `diff` and `export` strip control
+characters from hostnames, service names, versions and settings before use.
 
 ## Stability
 
