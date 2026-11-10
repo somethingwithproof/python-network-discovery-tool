@@ -12,10 +12,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
-from collections.abc import Iterator
 from dataclasses import dataclass
 from importlib.metadata import entry_points, version
 from pathlib import Path
@@ -26,6 +26,9 @@ from conftest import validator
 
 from netprobe import cli
 
+# Typer forces colour under CI (GITHUB_ACTIONS, FORCE_COLOR); the contract is
+# the text, not its styling.
+ANSI = re.compile(r"\x1b\[[0-9;]*m")
 COMMANDS = ("scan", "preflight", "profiles", "history", "compare", "diff", "export", "version")
 
 
@@ -62,7 +65,7 @@ class Lab:
 
 
 @pytest.fixture(scope="module")
-def lab(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Lab]:
+def lab(tmp_path_factory: pytest.TempPathFactory) -> Lab:
     """Two real loopback scans: the lab port open, then closed."""
     root = tmp_path_factory.mktemp("contract")
     config, history = root / "lab.toml", root / "history.sqlite3"
@@ -79,7 +82,7 @@ def lab(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Lab]:
         assert first.returncode == 0, first.stderr
     second = netprobe(*scan, "--save-snapshot", "closed.json", "--history", str(history), cwd=root)
     assert second.returncode == 0, second.stderr
-    yield Lab(
+    return Lab(
         root,
         config,
         on_stdout.stdout,
@@ -105,7 +108,7 @@ def test_console_script_runs_the_typer_app() -> None:
 def test_help_goes_to_stdout_and_exits_0(command: str, tmp_path: Path) -> None:
     result = netprobe(command, "--help", cwd=tmp_path)
     assert result.returncode == 0
-    assert f"Usage: python -m netprobe {command} " in result.stdout
+    assert f"Usage: python -m netprobe {command} " in ANSI.sub("", result.stdout)
     assert result.stderr == ""
 
 
@@ -114,7 +117,7 @@ def test_unknown_option_exits_2_with_nothing_on_stdout(command: str, tmp_path: P
     result = netprobe(command, "--no-such-option", cwd=tmp_path)
     assert result.returncode == 2
     assert result.stdout == ""
-    assert "No such option" in result.stderr
+    assert "No such option" in ANSI.sub("", result.stderr)
 
 
 def test_version_flag_prints_name_and_version(tmp_path: Path) -> None:
