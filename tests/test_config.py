@@ -24,7 +24,8 @@ def test_defaults_cover_the_documented_services():
     assert all(s.probe in PROBES for s in DEFAULT_SERVICES)
     by_name = {s.name: s.timeout for s in DEFAULT_SERVICES}
     assert by_name["ssh"] == by_name["mysql"] == by_name["http"] == CONNECT_TIMEOUT
-    assert by_name["snmp"] is None and by_name["https"] is None
+    assert by_name["snmp"] is None
+    assert by_name["https"] is None
 
 
 def write(tmp_path, text):
