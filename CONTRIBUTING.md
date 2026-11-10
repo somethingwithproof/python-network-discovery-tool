@@ -46,9 +46,9 @@ If you are proposing a feature:
 ## Get Started!
 
 1. Fork the `python-network-discovery-tool` repo on GitHub and clone your fork.
-2. Create a virtualenv with the development extras:
+2. Create the locked development environment (runtime plus the `dev` dependency group):
    ```bash
-   mise exec python@3.14 -- uv sync --locked --extra dev
+   uv sync --locked
    ```
 3. Create a branch for your change:
    ```bash
