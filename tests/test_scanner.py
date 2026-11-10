@@ -357,6 +357,12 @@ async def test_nmap_partial_lists_stay_in_fixed_batches(fake_nmap):
     assert all("/" not in arg for call in calls for arg in call[len(SWEEP) :])
 
 
+async def test_nmap_sweeps_an_ipv4_mapped_prefix_as_ipv4(fake_nmap):
+    network = "::ffff:10.0.0.0/126"
+    await scanner.nmap_sweep(scanner.expand_targets(network), network)
+    assert fake_nmap.calls == [[*SWEEP, "10.0.0.0/30"]]
+
+
 async def test_nmap_ipv6_targets_add_the_ipv6_flag(fake_nmap):
     await scanner.nmap_sweep(["::1"], "::/126")
     assert fake_nmap.calls == [["-6", *SWEEP, "::1"]]

@@ -292,7 +292,8 @@ async def nmap_sweep(targets: list[str], network: str) -> set[str]:
     ipv6 = all(":" in target for target in targets)
     batches: list[tuple[list[str], float]]
     if "/" in network and targets == expand_targets(network):
-        batches = [([network], nmap_deadline(len(targets)))]
+        # The prefix the targets came from: an IPv4-mapped one is swept as IPv4.
+        batches = [([str(canonical_network(network))], nmap_deadline(len(targets)))]
     else:
         batches = [
             (targets[index : index + NMAP_BATCH], NMAP_TIMEOUT)
