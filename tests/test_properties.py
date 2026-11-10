@@ -1,7 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
 # SPDX-License-Identifier: MIT
 
-"""Property tests for target and CIDR parsing, the input every scan starts from."""
+"""Property tests for the untrusted input every scan starts from or reads back:
+targets and CIDR ranges, and the BER in SNMPv3 replies."""
 
 from __future__ import annotations
 
@@ -12,6 +13,7 @@ import pytest
 from hypothesis import assume, given
 from hypothesis import strategies as st
 
+from netprobe.probes import MAX_ENGINE_ID_OCTETS, snmp_engine_id
 from netprobe.scanner import MAX_HOSTS, expand_targets, validate_target
 
 LABEL = st.from_regex(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", fullmatch=True)
@@ -123,3 +125,43 @@ def test_malformed_input_raises_only_value_error(network, exclusions):
         expand_targets(network, exclusions=exclusions)
     except ValueError as exc:
         assert str(exc).startswith("Invalid network format: ")
+
+
+def ber(tag: int, value: bytes, long_form: bool = False) -> bytes:
+    """Encode one BER TLV, optionally with a long-form length."""
+    if long_form or len(value) > 0x7F:
+        width = max(1, (len(value).bit_length() + 7) // 8)
+        return bytes([tag, 0x80 | width]) + len(value).to_bytes(width, "big") + value
+    return bytes([tag, len(value)]) + value
+
+
+def snmpv3_report(engine_id: bytes, long_form: bool) -> bytes:
+    usm = ber(0x30, ber(0x04, engine_id, long_form) + ber(0x02, b"\x00") + ber(0x02, b"\x00"))
+    body = (
+        ber(0x02, b"\x03")
+        + ber(0x30, ber(0x02, b"\x01") + ber(0x02, b"\x05\xdc") + ber(0x04, b"\x00"))
+        + ber(0x04, usm, long_form)
+        + ber(0x30, b"")
+    )
+    return ber(0x30, body, long_form)
+
+
+@given(st.binary(min_size=1, max_size=300), st.booleans())
+def test_engine_id_round_trips_through_ber(engine_id, long_form):
+    message = snmpv3_report(engine_id, long_form)
+    assert snmp_engine_id(message) == engine_id[:MAX_ENGINE_ID_OCTETS].hex()
+
+
+@given(st.binary(min_size=1, max_size=64), st.booleans(), st.data())
+def test_truncated_replies_yield_no_engine_id(engine_id, long_form, data):
+    message = snmpv3_report(engine_id, long_form)
+    cut = data.draw(st.integers(0, len(message) - 1), label="cut")
+    assert snmp_engine_id(message[:cut]) is None
+
+
+@given(st.binary(max_size=512))
+def test_arbitrary_replies_never_raise(reply):
+    engine_id = snmp_engine_id(reply)
+    if engine_id is not None:
+        assert 0 < len(engine_id) <= 2 * MAX_ENGINE_ID_OCTETS
+        int(engine_id, 16)
