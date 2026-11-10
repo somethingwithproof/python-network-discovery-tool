@@ -40,8 +40,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# The nmap backend runs the nmap executable and parses its XML safely.
 nmap = [
-    "python-nmap>=0.7.1",
+    "defusedxml>=0.7.1",
 ]
 
 # PEP 735 groups: development tooling never ships as package metadata.
@@ -101,8 +102,8 @@ strict = true
 files = ["src/netprobe", "scripts/release.py"]
 
 [[tool.mypy.overrides]]
-# python-nmap and pysnmp ship no type information.
-module = ["nmap", "pysnmp.*"]
+# pysnmp and defusedxml ship no type information.
+module = ["defusedxml.*", "pysnmp.*"]
 ignore_missing_imports = true
 
 [tool.ruff.format]

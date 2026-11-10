@@ -122,11 +122,11 @@ def check_file_limit(concurrency: int) -> Check:
 
 def check_nmap() -> Check:
     executable = shutil.which("nmap")
-    if executable is None or importlib.util.find_spec("nmap") is None:
+    if executable is None or importlib.util.find_spec("defusedxml") is None:
         return {
             "check": "nmap",
             "status": "error",
-            "detail": "nmap backend requires the executable and python-nmap extra",
+            "detail": "nmap backend requires the nmap executable and the netprobe[nmap] extra",
         }
     try:
         version = nmap_version(executable)

@@ -8,13 +8,10 @@ COPY --from=ghcr.io/astral-sh/uv:0.12.23@sha256:61d393e44e249f2e4b526b6c7ddcecce
 WORKDIR /app
 COPY pyproject.toml uv.lock README.md LICENSE ./
 COPY src ./src
-# Source-only python-nmap is built explicitly from the same verified artifact
-# as uv.lock. Build backends are locked; all other installs reject source builds.
-ADD --checksum=sha256:f75af6b91dd8e3b0c31f869db32163f62ada686945e5b7c25f84bc0f7fad3b64 https://files.pythonhosted.org/packages/f7/1b/8e6b3d1461331e4e8600faf099e7c62ba3c1603987dafdd558681fb8ba37/python-nmap-0.7.1.tar.gz /tmp/python-nmap.tar.gz
+# Build backends are locked; every install rejects source builds.
 RUN uv sync --locked --no-dev --group build --no-build --no-install-project \
     && uv build --wheel --no-build-isolation --out-dir /wheels \
-    && uv build --wheel --no-build-isolation --out-dir /wheels /tmp/python-nmap.tar.gz \
-    && uv sync --locked --no-dev --extra nmap --no-build --no-install-project --no-install-package python-nmap \
+    && uv sync --locked --no-dev --extra nmap --no-build --no-install-project \
     && uv pip install --python .venv/bin/python --no-build --no-deps /wheels/*.whl
 
 FROM python@sha256:f17ec845ebdd4f3347431579e1c22eaeec82913f039f2a54b937c7ff870bacdb AS runtime

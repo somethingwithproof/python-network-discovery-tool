@@ -3,10 +3,10 @@
 
 import asyncio
 import errno
+import json
+import shutil
 import socket
 import sys
-import types
-from typing import ClassVar
 from unittest.mock import patch
 
 import pytest
@@ -140,7 +140,7 @@ async def test_probe_cap_also_applies_to_nmap_backend(fake_nmap):
     prepared_argument_0 = NetworkScanner(backend="nmap", services=services)
     with pytest.raises(ValueError, match="Scan too large"):
         await prepared_argument_0.scan_network("10.0.0.0/16")
-    assert FakePortScanner.calls == []  # refused before nmap ran
+    assert fake_nmap.calls == []  # refused before nmap ran
 
 
 async def test_scan_device_rejects_option_like_target():
@@ -244,44 +244,57 @@ async def test_resolve_hostname(monkeypatch):
         assert await scanner.resolve_hostname("10.0.0.1") == ""
 
 
-# --- nmap backend: python-nmap is the system boundary, replaced by a fake module.
+# --- nmap backend: the nmap executable is the system boundary, replaced by a
+# script that records its argv and prints canned XML.
+
+FAKE_NMAP = """\
+import json, os, sys, time
+with open(os.environ["FAKE_NMAP_LOG"], "a") as log:
+    log.write(json.dumps(sys.argv[1:]) + "\\n")
+time.sleep(float(os.environ.get("FAKE_NMAP_SLEEP", "0")))
+up = json.loads(os.environ.get("FAKE_NMAP_UP", "[]"))
+hosts = "".join(
+    f'<host><status state="up"/><address addr="{a}" addrtype="ipv4"/></host>' for a in up
+)
+sys.stdout.write(os.environ.get("FAKE_NMAP_XML") or f"<nmaprun>{hosts}</nmaprun>")
+sys.exit(int(os.environ.get("FAKE_NMAP_EXIT", "0")))
+"""
 
 
-class FakeHost:
-    def __init__(self, state):
-        self._state = state
+class FakeNmap:
+    def __init__(self, tmp_path, monkeypatch):
+        self.log = tmp_path / "nmap-calls.jsonl"
+        self.monkeypatch = monkeypatch
+        script = tmp_path / "nmap"
+        script.write_text(f"#!{sys.executable}\n{FAKE_NMAP}")
+        script.chmod(0o755)
+        monkeypatch.setattr(scanner.shutil, "which", lambda name: str(script))
+        monkeypatch.setenv("FAKE_NMAP_LOG", str(self.log))
+        self.up([])
 
-    def state(self):
-        return self._state
+    def up(self, addresses):
+        self.monkeypatch.setenv("FAKE_NMAP_UP", json.dumps(addresses))
 
+    def set(self, name, value):
+        self.monkeypatch.setenv(f"FAKE_NMAP_{name}", value)
 
-class FakePortScanner:
-    hosts: ClassVar[dict[str, str]] = {}
-    calls: ClassVar[list[tuple[str, str, int | None]]] = []
-
-    def scan(self, hosts, arguments, timeout=None):
-        self.calls.append((hosts, arguments, timeout))
-
-    def all_hosts(self):
-        return list(self.hosts)
-
-    def __getitem__(self, ip):
-        return FakeHost(self.hosts[ip])
+    @property
+    def calls(self):
+        if not self.log.exists():
+            return []
+        return [json.loads(line) for line in self.log.read_text().splitlines()]
 
 
 @pytest.fixture
-def fake_nmap(monkeypatch):
-    module = types.ModuleType("nmap")
-    module.PortScanner = FakePortScanner
-    module.PortScannerError = type("PortScannerError", (Exception,), {})
-    FakePortScanner.hosts = {}
-    FakePortScanner.calls = []
-    monkeypatch.setitem(sys.modules, "nmap", module)
-    return module
+def fake_nmap(tmp_path, monkeypatch):
+    return FakeNmap(tmp_path, monkeypatch)
+
+
+SWEEP = ["-sn", "-T4", "--host-timeout", "30s", "-oX", "-"]
 
 
 async def test_nmap_backend_only_probes_swept_hosts(fake_nmap, monkeypatch):
-    monkeypatch.setattr(FakePortScanner, "hosts", {"10.0.0.1": "up", "10.0.0.2": "down"})
+    fake_nmap.up(["10.0.0.1"])
     probed = []
 
     async def closed(host, port, timeout):
@@ -295,38 +308,114 @@ async def test_nmap_backend_only_probes_swept_hosts(fake_nmap, monkeypatch):
     assert devices[0].errors == []
     assert devices[1].errors == ["Host is down"]
     assert set(probed) == {"10.0.0.1"}
-    assert FakePortScanner.calls[-1] == ("10.0.0.0/30", "-sn -T4 --host-timeout 30s", 35)
+    assert fake_nmap.calls == [[*SWEEP, "10.0.0.0/30"]]
 
 
 async def test_nmap_backend_hostname_target_matches_by_ip(fake_nmap, monkeypatch):
-    monkeypatch.setattr(FakePortScanner, "hosts", {"93.184.216.34": "up"})
+    fake_nmap.up(["93.184.216.34"])
 
     async def filtered(host, port, timeout):
         return "filtered"
 
+    async def fake_getaddrinfo(host, port, **kwargs):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))]
+
     stub_probes(monkeypatch, filtered)
+    monkeypatch.setattr(asyncio.get_running_loop(), "getaddrinfo", fake_getaddrinfo)
     devices = await NetworkScanner(backend="nmap").scan_network("example.com")
 
     assert devices[0].alive
+    assert fake_nmap.calls == [[*SWEEP, "example.com"]]
 
 
-def test_nmap_full_prefix_deadline_scales_with_hosts(fake_nmap):
+async def test_nmap_full_prefix_is_one_process_with_scaled_deadline(fake_nmap, monkeypatch):
+    deadlines = []
+    real = scanner._run_nmap
+
+    async def spy(executable, hosts, ipv6, deadline):
+        deadlines.append(deadline)
+        return await real(executable, hosts, ipv6, deadline)
+
+    monkeypatch.setattr(scanner, "_run_nmap", spy)
     network = "10.0.0.0/23"
     targets = scanner.expand_targets(network)
     assert len(targets) == 510
-    scanner.nmap_sweep(targets, network)
-    hosts, _arguments, timeout = FakePortScanner.calls[-1]
-    assert hosts == network
-    assert timeout == 70
+    await scanner.nmap_sweep(targets, network)
+    assert fake_nmap.calls == [[*SWEEP, network]]
+    assert deadlines == [70]
 
 
-def test_nmap_partial_lists_stay_in_fixed_batches(fake_nmap):
+async def test_nmap_partial_lists_stay_in_fixed_batches(fake_nmap):
     network = "10.0.0.0/23"
     targets = scanner.expand_targets(network)[:-1]
-    scanner.nmap_sweep(targets, network)
-    assert len(FakePortScanner.calls) == 2
-    assert all(call[2] == 35 for call in FakePortScanner.calls)
-    assert "/" not in FakePortScanner.calls[0][0]
+    await scanner.nmap_sweep(targets, network)
+    calls = fake_nmap.calls
+    assert [len(call) - len(SWEEP) for call in calls] == [256, 253]
+    assert all("/" not in arg for call in calls for arg in call[len(SWEEP) :])
+
+
+async def test_nmap_ipv6_targets_add_the_ipv6_flag(fake_nmap):
+    await scanner.nmap_sweep(["::1"], "::/126")
+    assert fake_nmap.calls == [["-6", *SWEEP, "::1"]]
+
+
+async def test_nmap_deadline_is_an_error_not_host_down(fake_nmap, monkeypatch):
+    fake_nmap.set("SLEEP", "5")
+    monkeypatch.setattr(scanner, "NMAP_TIMEOUT", 0.3)
+    with pytest.raises(BackendUnavailableError, match=r"no result within 0\.3s"):
+        await scanner.nmap_sweep(["127.0.0.1"], "127.0.0.1")
+
+
+async def test_nmap_failure_status_is_an_error(fake_nmap):
+    fake_nmap.set("EXIT", "1")
+    with pytest.raises(BackendUnavailableError, match="exited with status 1"):
+        await scanner.nmap_sweep(["127.0.0.1"], "127.0.0.1")
+
+
+async def test_nmap_oversized_output_is_refused(fake_nmap, monkeypatch):
+    monkeypatch.setattr(scanner, "NMAP_MAX_OUTPUT", 64)
+    fake_nmap.up([f"10.0.0.{i}" for i in range(1, 9)])
+    with pytest.raises(BackendUnavailableError, match="exceeded 64 bytes"):
+        await scanner.nmap_sweep(["10.0.0.1"], "10.0.0.1")
+
+
+@pytest.mark.parametrize(
+    "document",
+    [
+        b"not xml",
+        b'<?xml version="1.0"?><!DOCTYPE r [<!ENTITY a "aaaa"><!ENTITY b "&a;&a;&a;&a;">]>'
+        b"<nmaprun>&b;</nmaprun>",
+        b'<?xml version="1.0"?><!DOCTYPE r [<!ENTITY x SYSTEM "file:///etc/passwd">]>'
+        b"<nmaprun>&x;</nmaprun>",
+    ],
+)
+def test_nmap_xml_parser_rejects_malformed_and_entity_documents(document):
+    with pytest.raises(BackendUnavailableError, match="unreadable XML"):
+        scanner.parse_nmap_hosts(document)
+
+
+def test_nmap_xml_parser_reads_only_up_hosts():
+    document = (
+        b"<nmaprun>"
+        b'<host><status state="up"/><address addr="aa:bb:cc:dd:ee:ff" addrtype="mac"/>'
+        b'<address addr="10.0.0.1" addrtype="ipv4"/></host>'
+        b'<host><status state="down"/><address addr="10.0.0.2" addrtype="ipv4"/></host>'
+        b'<host><address addr="10.0.0.3" addrtype="ipv4"/></host>'
+        b'<host><status state="up"/><address addr="::1" addrtype="ipv6"/></host>'
+        b"</nmaprun>"
+    )
+    assert scanner.parse_nmap_hosts(document) == ["10.0.0.1", "::1"]
+
+
+def test_nmap_backend_needs_the_executable(monkeypatch):
+    monkeypatch.setattr(scanner.shutil, "which", lambda name: None)
+    with pytest.raises(BackendUnavailableError, match="no nmap executable"):
+        NetworkScanner(backend="nmap")
+
+
+@pytest.mark.skipif(shutil.which("nmap") is None, reason="nmap not installed")
+async def test_real_nmap_sweep_of_loopback():
+    assert await scanner.nmap_sweep(["127.0.0.1"], "127.0.0.1") == {"127.0.0.1"}
 
 
 async def test_service_budget_replaces_the_scan_timeout(monkeypatch):
@@ -353,18 +442,9 @@ def test_host_key_never_falls_back_to_a_different_ip():
     assert scanner._host_key(["10.0.0.9", "10.0.0.8"], "name.example") is None
 
 
-def test_nmap_backend_without_python_nmap(monkeypatch):
-    monkeypatch.setitem(sys.modules, "nmap", None)
+def test_nmap_backend_without_the_xml_extra(monkeypatch):
+    monkeypatch.setitem(sys.modules, "defusedxml.ElementTree", None)
     with pytest.raises(BackendUnavailableError, match="netprobe\\[nmap\\]"):
-        NetworkScanner(backend="nmap")
-
-
-def test_nmap_backend_without_binary(fake_nmap, monkeypatch):
-    def missing():
-        raise fake_nmap.PortScannerError("nmap program was not found in path")
-
-    monkeypatch.setattr(fake_nmap, "PortScanner", missing)
-    with pytest.raises(BackendUnavailableError, match="nmap is not available"):
         NetworkScanner(backend="nmap")
 
 

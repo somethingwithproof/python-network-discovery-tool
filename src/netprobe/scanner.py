@@ -17,10 +17,11 @@ import ipaddress
 import logging
 import math
 import re
+import shutil
 import socket
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import replace
-from typing import Any, Literal
+from typing import Literal
 
 from rich.progress import Progress
 
@@ -40,6 +41,8 @@ NMAP_HOST_TIMEOUT = "30s"
 # much for every NMAP_BATCH addresses, which matches the old per-batch ceiling.
 NMAP_BATCH = 256
 NMAP_TIMEOUT = 35
+# XML for a /16 of live hosts is a few tens of MB; refuse anything larger.
+NMAP_MAX_OUTPUT = 64 * 1024 * 1024
 DEFAULT_TIMEOUT = 1.0
 DEFAULT_CONCURRENCY = 256
 # Every socket in flight is a file descriptor.
@@ -142,17 +145,93 @@ def _host_key(hosts: list[str], target: str) -> str | None:
     return None
 
 
-def _nmap_scanner() -> Any:
+def _nmap_executable() -> str:
+    """Absolute path of nmap, after checking the XML parser it needs is installed."""
     try:
-        import nmap
+        import defusedxml.ElementTree  # noqa: F401
     except ImportError as e:
         raise BackendUnavailableError(
-            "the nmap backend needs python-nmap: pip install 'netprobe[nmap]'"
+            "the nmap backend needs defusedxml: pip install 'netprobe[nmap]'"
         ) from e
+    executable = shutil.which("nmap")
+    if executable is None:
+        raise BackendUnavailableError("nmap is not available: no nmap executable on PATH")
+    return executable
+
+
+def parse_nmap_hosts(document: bytes) -> list[str]:
+    """Addresses of hosts nmap's XML output reports as up.
+
+    defusedxml refuses entity expansion and external references, so a
+    malformed or hostile document fails instead of exhausting memory.
+    """
+    from defusedxml.ElementTree import ParseError, fromstring
+
     try:
-        return nmap.PortScanner()
-    except nmap.PortScannerError as e:
-        raise BackendUnavailableError(f"nmap is not available: {e}") from e
+        root = fromstring(document)
+    except (ParseError, ValueError) as e:
+        raise BackendUnavailableError(f"Nmap discovery failed: unreadable XML ({e})") from e
+    up: list[str] = []
+    for host in root.iter("host"):
+        status = host.find("status")
+        if status is None or status.get("state") != "up":
+            continue
+        addresses = [
+            a.get("addr", "")
+            for a in host.findall("address")
+            if a.get("addrtype") in ("ipv4", "ipv6")
+        ]
+        up.extend(addresses[:1])
+    return up
+
+
+async def _read_bounded(stream: asyncio.StreamReader, limit: int) -> bytes:
+    chunks: list[bytes] = []
+    size = 0
+    while chunk := await stream.read(65536):
+        size += len(chunk)
+        if size > limit:
+            raise ValueError(f"output exceeded {limit} bytes")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+async def _run_nmap(executable: str, hosts: list[str], ipv6: bool, deadline: float) -> list[str]:
+    """Run one ping sweep and return the addresses that answered.
+
+    The argv is fixed apart from targets, which validate_target already
+    restricted to addresses, prefixes and DNS names; no shell is involved.
+    """
+    options = ["-6"] if ipv6 else []
+    options += ["-sn", "-T4", "--host-timeout", NMAP_HOST_TIMEOUT, "-oX", "-"]
+    try:
+        async with asyncio.timeout(deadline):
+            process = await asyncio.create_subprocess_exec(
+                executable,
+                *options,
+                *hosts,
+                stdin=asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            try:
+                if process.stdout is None:  # pragma: no cover - PIPE always sets it
+                    raise ValueError("no output stream")
+                output = await _read_bounded(process.stdout, NMAP_MAX_OUTPUT)
+                status = await process.wait()
+            finally:
+                if process.returncode is None:
+                    process.kill()
+                    await process.wait()
+    except TimeoutError as e:
+        raise BackendUnavailableError(
+            f"Nmap discovery failed: no result within {deadline:g}s"
+        ) from e
+    except (OSError, ValueError) as e:
+        raise BackendUnavailableError(f"Nmap discovery failed: {e}") from e
+    if status != 0:
+        raise BackendUnavailableError(f"Nmap discovery failed: nmap exited with status {status}")
+    return parse_nmap_hosts(output)
 
 
 def nmap_deadline(host_count: int) -> int:
@@ -161,30 +240,26 @@ def nmap_deadline(host_count: int) -> int:
     return NMAP_TIMEOUT * batches
 
 
-def nmap_sweep(targets: list[str], network: str) -> set[str]:
+async def nmap_sweep(targets: list[str], network: str) -> set[str]:
     """Return the targets that answer an nmap ping sweep.
 
     Without root, nmap substitutes TCP connects to ports 80 and 443 for ICMP.
     A full prefix is one process. Exclusions and partial lists stay in batches
     of NMAP_BATCH, each with a fixed NMAP_TIMEOUT deadline.
     """
-    nm = _nmap_scanner()
-    ipv6 = "-6 " if all(":" in target for target in targets) else ""
-    arguments = f"{ipv6}-sn -T4 --host-timeout {NMAP_HOST_TIMEOUT}"
+    executable = _nmap_executable()
+    ipv6 = all(":" in target for target in targets)
+    batches: list[tuple[list[str], float]]
     if "/" in network and targets == expand_targets(network):
-        batches = [(network, nmap_deadline(len(targets)))]
+        batches = [([network], nmap_deadline(len(targets)))]
     else:
         batches = [
-            (" ".join(targets[index : index + NMAP_BATCH]), NMAP_TIMEOUT)
+            (targets[index : index + NMAP_BATCH], NMAP_TIMEOUT)
             for index in range(0, len(targets), NMAP_BATCH)
         ]
     up: list[str] = []
-    for batch, deadline in batches:
-        try:
-            nm.scan(hosts=batch, arguments=arguments, timeout=deadline)
-        except Exception as exc:
-            raise BackendUnavailableError(f"Nmap discovery failed: {exc}") from exc
-        up.extend(h for h in nm.all_hosts() if nm[h].state() == "up")
+    for hosts, deadline in batches:
+        up.extend(await _run_nmap(executable, hosts, ipv6, deadline))
     if "/" in network:
         return set(up)
     return {targets[0]} if _host_key(up, targets[0]) else set()
@@ -314,7 +389,7 @@ class NetworkScanner:
             import pysnmp.hlapi.v3arch.asyncio  # noqa: F401
         if backend == "nmap":
             # Fail before any scanning starts if nmap cannot be driven.
-            _nmap_scanner()
+            _nmap_executable()
 
     async def scan_device(
         self,
@@ -427,7 +502,7 @@ class NetworkScanner:
 
         swept: set[str] | None = None
         if self.backend == "nmap":
-            swept = await asyncio.to_thread(nmap_sweep, targets, network)
+            swept = await nmap_sweep(targets, network)
 
         probes = asyncio.Semaphore(self.concurrency)
         lookups = asyncio.Semaphore(DNS_CONCURRENCY)

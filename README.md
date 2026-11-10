@@ -64,8 +64,10 @@ uv run netprobe scan 127.0.0.1 --services ssh -o loopback.json
 ```
 
 For optional Nmap host discovery, install the Nmap executable using your platform's
-package manager and add the wrapper extra with `uv sync --locked --extra nmap`.
-Nmap is not needed for the default backend.
+package manager and add the extra with `uv sync --locked --extra nmap`; it installs
+defusedxml, which parses Nmap's XML output without entity expansion. netprobe runs
+the `nmap` found on `PATH` directly with a fixed argument list, a deadline that grows
+with the prefix size, and a 64 MiB output cap. Nmap is not needed for the default backend.
 
 ## Quick example
 
