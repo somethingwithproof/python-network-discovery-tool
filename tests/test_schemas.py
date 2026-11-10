@@ -22,16 +22,59 @@ SCHEMAS = {
     for path in files("netprobe").joinpath("schemas").iterdir()
     if path.name.endswith(".schema.json")
 }
-REGISTRY = Registry().with_resources(
-    (schema["$id"], Resource.from_contents(schema)) for schema in SCHEMAS.values()
-)
+
+
+def composed_targets(schemas):
+    """(file, JSON pointer) of every subschema that is only used through allOf."""
+    targets = set()
+    for name, schema in schemas.items():
+        for part in schema.get("allOf", []):
+            ref = part.get("$ref", "")
+            path, _, pointer = ref.partition("#")
+            targets.add((path or name, pointer))
+    return targets
+
+
+def closed(node, name, pointer, skip):
+    """Copy of a schema that rejects every property it does not declare.
+
+    The published schemas accept unknown fields so that an additive change does
+    not break consumers; the tests use closed copies so a field netprobe writes
+    without documenting it fails here instead. unevaluatedProperties sees through
+    allOf, so composed parts are left open and their composite is closed.
+    Objects whose schema says additionalProperties: true stay open.
+    """
+    if isinstance(node, list):
+        return [closed(item, name, f"{pointer}/{i}", skip) for i, item in enumerate(node)]
+    if not isinstance(node, dict):
+        return node
+    copy = {key: closed(value, name, f"{pointer}/{key}", skip) for key, value in node.items()}
+    if "properties" in copy and "additionalProperties" not in copy and (name, pointer) not in skip:
+        copy["unevaluatedProperties"] = False
+    return copy
+
+
+def registry(schemas):
+    return Registry().with_resources(
+        (schema["$id"], Resource.from_contents(schema)) for schema in schemas.values()
+    )
+
+
+PUBLISHED = registry(SCHEMAS)
+CLOSED_SCHEMAS = {
+    name: closed(schema, name, "", composed_targets(SCHEMAS)) for name, schema in SCHEMAS.items()
+}
+CLOSED = registry(CLOSED_SCHEMAS)
 runner = CliRunner()
 
 
-def validator(name):
-    schema = SCHEMAS[f"{name}-v1.schema.json"]
+def validator(name, *, published=False):
+    """Closed validator by default; published=True uses the shipped schema."""
+    schemas, store = (SCHEMAS, PUBLISHED) if published else (CLOSED_SCHEMAS, CLOSED)
     return Draft202012Validator(
-        schema, registry=REGISTRY, format_checker=Draft202012Validator.FORMAT_CHECKER
+        schemas[f"{name}-v1.schema.json"],
+        registry=store,
+        format_checker=Draft202012Validator.FORMAT_CHECKER,
     )
 
 
@@ -107,14 +150,33 @@ def test_diff_output_matches_schema(tmp_path):
     document = json.loads(result.stdout)
     validator("diff").validate(document)
     # The run must exercise the lists the schema constrains most tightly.
-    assert document["unconfirmed"] and document["opened"] and document["new_hosts"]
+    assert document["unconfirmed"]
+    assert document["opened"]
+    assert document["new_hosts"]
 
 
 @pytest.mark.parametrize("name", ["report", "snapshot", "diff"])
 def test_schemas_reject_an_unknown_version(name):
-    validator(name).validate({**_minimal(name), "version": 1})
+    check = validator(name)
+    check.validate({**_minimal(name), "version": 1})
+    newer = {**_minimal(name), "version": 2}
     with pytest.raises(ValidationError, match="1 was expected"):
-        validator(name).validate({**_minimal(name), "version": 2})
+        check.validate(newer)
+
+
+@pytest.mark.parametrize("name", ["report", "snapshot", "diff"])
+def test_published_schemas_accept_fields_added_later(name):
+    """Adding an optional field is not a new version, so v1 consumers must accept it."""
+    document = {**_minimal(name), "version": 1, "added_in_a_minor_release": True}
+    validator(name, published=True).validate(document)
+    with pytest.raises(ValidationError, match="added_in_a_minor_release"):
+        validator(name).validate(document)
+
+
+def test_date_time_formats_are_checked():
+    document = {**_minimal("report"), "version": 1, "created": "yesterday"}
+    with pytest.raises(ValidationError, match="is not a 'date-time'"):
+        validator("report").validate(document)
 
 
 def _minimal(name):

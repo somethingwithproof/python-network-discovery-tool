@@ -24,7 +24,10 @@
           "id",
           "started_at",
           "finished_at",
-          "metadata"
+          "metadata",
+          "hosts",
+          "responsive",
+          "hosts_with_errors"
         ],
         "properties": {
           "id": {
@@ -48,11 +51,27 @@
               "schema_version": {
                 "const": 1
               }
-            }
+            },
+            "additionalProperties": true,
+            "description": "Settings recorded with the scan; may grow without a new version."
+          },
+          "hosts": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Addresses scanned."
+          },
+          "responsive": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Hosts that answered at least one probe."
+          },
+          "hosts_with_errors": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Hosts with at least one failed probe."
           }
         }
       }
     }
-  },
-  "additionalProperties": false
+  }
 }

@@ -134,8 +134,7 @@
           ],
           "exclusiveMinimum": 0
         }
-      },
-      "additionalProperties": false
+      }
     },
     "scanDocument": {
       "type": "object",

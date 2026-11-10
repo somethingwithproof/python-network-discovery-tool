@@ -67,8 +67,7 @@
           "after": {
             "type": "string"
           }
-        },
-        "additionalProperties": false
+        }
       }
     },
     "port_changes": {
@@ -95,8 +94,7 @@
           "after": {
             "$ref": "common-v1.schema.json#/$defs/state"
           }
-        },
-        "additionalProperties": false
+        }
       }
     },
     "unconfirmed_ports": {
@@ -123,8 +121,7 @@
           "after": {
             "$ref": "common-v1.schema.json#/$defs/state"
           }
-        },
-        "additionalProperties": false
+        }
       }
     },
     "warnings": {
@@ -133,6 +130,5 @@
         "type": "string"
       }
     }
-  },
-  "additionalProperties": false
+  }
 }

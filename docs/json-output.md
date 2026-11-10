@@ -53,7 +53,9 @@ Within one `version`, netprobe only adds optional fields. Removing or renaming
 a field, changing its type or meaning, or adding a required field produces a
 new `version` and a new schema file, and is a breaking change released in a
 new major version (see the versioning policy in the README). Consumers should
-check `format` and `version` and ignore fields they do not know.
+check `format` and `version` and ignore fields they do not know; the published
+schemas allow unknown properties for the same reason, so a document from a later
+minor release still validates against the schema of its `version`.
 
 The terminal table and log messages are for people and may change in any
 release; use the JSON documents for automation.

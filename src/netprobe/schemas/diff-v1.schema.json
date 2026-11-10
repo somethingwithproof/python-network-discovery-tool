@@ -91,8 +91,7 @@
               "uncertain"
             ]
           }
-        },
-        "additionalProperties": false
+        }
       }
     },
     "unconfirmed": {
@@ -130,8 +129,7 @@
           "after": {
             "const": "unknown"
           }
-        },
-        "additionalProperties": false
+        }
       }
     },
     "warnings": {
@@ -141,7 +139,6 @@
       }
     }
   },
-  "additionalProperties": false,
   "$defs": {
     "side": {
       "type": "object",
@@ -160,8 +157,7 @@
         "target": {
           "type": "string"
         }
-      },
-      "additionalProperties": false
+      }
     },
     "host": {
       "type": "object",
@@ -200,12 +196,10 @@
               "version": {
                 "type": "string"
               }
-            },
-            "additionalProperties": false
+            }
           }
         }
-      },
-      "additionalProperties": false
+      }
     },
     "change": {
       "type": "object",
@@ -236,8 +230,7 @@
         "old_version": {
           "type": "string"
         }
-      },
-      "additionalProperties": false
+      }
     }
   }
 }
