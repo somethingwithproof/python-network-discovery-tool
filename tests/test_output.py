@@ -87,9 +87,10 @@ def test_save_json_refuses_a_symlink(tmp_path):
     target.write_text("keep")
     link = tmp_path / "link.json"
     link.symlink_to(target)
+    devices = sample()
 
     with pytest.raises(OSError, match="symbolic link"):
-        save_json(sample(), link)
+        save_json(devices, link)
 
     assert target.read_text() == "keep"
 
@@ -100,11 +101,15 @@ def test_save_json_requires_no_follow_support(tmp_path, monkeypatch, existing):
     if existing:
         path.write_text("keep")
     monkeypatch.delattr(os, "O_NOFOLLOW")
+    devices = sample()
 
     with pytest.raises(OSError, match="no-follow"):
-        save_json(sample(), path)
+        save_json(devices, path)
 
-    assert path.read_text() == "keep" if existing else not path.exists()
+    if existing:
+        assert path.read_text() == "keep"
+    else:
+        assert not path.exists()
 
 
 def test_save_json_creates_owner_only_report(tmp_path):
@@ -123,8 +128,9 @@ def test_save_json_without_no_follow_preserves_symlink_target(tmp_path, monkeypa
     link = tmp_path / "link.json"
     link.symlink_to(target)
     monkeypatch.delattr(os, "O_NOFOLLOW")
+    devices = sample()
     with pytest.raises(OSError, match="no-follow"):
-        save_json(sample(), link)
+        save_json(devices, link)
     assert link.is_symlink()
     assert target.read_text() == "keep"
 
