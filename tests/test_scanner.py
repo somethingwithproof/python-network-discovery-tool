@@ -616,3 +616,49 @@ async def test_expired_lookup_keeps_its_slot_until_the_resolver_returns(monkeypa
     async with asyncio.timeout(5):
         while one_slot.locked():
             await asyncio.sleep(0.01)
+
+
+async def test_deadline_stops_the_scan_and_keeps_finished_hosts(monkeypatch):
+    async def first_fast(host, port, timeout):
+        if host != "10.0.0.1":
+            await asyncio.sleep(30)
+        return "open"
+
+    stub_probes(monkeypatch, first_fast)
+    scanner_ = NetworkScanner(
+        services=[ServiceSpec("ssh", 22, timeout=30)], concurrency=1, deadline=0.3
+    )
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    with pytest.raises(scanner.ScanDeadlineError, match=r"0\.3s deadline") as caught:
+        await scanner_.scan_network("10.0.0.0/30")
+
+    assert loop.time() - started < 5
+    assert [d.ip for d in caught.value.devices] == ["10.0.0.1"]
+
+
+async def test_deadline_covers_the_nmap_sweep(fake_nmap):
+    fake_nmap.set("SLEEP", "20")
+    scanner_ = NetworkScanner(backend="nmap", deadline=0.5)
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    with pytest.raises(scanner.ScanDeadlineError) as caught:
+        await scanner_.scan_network("10.0.0.0/30")
+
+    assert loop.time() - started < 5
+    assert caught.value.devices == []
+
+
+async def test_scan_without_deadline_runs_to_completion(monkeypatch):
+    async def closed(host, port, timeout):
+        return "closed"
+
+    stub_probes(monkeypatch, closed)
+    devices = await NetworkScanner(services=[ServiceSpec("ssh", 22)]).scan_network("10.0.0.0/30")
+    assert [d.ip for d in devices] == ["10.0.0.1", "10.0.0.2"]
+
+
+@pytest.mark.parametrize("deadline", [0, -1, float("inf"), float("nan")])
+def test_deadline_must_be_positive_and_finite(deadline):
+    with pytest.raises(ValueError, match="deadline must be positive"):
+        NetworkScanner(deadline=deadline)

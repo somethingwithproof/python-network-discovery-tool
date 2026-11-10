@@ -102,6 +102,7 @@ def scan_document(
     *,
     timeout: float | None = None,
     backend: str | None = None,
+    complete: bool = True,
 ) -> dict[str, Any]:
     """The versioned JSON envelope shared by reports and snapshots.
 
@@ -114,6 +115,9 @@ def scan_document(
         "netprobe_version": NETPROBE_VERSION,
         "created": datetime.now(UTC).isoformat(timespec="seconds"),
         "target": network,
+        # False when the scan stopped at its deadline: devices then lists only
+        # the hosts that finished.
+        "complete": complete,
         "services": [
             {
                 "name": s.name,
@@ -140,9 +144,17 @@ def report_json(
     services: Iterable[ServiceSpec] = (),
     timeout: float | None = None,
     backend: str | None = None,
+    complete: bool = True,
 ) -> str:
     document = scan_document(
-        REPORT_FORMAT, REPORT_VERSION, network, services, devices, timeout=timeout, backend=backend
+        REPORT_FORMAT,
+        REPORT_VERSION,
+        network,
+        services,
+        devices,
+        timeout=timeout,
+        backend=backend,
+        complete=complete,
     )
     return json.dumps(document, indent=2) + "\n"
 
@@ -155,10 +167,16 @@ def save_json(
     services: Iterable[ServiceSpec] = (),
     timeout: float | None = None,
     backend: str | None = None,
+    complete: bool = True,
 ) -> None:
     """Save a versioned JSON report of every scanned device."""
     text = report_json(
-        devices, network=network, services=services, timeout=timeout, backend=backend
+        devices,
+        network=network,
+        services=services,
+        timeout=timeout,
+        backend=backend,
+        complete=complete,
     )
     write_text(output_path, text)
     logger.info(f"Saved JSON report to {output_path}")

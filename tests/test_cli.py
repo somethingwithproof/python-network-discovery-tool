@@ -424,3 +424,54 @@ def test_json_report_on_stdout_is_one_document(tmp_path):
     assert result.returncode == 0, result.stderr
     report = json.loads(result.stdout)
     assert report["devices"][0]["services"][0]["state"] == "open"
+
+
+def test_scan_past_deadline_writes_partial_report_and_exits_4(tmp_path):
+    from netprobe.scanner import ScanDeadlineError
+
+    finished = [Device("10.0.0.1", alive=True)]
+    scanner = MagicMock()
+
+    async def scan_network(network, progress=None):
+        raise ScanDeadlineError(finished, 5.0)
+
+    scanner.scan_network = scan_network
+    out, snapshot, store = tmp_path / "r.json", tmp_path / "s.json", tmp_path / "h.sqlite3"
+    with patch.object(cli, "NetworkScanner", return_value=scanner) as factory:
+        result = runner.invoke(
+            cli.app,
+            [
+                *("scan", "10.0.0.0/30", "--deadline", "5", "-o", str(out)),
+                *("--save-snapshot", str(snapshot), "--history", str(store)),
+            ],
+        )
+
+    assert result.exit_code == 4, result.output
+    assert factory.call_args.kwargs["deadline"] == 5.0
+    assert "5s deadline after 1 host(s)" in result.stderr
+    report = json.loads(out.read_text())
+    assert report["complete"] is False
+    assert [d["ip"] for d in report["devices"]] == ["10.0.0.1"]
+    assert not snapshot.exists()
+    assert (
+        json.loads(runner.invoke(cli.app, ["history", "--history", str(store)]).stdout)["scans"]
+        == []
+    )
+
+
+def test_completed_scan_report_is_marked_complete(tmp_path):
+    out = tmp_path / "r.json"
+    with patched_scanner([Device("10.0.0.1", alive=True)]) as factory:
+        result = runner.invoke(cli.app, ["scan", "10.0.0.1", "-o", str(out)])
+
+    assert result.exit_code == 0, result.output
+    assert factory.call_args.kwargs["deadline"] == 3600.0
+    assert json.loads(out.read_text())["complete"] is True
+
+
+@pytest.mark.parametrize("value", ["0", "-5", "604801", "soon"])
+def test_cli_rejects_invalid_deadline(value):
+    with patched_scanner([]) as factory:
+        result = runner.invoke(cli.app, ["scan", "10.0.0.1", "--deadline", value])
+    assert result.exit_code == 2
+    factory.assert_not_called()
