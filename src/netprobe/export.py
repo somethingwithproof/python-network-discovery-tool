@@ -27,8 +27,9 @@ from netprobe.scanner import validate_target
 # add_device.php checks the SNMP port is from 2 to 65534.
 KADUPUL_PORT_RANGE = range(2, 65535)
 # Descriptions double as Kadupul's duplicate key, so keep them predictable.
-_DESCRIPTION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
-_PLAIN = re.compile(r"^[A-Za-z0-9._@-]{1,64}$")
+# Always applied with fullmatch: "$" with match() also accepts a trailing newline.
+_DESCRIPTION = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}")
+_PLAIN = re.compile(r"[A-Za-z0-9._@-]{1,64}")
 
 ENV_COMMUNITY = "NETPROBE_SNMP_COMMUNITY"
 ENV_AUTH_KEY = "NETPROBE_SNMP_AUTH_KEY"
@@ -54,7 +55,7 @@ class KadupulOptions:
     def __post_init__(self) -> None:
         if self.template < 0:
             raise ExportError("--template must be a Kadupul host template id (0 or more)")
-        if self.snmp_user is not None and not _PLAIN.match(self.snmp_user):
+        if self.snmp_user is not None and not _PLAIN.fullmatch(self.snmp_user):
             raise ExportError("SNMPv3 user names may use letters, digits and . _ @ - only")
         if self.auth_protocol not in AUTH_PROTOCOLS or self.priv_protocol not in PRIV_PROTOCOLS:
             raise ExportError("unknown SNMPv3 protocol")
@@ -72,13 +73,19 @@ def _secret(flag: str, env: str, value: str | None, opts: KadupulOptions) -> str
 
 def _description(device: dict[str, Any], seen: set[str]) -> str:
     hostname = str(device.get("hostname") or "")
-    name = hostname if _DESCRIPTION.match(hostname) else str(device["ip"])
+    name = hostname if _DESCRIPTION.fullmatch(hostname) else str(device["ip"])
     # add_device.php treats an existing description as "update that device",
-    # so two hosts must never share one.
-    if name in seen:
-        name = f"{name}-{device['ip']}"
-    seen.add(name)
-    return name
+    # so two hosts must never share one. A suffixed name can itself be taken
+    # (another host may be called "web-10.0.0.1"), so keep counting until free.
+    candidate = name
+    if candidate in seen:
+        candidate = f"{name}-{device['ip']}"
+    count = 2
+    while candidate in seen:
+        candidate = f"{name}-{device['ip']}-{count}"
+        count += 1
+    seen.add(candidate)
+    return candidate
 
 
 def _open(device: dict[str, Any]) -> list[dict[str, Any]]:
