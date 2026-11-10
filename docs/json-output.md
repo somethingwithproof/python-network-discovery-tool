@@ -5,18 +5,18 @@ SPDX-License-Identifier: MIT
 
 # JSON output
 
-Every JSON document netprobe writes is an object with a `format` name and an
+Every JSON document hostcensus writes is an object with a `format` name and an
 integer `version`. A JSON Schema (draft 2020-12) for each one ships inside the
-package under `netprobe/schemas/` and is tested against real command output.
+package under `hostcensus/schemas/` and is tested against real command output.
 
 | `format` | Written by | Schema |
 | --- | --- | --- |
-| `netprobe-report` | `scan -o FILE.json`, or `scan --format json` on stdout | `report-v1.schema.json` |
-| `netprobe-snapshot` | `scan --save-snapshot FILE` | `snapshot-v1.schema.json` |
-| `netprobe-diff` | `diff OLD NEW -f json` | `diff-v1.schema.json` |
-| `netprobe-preflight` | `preflight` | `preflight-v1.schema.json` |
-| `netprobe-history` | `history` | `history-v1.schema.json` |
-| `netprobe-compare` | `compare BEFORE AFTER` | `compare-v1.schema.json` |
+| `hostcensus-report` | `scan -o FILE.json`, or `scan --format json` on stdout | `report-v1.schema.json` |
+| `hostcensus-snapshot` | `scan --save-snapshot FILE` | `snapshot-v1.schema.json` |
+| `hostcensus-diff` | `diff OLD NEW -f json` | `diff-v1.schema.json` |
+| `hostcensus-preflight` | `preflight` | `preflight-v1.schema.json` |
+| `hostcensus-history` | `history` | `history-v1.schema.json` |
+| `hostcensus-compare` | `compare BEFORE AFTER` | `compare-v1.schema.json` |
 
 `common-v1.schema.json` holds the device, service and scan-envelope
 definitions that the others reference.
@@ -27,12 +27,12 @@ Load a schema from an installed package:
 import json
 from importlib.resources import files
 
-schema = json.loads(files("netprobe").joinpath("schemas/report-v1.schema.json").read_text())
+schema = json.loads(files("hostcensus").joinpath("schemas/report-v1.schema.json").read_text())
 ```
 
 ## Reports and snapshots
 
-Reports and snapshots share one envelope: `netprobe_version`, `created` (UTC,
+Reports and snapshots share one envelope: `hostcensus_version` (`netprobe_version` in files written before the rename), `created` (UTC,
 ISO 8601), `target`, `complete`, the probed `services` with their port, protocol, probe and
 timeout, the scan `timeout` and `backend`, and `devices`. A report lists every
 scanned device. A snapshot lists only devices that answered or had a probe
@@ -48,14 +48,19 @@ name; an IPv4-mapped IPv6 target (`::ffff:a.b.c.d`) is recorded as the IPv4
 address it reaches.
 
 `diff` and `export` read reports, snapshots, and the bare device lists that
-netprobe 2.x wrote. Files are untrusted input: `diff`, `export` and `compare`
-refuse a device whose `ip` is not an address or hostname in the form netprobe
+hostcensus 2.x wrote. Files are untrusted input: `diff`, `export` and `compare`
+refuse a device whose `ip` is not an address or hostname in the form hostcensus
 writes (exit 2, or 1 for history), and `diff` and `export` strip control
 characters from hostnames, service names, versions and settings before use.
 
+Documents written before the project was renamed carry `netprobe-` format names
+(`netprobe-report`, `netprobe-snapshot`, and so on). The schemas accept both
+spellings, `diff` and `export` still load old reports and snapshots, and new
+files use `hostcensus-`. The old spelling is dropped in the next major release.
+
 ## Stability
 
-Within one `version`, netprobe only adds optional fields. Removing or renaming
+Within one `version`, hostcensus only adds optional fields. Removing or renaming
 a field, changing its type or meaning, or adding a required field produces a
 new `version` and a new schema file, and is a breaking change released in a
 new major version (see the versioning policy in the README). Consumers should

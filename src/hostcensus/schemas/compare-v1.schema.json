@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/somethingwithproof/python-network-discovery-tool/schemas/compare-v1.schema.json",
-  "title": "netprobe history comparison, version 1",
+  "title": "hostcensus history comparison, version 1",
   "description": "Printed by `compare BEFORE AFTER`. A port open in the later scan is a port change even when the earlier probe failed; any other transition involving `unknown` is listed in `unconfirmed_ports`, never in `port_changes`.",
   "type": "object",
   "required": [
@@ -19,7 +19,10 @@
   ],
   "properties": {
     "format": {
-      "const": "netprobe-compare"
+      "enum": [
+        "hostcensus-compare",
+        "netprobe-compare"
+      ]
     },
     "version": {
       "const": 1

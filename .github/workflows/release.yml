@@ -100,7 +100,7 @@ jobs:
           uv run --locked --no-sync --no-build ruff check .
           uv run --locked --no-sync --no-build ruff format --check .
           uv run --locked --no-sync --no-build mypy
-          uv run --locked --no-sync --no-build pytest --cov=netprobe --cov-fail-under=90
+          uv run --locked --no-sync --no-build pytest --cov=hostcensus --cov-fail-under=90
       - name: Validate the tested package contents
         run: |
           uv run --locked --no-sync --no-build twine check --strict dist/*.whl dist/*.tar.gz

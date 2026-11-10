@@ -5,18 +5,18 @@ SPDX-License-Identifier: MIT
 
 # Architecture
 
-netprobe is one asyncio process. A scan runs these stages in order, and each
+hostcensus is one asyncio process. A scan runs these stages in order, and each
 one either finishes or ends the run with a documented exit code before the next
 starts:
 
 1. **Plan** (`cli.py`). Command-line options, a named profile and the TOML
    service table are merged into one `ScanPlan`; options given on the command
    line win over the profile. SNMP secrets are read here, only from
-   `NETPROBE_SNMP_*` variables or the files named by `--snmp-*-file`.
+   `HOSTCENSUS_SNMP_*` variables or the files named by `--snmp-*-file`.
 2. **Preflight** (`preflight.py`). Local checks only: the target parses and fits
    the host and probe limits, nmap exists when that backend is chosen, output and
    history paths are writable, the TLS CA bundle loads, and the open-file limit
-   covers `--concurrency`. `netprobe preflight` runs the same function and
+   covers `--concurrency`. `hostcensus preflight` runs the same function and
    prints the result. Nothing has been sent at this point.
 3. **Expand** (`scanner.py`). The target becomes an ordered address list.
    Expansion is refused before any list is built if the range exceeds
@@ -75,7 +75,7 @@ per-service timeouts.
 ## Results and uncertainty
 
 Each service observation is `open`, `closed`, `filtered` or `unknown`. `unknown`
-means netprobe could not tell, for example because the probe timed out or a
+means hostcensus could not tell, for example because the probe timed out or a
 local socket error occurred; it never means "down". `diff` and `compare` share
 one port classification (`scan_settings.port_transition`): a port open in the
 later scan is reported as opened, and any other transition with an `unknown`
@@ -96,4 +96,4 @@ would otherwise look vanished.
 | `models.py`, `output.py` | Result types, versioned JSON, CSV and table output |
 | `diff.py`, `history.py` | Snapshot comparison and SQLite history |
 | `export.py` | Kadupul `add_device.php` scripts |
-| `schemas/` | JSON Schemas for every JSON document netprobe writes |
+| `schemas/` | JSON Schemas for every JSON document hostcensus writes |

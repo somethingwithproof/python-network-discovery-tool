@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
 # SPDX-License-Identifier: MIT
 
-"""The public CLI contract, exercised through real `python -m netprobe` processes.
+"""The public CLI contract, exercised through real `python -m hostcensus` processes.
 
 Each command's streams, exit codes and JSON documents are what scripts depend
 on, and the versioning policy treats a change to any of them as breaking.
@@ -24,7 +24,7 @@ import pytest
 import typer
 from conftest import validator
 
-from netprobe import cli
+from hostcensus import cli
 
 # Typer forces colour under CI (GITHUB_ACTIONS, FORCE_COLOR); the contract is
 # the text, not its styling.
@@ -32,11 +32,11 @@ ANSI = re.compile(r"\x1b\[[0-9;]*m")
 COMMANDS = ("scan", "preflight", "profiles", "history", "compare", "diff", "export", "version")
 
 
-def netprobe(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
-    # A clean environment, so the caller's NETPROBE_* settings cannot leak in.
-    env = {k: v for k, v in os.environ.items() if not k.startswith("NETPROBE_")}
+def hostcensus(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
+    # A clean environment, so the caller's HOSTCENSUS_* settings cannot leak in.
+    env = {k: v for k, v in os.environ.items() if not k.startswith("HOSTCENSUS_")}
     return subprocess.run(
-        [sys.executable, "-m", "netprobe", *args],
+        [sys.executable, "-m", "hostcensus", *args],
         capture_output=True,
         text=True,
         cwd=cwd,
@@ -72,15 +72,17 @@ def lab(tmp_path_factory: pytest.TempPathFactory) -> Lab:
     scan = ("scan", "127.0.0.1", "--config", str(config), "--services", "lab")
     with listener() as server:
         config.write_text(f"[services.lab]\nport = {server.getsockname()[1]}\n")
-        on_stdout = netprobe(*scan, "--format", "json", cwd=root)
+        on_stdout = hostcensus(*scan, "--format", "json", cwd=root)
         assert on_stdout.returncode == 0, on_stdout.stderr
-        first = netprobe(
+        first = hostcensus(
             *scan,
             *("-o", "report.json", "--save-snapshot", "open.json", "--history", str(history)),
             cwd=root,
         )
         assert first.returncode == 0, first.stderr
-    second = netprobe(*scan, "--save-snapshot", "closed.json", "--history", str(history), cwd=root)
+    second = hostcensus(
+        *scan, "--save-snapshot", "closed.json", "--history", str(history), cwd=root
+    )
     assert second.returncode == 0, second.stderr
     return Lab(
         root,
@@ -99,31 +101,31 @@ def test_every_command_is_covered_by_this_contract() -> None:
 
 
 def test_console_script_runs_the_typer_app() -> None:
-    (script,) = entry_points(group="console_scripts", name="netprobe")
-    assert script.value == "netprobe.cli:app"
+    (script,) = entry_points(group="console_scripts", name="hostcensus")
+    assert script.value == "hostcensus.cli:app"
     assert script.load() is cli.app
 
 
 @pytest.mark.parametrize("command", COMMANDS)
 def test_help_goes_to_stdout_and_exits_0(command: str, tmp_path: Path) -> None:
-    result = netprobe(command, "--help", cwd=tmp_path)
+    result = hostcensus(command, "--help", cwd=tmp_path)
     assert result.returncode == 0
-    assert f"Usage: python -m netprobe {command} " in ANSI.sub("", result.stdout)
+    assert f"Usage: python -m hostcensus {command} " in ANSI.sub("", result.stdout)
     assert result.stderr == ""
 
 
 @pytest.mark.parametrize("command", COMMANDS)
 def test_unknown_option_exits_2_with_nothing_on_stdout(command: str, tmp_path: Path) -> None:
-    result = netprobe(command, "--no-such-option", cwd=tmp_path)
+    result = hostcensus(command, "--no-such-option", cwd=tmp_path)
     assert result.returncode == 2
     assert result.stdout == ""
     assert "No such option" in ANSI.sub("", result.stderr)
 
 
 def test_version_flag_prints_name_and_version(tmp_path: Path) -> None:
-    result = netprobe("--version", cwd=tmp_path)
+    result = hostcensus("--version", cwd=tmp_path)
     assert result.returncode == 0
-    assert result.stdout == f"netprobe {version('netprobe')}\n"
+    assert result.stdout == f"hostcensus {version('hostcensus')}\n"
 
 
 def test_json_report_on_stdout(lab: Lab) -> None:
@@ -154,20 +156,20 @@ def test_json_commands_write_one_valid_document(
 ) -> None:
     if args[0] in ("history", "compare"):
         args = (*args, "--history", str(lab.history))
-    result = netprobe(*args, cwd=lab.root)
+    result = hostcensus(*args, cwd=lab.root)
     assert result.returncode == status, result.stderr
     validator(schema).validate(json.loads(result.stdout))
 
 
 def test_profiles_lists_the_shipped_example(tmp_path: Path) -> None:
-    example = Path(__file__).parents[1] / "netprobe.example.toml"
-    result = netprobe("profiles", "--config", str(example), cwd=tmp_path)
+    example = Path(__file__).parents[1] / "hostcensus.example.toml"
+    result = hostcensus("profiles", "--config", str(example), cwd=tmp_path)
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)
 
 
 def test_export_writes_a_script(lab: Lab) -> None:
-    result = netprobe("export", "report.json", "-o", "add.sh", cwd=lab.root)
+    result = hostcensus("export", "report.json", "-o", "add.sh", cwd=lab.root)
     assert result.returncode == 0, result.stderr
     script = (lab.root / "add.sh").read_text()
     assert script.startswith("#!/bin/sh\n")
@@ -190,7 +192,7 @@ def test_export_writes_a_script(lab: Lab) -> None:
 def test_failures_exit_with_documented_status_and_empty_stdout(
     lab: Lab, args: tuple[str, ...], status: int
 ) -> None:
-    result = netprobe(*args, cwd=lab.root)
+    result = hostcensus(*args, cwd=lab.root)
     assert result.returncode == status, result.stderr
     assert result.stdout == ""
     assert result.stderr
@@ -204,7 +206,7 @@ def test_deadline_exit_4_writes_an_incomplete_report(tmp_path: Path) -> None:
         (tmp_path / "slow.toml").write_text(
             f"[services.slow]\nport = {port}\nprobe = 'http'\ntimeout = 5\n"
         )
-        result = netprobe(
+        result = hostcensus(
             *("scan", "127.0.0.1", "--config", "slow.toml", "--services", "slow"),
             *("--deadline", "1", "-o", "partial.json", "--save-snapshot", "snap.json"),
             cwd=tmp_path,

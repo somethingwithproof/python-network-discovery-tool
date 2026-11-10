@@ -1,0 +1,41 @@
+{
+  "format": "netprobe-report",
+  "version": 1,
+  "netprobe_version": "3.0.0",
+  "created": "2026-11-10T21:15:37+00:00",
+  "target": "127.0.0.1",
+  "complete": true,
+  "services": [
+    {
+      "name": "ssh",
+      "port": 22,
+      "protocol": "tcp",
+      "probe": "ssh",
+      "timeout": 0.3
+    }
+  ],
+  "timeout": 1.0,
+  "backend": "asyncio",
+  "devices": [
+    {
+      "ip": "127.0.0.1",
+      "alive": true,
+      "ssh": false,
+      "snmp": false,
+      "mysql": false,
+      "hostname": "localhost",
+      "errors": [],
+      "services": [
+        {
+          "name": "ssh",
+          "port": 22,
+          "protocol": "tcp",
+          "state": "closed",
+          "version": "",
+          "details": {}
+        }
+      ],
+      "address": "127.0.0.1"
+    }
+  ]
+}

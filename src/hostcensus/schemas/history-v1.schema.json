@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/somethingwithproof/python-network-discovery-tool/schemas/history-v1.schema.json",
-  "title": "netprobe history listing, version 1",
+  "title": "hostcensus history listing, version 1",
   "description": "Printed by `history`, newest scan first. `metadata` is the stored scan metadata.",
   "type": "object",
   "required": [
@@ -11,7 +11,10 @@
   ],
   "properties": {
     "format": {
-      "const": "netprobe-history"
+      "enum": [
+        "hostcensus-history",
+        "netprobe-history"
+      ]
     },
     "version": {
       "const": 1

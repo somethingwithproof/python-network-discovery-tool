@@ -7,7 +7,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "netprobe"
+name = "hostcensus"
 version = "3.0.0"
 description = "Network service discovery with fingerprinting, inventory diffs and Kadupul export"
 readme = "README.md"
@@ -42,7 +42,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Kept so existing `netprobe[nmap]` installs still resolve. The nmap backend
+# Kept so existing `[nmap]` installs still resolve. The nmap backend
 # needs only the nmap executable; its XML parser is a core dependency.
 nmap = []
 
@@ -68,7 +68,9 @@ fuzz = [
 build = ["hatchling>=1.33.0", "setuptools>=84.2.1", "wheel>=0.46.0"]
 
 [project.scripts]
-netprobe = "netprobe.cli:app"
+hostcensus = "hostcensus.cli:app"
+# Deprecated alias for the former name; removed in the next major release.
+netprobe = "hostcensus.compat:legacy_main"
 
 [project.urls]
 Homepage = "https://github.com/somethingwithproof/python-network-discovery-tool"
@@ -102,7 +104,7 @@ ignore = [
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["src/netprobe", "scripts/release.py"]
+files = ["src/hostcensus", "scripts/release.py"]
 
 [[tool.mypy.overrides]]
 # pysnmp and defusedxml ship no type information.
@@ -131,7 +133,7 @@ addopts = [
 ]
 
 [tool.coverage.run]
-source = ["netprobe"]
+source = ["hostcensus"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -145,10 +147,10 @@ exclude_lines = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/netprobe"]
+packages = ["src/hostcensus"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/netprobe", "tests", "README.md", "pyproject.toml", "netprobe.example.toml", "uv.lock", "scripts/release.py", "docs/releasing.md"]
+include = ["src/hostcensus", "tests", "README.md", "pyproject.toml", "hostcensus.example.toml", "uv.lock", "scripts/release.py", "docs/releasing.md"]
 
 [tool.bandit]
 # pytest relies on bare asserts.

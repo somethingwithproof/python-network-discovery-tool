@@ -59,11 +59,11 @@ If you are proposing a feature:
    uv run ruff check .
    uv run ruff format --check .
    uv run mypy
-   uv run pytest --cov=netprobe
+   uv run pytest --cov=hostcensus
    ```
 5. Commit with `git commit -s`, push, and open a pull request.
 
-The code lives in `src/netprobe/`; tests live in `tests/`.
+The code lives in `src/hostcensus/`; tests live in `tests/`.
 
 ## Pull Request Guidelines
 

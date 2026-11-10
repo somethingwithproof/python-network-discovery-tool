@@ -4,7 +4,7 @@
   "packages": {
     ".": {
       "release-type": "python",
-      "package-name": "netprobe",
+      "package-name": "hostcensus",
       "changelog-path": "CHANGES.md",
       "include-v-in-tag": true,
       "include-component-in-tag": false,
@@ -15,7 +15,7 @@
         {
           "type": "toml",
           "path": "uv.lock",
-          "jsonpath": "$.package[?(@.name==='netprobe')].version"
+          "jsonpath": "$.package[?(@.name==='hostcensus')].version"
         }
       ]
     }

@@ -15,11 +15,11 @@ import pytest
 from hypothesis import assume, given
 from hypothesis import strategies as st
 
-from netprobe.diff import compare, load_inventory, write_snapshot
-from netprobe.history import compare_scans
-from netprobe.models import Device, Service, ServiceSpec
-from netprobe.probes import MAX_ENGINE_ID_OCTETS, snmp_engine_id
-from netprobe.scanner import (
+from hostcensus.diff import compare, load_inventory, write_snapshot
+from hostcensus.history import compare_scans
+from hostcensus.models import Device, Service, ServiceSpec
+from hostcensus.probes import MAX_ENGINE_ID_OCTETS, snmp_engine_id
+from hostcensus.scanner import (
     ANSWERED,
     MAX_HOSTS,
     canonical_network,

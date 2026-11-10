@@ -8,7 +8,7 @@ import socket
 import pytest
 from conftest import closed_port, fixture_bytes
 
-from netprobe import probes
+from hostcensus import probes
 
 
 async def test_tcp_state_open(tcp_server):

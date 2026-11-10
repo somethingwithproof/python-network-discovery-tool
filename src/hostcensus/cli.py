@@ -9,7 +9,6 @@ import asyncio
 import inspect
 import json
 import logging
-import os
 import sqlite3
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, fields
@@ -22,8 +21,17 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
-from netprobe.config import DEFAULT_SERVICES, ConfigError, load_services, select_services
-from netprobe.diff import (
+from hostcensus.compat import (
+    DEFAULT_HISTORY,
+    DEFAULT_PROFILE_CONFIG,
+    LEGACY_HISTORY,
+    LEGACY_PROFILE_CONFIG,
+    default_path,
+    get_env,
+    promote_legacy_env,
+)
+from hostcensus.config import DEFAULT_SERVICES, ConfigError, load_services, select_services
+from hostcensus.diff import (
     Inventory,
     SnapshotError,
     compare,
@@ -31,10 +39,10 @@ from netprobe.diff import (
     print_diff,
     write_snapshot,
 )
-from netprobe.export import ExportError, KadupulOptions, kadupul_script, write_script
-from netprobe.history import HistoryStore, compare_scans, utc_now
-from netprobe.models import Device, ServiceSpec
-from netprobe.output import (
+from hostcensus.export import ExportError, KadupulOptions, kadupul_script, write_script
+from hostcensus.history import HistoryStore, compare_scans, utc_now
+from hostcensus.models import Device, ServiceSpec
+from hostcensus.output import (
     console,
     print_results,
     report_json,
@@ -42,11 +50,11 @@ from netprobe.output import (
     save_json,
     write_text,
 )
-from netprobe.preflight import PreflightResult, check_plan, paths_overlap
-from netprobe.probes import SnmpCredentials
-from netprobe.profiles import load_profiles, resolve_profile
-from netprobe.scan_settings import NETPROBE_VERSION
-from netprobe.scanner import (
+from hostcensus.preflight import PreflightResult, check_plan, paths_overlap
+from hostcensus.probes import SnmpCredentials
+from hostcensus.profiles import load_profiles, resolve_profile
+from hostcensus.scan_settings import HOSTCENSUS_VERSION
+from hostcensus.scanner import (
     DEFAULT_CONCURRENCY,
     DEFAULT_DEADLINE,
     DEFAULT_TIMEOUT,
@@ -60,7 +68,6 @@ from netprobe.scanner import (
 )
 
 logger = logging.getLogger(__name__)
-DEFAULT_PROFILE_CONFIG = Path("netprobe.toml")
 
 # Mirrors probes.AUTH_PROTOCOLS / PRIV_PROTOCOLS; Typer needs the literal types.
 AuthProtocol = Literal["MD5", "SHA", "SHA224", "SHA256", "SHA384", "SHA512"]
@@ -68,7 +75,7 @@ PrivProtocol = Literal["DES", "AES", "AES128", "AES192", "AES192C", "AES256", "A
 
 # Typer app for modern CLI
 app = typer.Typer(
-    name="netprobe",
+    name="hostcensus",
     help="🔍 Network scanner for SSH, SNMP, MySQL, HTTP and HTTPS discovery",
     # Locals of scan() include SNMP secrets; never print them in a traceback.
     pretty_exceptions_show_locals=False,
@@ -77,12 +84,12 @@ app = typer.Typer(
 
 
 def configure_logging(level: int = logging.INFO) -> None:
-    """Send netprobe's log records to stderr, keeping stdout for results.
+    """Send hostcensus's log records to stderr, keeping stdout for results.
 
-    Configured per invocation rather than at import, so importing netprobe as
+    Configured per invocation rather than at import, so importing hostcensus as
     a library leaves the caller's logging alone.
     """
-    package = logging.getLogger("netprobe")
+    package = logging.getLogger("hostcensus")
     package.handlers = [
         RichHandler(console=Console(stderr=True), rich_tracebacks=True, show_time=False)
     ]
@@ -91,7 +98,7 @@ def configure_logging(level: int = logging.INFO) -> None:
 
 def _print_version(requested: bool) -> None:
     if requested:
-        typer.echo(f"netprobe {NETPROBE_VERSION}")
+        typer.echo(f"hostcensus {HOSTCENSUS_VERSION}")
         raise typer.Exit()
 
 
@@ -106,6 +113,7 @@ def main(
     ),
 ) -> None:
     """Network service inventory for networks you administer."""
+    promote_legacy_env()
     configure_logging()
 
 
@@ -193,7 +201,7 @@ class ScanOptions:
                 "--deadline",
                 min=1,
                 max=MAX_DEADLINE,
-                envvar="NETPROBE_DEADLINE",
+                envvar="HOSTCENSUS_DEADLINE",
                 help="Stop the whole scan after this many seconds and exit 4 with a partial report",
             )
         },
@@ -222,7 +230,7 @@ class ScanOptions:
             )
         },
     )
-    # Read from NETPROBE_SNMP_COMMUNITY only. The option stays defined, hidden, so a value
+    # Read from HOSTCENSUS_SNMP_COMMUNITY only. The option stays defined, hidden, so a value
     # given on the command line is refused with a pointer to the replacement.
     snmp_community: str | None = field(
         default=None,
@@ -230,7 +238,7 @@ class ScanOptions:
             "cli": typer.Option(
                 None,
                 "--snmp-community",
-                envvar="NETPROBE_SNMP_COMMUNITY",
+                envvar="HOSTCENSUS_SNMP_COMMUNITY",
                 hidden=True,
                 show_default=False,
             )
@@ -242,8 +250,8 @@ class ScanOptions:
             "cli": typer.Option(
                 None,
                 "--snmp-community-file",
-                envvar="NETPROBE_SNMP_COMMUNITY_FILE",
-                help="File holding the SNMPv2c community (or set NETPROBE_SNMP_COMMUNITY)",
+                envvar="HOSTCENSUS_SNMP_COMMUNITY_FILE",
+                help="File holding the SNMPv2c community (or set HOSTCENSUS_SNMP_COMMUNITY)",
                 show_default=False,
             )
         },
@@ -252,17 +260,19 @@ class ScanOptions:
         default=None,
         metadata={
             "cli": typer.Option(
-                None, "--snmp-user", envvar="NETPROBE_SNMP_USER", help="SNMPv3 user name"
+                None, "--snmp-user", envvar="HOSTCENSUS_SNMP_USER", help="SNMPv3 user name"
             )
         },
     )
     snmp_auth_protocol: AuthProtocol = field(
         default="SHA",
         metadata={
-            "cli": typer.Option("SHA", "--snmp-auth-protocol", envvar="NETPROBE_SNMP_AUTH_PROTOCOL")
+            "cli": typer.Option(
+                "SHA", "--snmp-auth-protocol", envvar="HOSTCENSUS_SNMP_AUTH_PROTOCOL"
+            )
         },
     )
-    # Read from NETPROBE_SNMP_AUTH_KEY only. The option stays defined, hidden, so a value
+    # Read from HOSTCENSUS_SNMP_AUTH_KEY only. The option stays defined, hidden, so a value
     # given on the command line is refused with a pointer to the replacement.
     snmp_auth_key: str | None = field(
         default=None,
@@ -270,7 +280,7 @@ class ScanOptions:
             "cli": typer.Option(
                 None,
                 "--snmp-auth-key",
-                envvar="NETPROBE_SNMP_AUTH_KEY",
+                envvar="HOSTCENSUS_SNMP_AUTH_KEY",
                 hidden=True,
                 show_default=False,
             )
@@ -282,8 +292,8 @@ class ScanOptions:
             "cli": typer.Option(
                 None,
                 "--snmp-auth-key-file",
-                envvar="NETPROBE_SNMP_AUTH_KEY_FILE",
-                help="File holding the SNMPv3 authentication passphrase (or set NETPROBE_SNMP_AUTH_KEY)",
+                envvar="HOSTCENSUS_SNMP_AUTH_KEY_FILE",
+                help="File holding the SNMPv3 authentication passphrase (or set HOSTCENSUS_SNMP_AUTH_KEY)",
                 show_default=False,
             )
         },
@@ -291,10 +301,12 @@ class ScanOptions:
     snmp_priv_protocol: PrivProtocol = field(
         default="AES",
         metadata={
-            "cli": typer.Option("AES", "--snmp-priv-protocol", envvar="NETPROBE_SNMP_PRIV_PROTOCOL")
+            "cli": typer.Option(
+                "AES", "--snmp-priv-protocol", envvar="HOSTCENSUS_SNMP_PRIV_PROTOCOL"
+            )
         },
     )
-    # Read from NETPROBE_SNMP_PRIV_KEY only. The option stays defined, hidden, so a value
+    # Read from HOSTCENSUS_SNMP_PRIV_KEY only. The option stays defined, hidden, so a value
     # given on the command line is refused with a pointer to the replacement.
     snmp_priv_key: str | None = field(
         default=None,
@@ -302,7 +314,7 @@ class ScanOptions:
             "cli": typer.Option(
                 None,
                 "--snmp-priv-key",
-                envvar="NETPROBE_SNMP_PRIV_KEY",
+                envvar="HOSTCENSUS_SNMP_PRIV_KEY",
                 hidden=True,
                 show_default=False,
             )
@@ -314,8 +326,8 @@ class ScanOptions:
             "cli": typer.Option(
                 None,
                 "--snmp-priv-key-file",
-                envvar="NETPROBE_SNMP_PRIV_KEY_FILE",
-                help="File holding the SNMPv3 privacy passphrase (or set NETPROBE_SNMP_PRIV_KEY)",
+                envvar="HOSTCENSUS_SNMP_PRIV_KEY_FILE",
+                help="File holding the SNMPv3 privacy passphrase (or set HOSTCENSUS_SNMP_PRIV_KEY)",
                 show_default=False,
             )
         },
@@ -324,7 +336,9 @@ class ScanOptions:
         default=None,
         metadata={
             "cli": typer.Option(
-                None, "--save-snapshot", help="Also write a versioned snapshot for `netprobe diff`"
+                None,
+                "--save-snapshot",
+                help="Also write a versioned snapshot for `hostcensus diff`",
             )
         },
     )
@@ -352,7 +366,7 @@ class ScanOptions:
             "cli": typer.Option(
                 None,
                 "--tls-ca-file",
-                envvar="NETPROBE_TLS_CA_FILE",
+                envvar="HOSTCENSUS_TLS_CA_FILE",
                 help="PEM bundle to verify HTTPS certificates against instead of the system store",
             )
         },
@@ -449,7 +463,7 @@ def load_secrets(ctx: typer.Context, options: ScanOptions) -> None:
     """Fill secret options from their files, refusing command-line values."""
     for name in SECRET_OPTIONS:
         flag = "--" + name.replace("_", "-")
-        env = f"NETPROBE_{name.upper()}"
+        env = f"HOSTCENSUS_{name.upper()}"
         if explicit_option(ctx, name):
             raise ValueError(
                 f"{flag} is no longer accepted because command-line values are visible in "
@@ -505,7 +519,9 @@ def build_plan(options: ScanOptions, explicit: set[str]) -> ScanPlan:
     scan and preflight both use this, so preflight checks what scan would run.
     """
     if options.profile is not None and options.config is None:
-        options.config = DEFAULT_PROFILE_CONFIG
+        options.config = default_path(
+            DEFAULT_PROFILE_CONFIG, DEFAULT_PROFILE_CONFIG, LEGACY_PROFILE_CONFIG
+        )
     overrides = {
         name: getattr(options, name) if name in explicit else None for name in PROFILE_OVERRIDES
     }
@@ -643,7 +659,7 @@ def record_history(
         observations.append(record)
     metadata = {
         "schema_version": 1,
-        "netprobe_version": NETPROBE_VERSION,
+        "hostcensus_version": HOSTCENSUS_VERSION,
         "profile": options.profile,
         "target": plan.network,
         "backend": plan.backend,
@@ -751,17 +767,17 @@ def export(
         min=0,
         help="Kadupul host template id (see add_device.php --list-host-templates)",
     ),
-    snmp_user: str | None = typer.Option(None, "--snmp-user", envvar="NETPROBE_SNMP_USER"),
+    snmp_user: str | None = typer.Option(None, "--snmp-user", envvar="HOSTCENSUS_SNMP_USER"),
     snmp_auth_protocol: AuthProtocol = typer.Option(
-        "SHA", "--snmp-auth-protocol", envvar="NETPROBE_SNMP_AUTH_PROTOCOL"
+        "SHA", "--snmp-auth-protocol", envvar="HOSTCENSUS_SNMP_AUTH_PROTOCOL"
     ),
     snmp_priv_protocol: PrivProtocol = typer.Option(
-        "AES", "--snmp-priv-protocol", envvar="NETPROBE_SNMP_PRIV_PROTOCOL"
+        "AES", "--snmp-priv-protocol", envvar="HOSTCENSUS_SNMP_PRIV_PROTOCOL"
     ),
     include_credentials: bool = typer.Option(
         False,
         "--include-credentials",
-        help="Write SNMP secrets from NETPROBE_SNMP_* into the script instead of env references",
+        help="Write SNMP secrets from HOSTCENSUS_SNMP_* into the script instead of env references",
     ),
     allow_partial: bool = typer.Option(
         False,
@@ -783,9 +799,9 @@ def export(
             auth_protocol=snmp_auth_protocol,
             priv_protocol=snmp_priv_protocol,
             # Secrets only ever come from the environment here, never argv.
-            community=os.environ.get("NETPROBE_SNMP_COMMUNITY") if include_credentials else None,
-            auth_key=os.environ.get("NETPROBE_SNMP_AUTH_KEY") if include_credentials else None,
-            priv_key=os.environ.get("NETPROBE_SNMP_PRIV_KEY") if include_credentials else None,
+            community=get_env("SNMP_COMMUNITY") if include_credentials else None,
+            auth_key=get_env("SNMP_AUTH_KEY") if include_credentials else None,
+            priv_key=get_env("SNMP_PRIV_KEY") if include_credentials else None,
             include_credentials=include_credentials,
         )
         script = kadupul_script(inventory.devices, opts, str(source), complete=inventory.complete)
@@ -863,13 +879,14 @@ def diff(
 
 @app.command(name="history")
 def history_command(
-    history_path: Path = typer.Option(Path("netprobe-history.sqlite3"), "--history"),
+    history_path: Path = typer.Option(DEFAULT_HISTORY, "--history"),
     limit: int = typer.Option(20, min=1, max=1000),
 ) -> None:
     """List saved inventory IDs and summaries, newest first; never creates a database."""
+    history_path = default_path(history_path, DEFAULT_HISTORY, LEGACY_HISTORY)
     try:
         summaries = HistoryStore(history_path).list_summaries(limit)
-        listing = {"format": "netprobe-history", "version": 1, "scans": summaries}
+        listing = {"format": "hostcensus-history", "version": 1, "scans": summaries}
         typer.echo(json.dumps(listing, indent=2))
     except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as exc:
         typer.echo(f"History failed: {exc}", err=True)
@@ -880,10 +897,11 @@ def history_command(
 def history_compare(
     before: int = typer.Argument(..., min=1, help="Earlier scan ID"),
     after: int = typer.Argument(..., min=1, help="Later scan ID"),
-    history_path: Path = typer.Option(Path("netprobe-history.sqlite3"), "--history"),
+    history_path: Path = typer.Option(DEFAULT_HISTORY, "--history"),
     output: Path | None = typer.Option(None, "--output", "-o", help="Write comparison JSON"),
 ) -> None:
     """Compare equal-scope snapshots without scanning or claiming failed hosts disappeared."""
+    history_path = default_path(history_path, DEFAULT_HISTORY, LEGACY_HISTORY)
     try:
         store = HistoryStore(history_path)
         report = compare_scans(store.get(before), store.get(after))
@@ -891,7 +909,7 @@ def history_compare(
         if output is not None:
             if paths_overlap(output, history_path):
                 raise ValueError("Comparison output must not overwrite history")
-            from netprobe.history import check_writable_path
+            from hostcensus.history import check_writable_path
 
             check_writable_path(output)
             write_text(output, rendered + "\n")
@@ -905,7 +923,7 @@ def history_compare(
 @app.command()
 def version() -> None:
     """Show version information."""
-    rprint(f"[bold cyan]netprobe[/bold cyan] [green]v{NETPROBE_VERSION}[/green]")
+    rprint(f"[bold cyan]hostcensus[/bold cyan] [green]v{HOSTCENSUS_VERSION}[/green]")
     rprint("Modern network scanner built with Python 3.12+")
 
 
@@ -913,6 +931,7 @@ def version() -> None:
 def profiles(config: Path = typer.Option(DEFAULT_PROFILE_CONFIG, "--config")) -> None:
     """List validated named profiles without target traffic."""
     try:
+        config = default_path(config, DEFAULT_PROFILE_CONFIG, LEGACY_PROFILE_CONFIG)
         entries = load_profiles(config)
         for profile in entries.values():
             select_services(load_services(config), profile.services, profile.ports)
@@ -940,7 +959,7 @@ def preflight(
     output: Path | None = typer.Option(None, "--output", "-o"),
     save_snapshot: Path | None = typer.Option(None, "--save-snapshot"),
     history: Path | None = typer.Option(None, "--history"),
-    tls_ca_file: Path | None = typer.Option(None, "--tls-ca-file", envvar="NETPROBE_TLS_CA_FILE"),
+    tls_ca_file: Path | None = typer.Option(None, "--tls-ca-file", envvar="HOSTCENSUS_TLS_CA_FILE"),
 ) -> None:
     """Check target limits, backend availability and destinations without scanning."""
     options = ScanOptions(

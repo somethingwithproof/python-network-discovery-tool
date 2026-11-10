@@ -25,21 +25,21 @@ privately, fixed on main, and documented in the changelog or a security advisory
 
 ## Authorized use
 
-netprobe sends TCP connections, HTTP and TLS requests, SNMP requests and, with
+hostcensus sends TCP connections, HTTP and TLS requests, SNMP requests and, with
 `--backend nmap`, nmap host discovery to every address in its target. Run it only
 against networks you administer or have written permission to test, and keep
 that permission's scope in a profile so repeated scans stay inside it:
 
 - Put the agreed range in a named profile and its exclusions in `exclusions`;
   `--exclude` on the command line can only add to them.
-- Run `netprobe preflight` first. It checks the plan locally and sends nothing.
+- Run `hostcensus preflight` first. It checks the plan locally and sends nothing.
 - Keep `--max-hosts`, `--concurrency` and `--deadline` as small as the job allows,
   and agree the scan window with whoever operates the network. Probes are
   ordinary connections, but intrusion detection may still report them.
 - Do not use SNMP credentials outside the systems they were issued for.
 
 Probe deadlines, host/service caps, the scan deadline and preflight checks bound
-the work netprobe does; they do not grant authorization.
+the work hostcensus does; they do not grant authorization.
 
 ## Scanner boundaries
 

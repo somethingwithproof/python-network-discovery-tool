@@ -3,14 +3,14 @@
 
 import pytest
 
-from netprobe.config import (
+from hostcensus.config import (
     CONNECT_TIMEOUT,
     DEFAULT_SERVICES,
     ConfigError,
     load_services,
     select_services,
 )
-from netprobe.probes import PROBES
+from hostcensus.probes import PROBES
 
 
 def test_defaults_cover_the_documented_services():
@@ -29,7 +29,7 @@ def test_defaults_cover_the_documented_services():
 
 
 def write(tmp_path, text):
-    path = tmp_path / "netprobe.toml"
+    path = tmp_path / "hostcensus.toml"
     path.write_text(text)
     return path
 

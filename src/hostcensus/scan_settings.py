@@ -14,7 +14,7 @@ from typing import Any
 
 # The one place the installed version is read; reports, snapshots, history
 # and generated scripts all record it.
-NETPROBE_VERSION = _package_version("netprobe")
+HOSTCENSUS_VERSION = _package_version("hostcensus")
 
 
 def host_sort_key(value: str) -> tuple[int, int, str]:

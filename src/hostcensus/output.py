@@ -22,8 +22,8 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
-from netprobe.models import LEGACY_FLAGS, Device, ServiceSpec
-from netprobe.scan_settings import NETPROBE_VERSION
+from hostcensus.models import LEGACY_FLAGS, Device, ServiceSpec
+from hostcensus.scan_settings import HOSTCENSUS_VERSION
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -86,10 +86,13 @@ def _csv_field(value: object) -> object:
 
 
 # `scan -o report.json` and `--format json` on stdout. Every device scanned.
-REPORT_FORMAT = "netprobe-report"
+REPORT_FORMAT = "hostcensus-report"
 REPORT_VERSION = 1
 # `--save-snapshot`. Only hosts that answered or had a probe fail.
-SNAPSHOT_FORMAT = "netprobe-snapshot"
+SNAPSHOT_FORMAT = "hostcensus-snapshot"
+# Markers written before the project was renamed; still accepted when loading.
+LEGACY_REPORT_FORMAT = "netprobe-report"
+LEGACY_SNAPSHOT_FORMAT = "netprobe-snapshot"
 SNAPSHOT_VERSION = 1
 
 
@@ -106,13 +109,13 @@ def scan_document(
 ) -> dict[str, Any]:
     """The versioned JSON envelope shared by reports and snapshots.
 
-    The schemas in netprobe/schemas describe it; a change that removes or
+    The schemas in hostcensus/schemas describe it; a change that removes or
     renames a field needs a new version.
     """
     document: dict[str, Any] = {
         "format": format_name,
         "version": version,
-        "netprobe_version": NETPROBE_VERSION,
+        "hostcensus_version": HOSTCENSUS_VERSION,
         "created": datetime.now(UTC).isoformat(timespec="seconds"),
         "target": network,
         # False when the scan stopped at its deadline: devices then lists only

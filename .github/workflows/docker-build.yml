@@ -36,31 +36,31 @@ jobs:
         context: .
         push: false
         load: true
-        tags: network-discovery:test
+        tags: hostcensus:test
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
     - name: Test Docker image
       run: |
-        docker run --rm network-discovery:test --help
+        docker run --rm hostcensus:test --help
 
     - name: Validate the installed container package
       run: |
-        docker run --rm --entrypoint python network-discovery:test -c "from netprobe.cli import app; from netprobe.scanner import NetworkScanner; import defusedxml.ElementTree, shutil; assert shutil.which('nmap'); print('installed package, XML parser and nmap available')"
+        docker run --rm --entrypoint python hostcensus:test -c "from hostcensus.cli import app; from hostcensus.scanner import NetworkScanner; import defusedxml.ElementTree, shutil; assert shutil.which('nmap'); print('installed package, XML parser and nmap available')"
 
     - name: Check the runtime hardening
       run: |
-        test "$(docker image inspect --format '{{.Config.User}}' network-discovery:test)" = "10001:10001"
-        docker run --rm --entrypoint python network-discovery:test -c "import importlib.util as u, os, shutil; assert os.getuid() == 10001; assert u.find_spec('pip') is None; assert shutil.which('pip') is None; print('non-root, no pip')"
+        test "$(docker image inspect --format '{{.Config.User}}' hostcensus:test)" = "10001:10001"
+        docker run --rm --entrypoint python hostcensus:test -c "import importlib.util as u, os, shutil; assert os.getuid() == 10001; assert u.find_spec('pip') is None; assert shutil.which('pip') is None; print('non-root, no pip')"
         # A read-only root filesystem must be enough for a scan of loopback.
         docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
-          --tmpfs /tmp --entrypoint sh network-discovery:test -c \
-          'netprobe scan 127.0.0.1 --services ssh -q -o /tmp/report.json && python -c "import json; json.load(open(\"/tmp/report.json\"))"'
+          --tmpfs /tmp --entrypoint sh hostcensus:test -c \
+          'hostcensus scan 127.0.0.1 --services ssh -q -o /tmp/report.json && python -c "import json; json.load(open(\"/tmp/report.json\"))"'
 
     - name: Scan the image for fixable HIGH and CRITICAL vulnerabilities
       uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
       with:
-        image-ref: network-discovery:test
+        image-ref: hostcensus:test
         version: v0.76.2
         scanners: vuln
         severity: HIGH,CRITICAL

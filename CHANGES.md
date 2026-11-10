@@ -21,6 +21,12 @@ changed: host liveness, the default service set, exit code 1, the Python API
 of `NetworkScanner`, and python-nmap is no longer installed by default.
 
 ##### Breaking changes
+- The project is renamed from netprobe to hostcensus: the distribution, the
+  `hostcensus` import package and command, and `HOSTCENSUS_*` environment
+  variables. `import netprobe` and `python -m netprobe` stop working. The
+  `netprobe` command and `NETPROBE_*` variables remain as deprecated aliases
+  until the next major release, and old reports, snapshots, history databases and
+  default file names still load. See "Migrating from netprobe" in the README.
 - Probes use asyncio sockets instead of nmap. A host is alive when any probe
   is answered (a refused connection counts); hosts that drop every probe are
   now reported down where nmap's ICMP ping may have found them. Use

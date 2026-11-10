@@ -15,8 +15,10 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
-from netprobe.models import Device, ServiceSpec
-from netprobe.output import (
+from hostcensus.models import Device, ServiceSpec
+from hostcensus.output import (
+    LEGACY_REPORT_FORMAT,
+    LEGACY_SNAPSHOT_FORMAT,
     REPORT_FORMAT,
     REPORT_VERSION,
     SNAPSHOT_FORMAT,
@@ -24,8 +26,8 @@ from netprobe.output import (
     scan_document,
     write_text,
 )
-from netprobe.probes import clean
-from netprobe.scan_settings import (
+from hostcensus.probes import clean
+from hostcensus.scan_settings import (
     UNKNOWN,
     PortTransition,
     RecordedSettings,
@@ -34,12 +36,17 @@ from netprobe.scan_settings import (
     port_transition,
     setting_warnings,
 )
-from netprobe.scanner import stored_target
+from hostcensus.scanner import stored_target
 
-DIFF_FORMAT = "netprobe-diff"
+DIFF_FORMAT = "hostcensus-diff"
 DIFF_VERSION = 1
 # Both carry the same envelope; a report also lists hosts that were down.
-INVENTORY_FORMATS = {REPORT_FORMAT: REPORT_VERSION, SNAPSHOT_FORMAT: SNAPSHOT_VERSION}
+INVENTORY_FORMATS = {
+    REPORT_FORMAT: REPORT_VERSION,
+    SNAPSHOT_FORMAT: SNAPSHOT_VERSION,
+    LEGACY_REPORT_FORMAT: REPORT_VERSION,
+    LEGACY_SNAPSHOT_FORMAT: SNAPSHOT_VERSION,
+}
 
 # Ports a pre-2.1 report could only express as booleans.
 LEGACY_PORTS = {"ssh": (22, "tcp"), "snmp": (161, "udp"), "mysql": (3306, "tcp")}
@@ -196,7 +203,7 @@ def _snapshot_parts(path: Path, document: dict[str, Any]) -> dict[str, Any]:
     if document.get("version") != supported:
         raise SnapshotError(
             f"{path}: {document['format']} version {document.get('version')!r} is not "
-            f"supported (this netprobe reads version {supported})"
+            f"supported (this hostcensus reads version {supported})"
         )
     timeout, backend = _recorded_settings(document)
     return {
@@ -241,7 +248,7 @@ def load_inventory(path: Path, *, allow_partial: bool = False) -> Inventory:
         elif isinstance(document, dict) and document.get("format") in INVENTORY_FORMATS:
             parts = _snapshot_parts(path, document)
         else:
-            raise SnapshotError(f"{path}: not a netprobe snapshot or JSON report")
+            raise SnapshotError(f"{path}: not a hostcensus snapshot or JSON report")
         alive, hosts, uncertain, listed = _partition(parts["devices"])
     except SnapshotError:
         raise

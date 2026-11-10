@@ -53,5 +53,7 @@ devices.json
 .env.*
 .codex/
 .agents/
+hostcensus.toml
+hostcensus-history.sqlite3*
 netprobe.toml
 netprobe-history.sqlite3*

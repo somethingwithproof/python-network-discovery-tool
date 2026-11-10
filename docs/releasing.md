@@ -5,25 +5,25 @@ SPDX-License-Identifier: MIT
 
 # Versioning and releases
 
-netprobe follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The
+hostcensus follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The
 version in `pyproject.toml` is the single source of truth; `uv.lock` records the same
-package version. `netprobe version` reads installed package metadata.
+package version. `hostcensus version` reads installed package metadata.
 
 ## Public compatibility contract
 
 These are public, and a release that changes them incompatibly is a **major**
 version:
 
-- **Commands and options**: the `netprobe` subcommands, their arguments, option
+- **Commands and options**: the `hostcensus` subcommands, their arguments, option
   names, accepted values, defaults and environment variables.
 - **Exit codes**: the meaning of each status in the README's exit-code table.
 - **JSON documents**: every document described in [JSON output](json-output.md)
-  and its schema in `src/netprobe/schemas`. Removing or renaming a field, changing
+  and its schema in `src/hostcensus/schemas`. Removing or renaming a field, changing
   its type or meaning, or tightening what a schema accepts needs a new document
   `version` and a major release. Adding an optional field is a minor change.
-- **Stored data**: snapshot and SQLite history formats netprobe must still read.
+- **Stored data**: snapshot and SQLite history formats hostcensus must still read.
 - **Runtime support**: the supported Python versions (3.12–3.14) and the Python
-  API exported in `netprobe.__all__`.
+  API exported in `hostcensus.__all__`.
 
 | Change | Bump | Example |
 | --- | --- | --- |
@@ -75,7 +75,7 @@ are `feat:` without `!`.
 
 1. After each push to `main`, `.github/workflows/release-please.yml` opens or
    updates one release PR titled `chore(main): release X.Y.Z`. It bumps
-   `pyproject.toml` and netprobe's entry in `uv.lock`, adds a dated section at the
+   `pyproject.toml` and hostcensus's entry in `uv.lock`, adds a dated section at the
    top of `CHANGES.md`, and updates `.release-please-manifest.json`. Edit the
    release by adding commits to `main`, not to the release PR, which is rewritten.
 2. A maintainer reviews the release PR like any other: the version, the
@@ -173,7 +173,7 @@ attestation failure blocks draft creation; it is not silently ignored.
 When attestations were generated:
 
 ```bash
-gh attestation verify netprobe-3.1.0-py3-none-any.whl \
+gh attestation verify hostcensus-3.1.0-py3-none-any.whl \
   -R somethingwithproof/python-network-discovery-tool
 ```
 
@@ -185,14 +185,10 @@ and attached files cannot refer to different builds.
 
 PyPI publishing is **disabled by default**. Before enabling it:
 
-1. Choose the PyPI distribution name. `netprobe` is already registered on PyPI
-   by an unrelated project, so the distribution must be renamed before
-   publishing. The name appears in `pyproject.toml` (`name`), the environment URL
-   in `publish.yml`, `release-please-config.json` (`package-name` and the
-   `uv.lock` jsonpath), and the lockfile, distribution filename and
-   metadata checks in `scripts/release.py` and its tests. Change them in one pull request, run
-   `uv lock`, and confirm `scripts/release.py check` and the Release workflow pass
-   before enabling publishing. The import package and command can stay `netprobe`.
+1. Register the PyPI project `hostcensus` (the distribution name in
+   `pyproject.toml`, the environment URL in `publish.yml`, and the checks in
+   `scripts/release.py`). The name `netprobe` belongs to an unrelated PyPI
+   project and is not used.
 2. Configure a [PyPI trusted publisher](https://docs.pypi.org/trusted-publishers/using-a-publisher/)
    for owner `somethingwithproof`, repository `python-network-discovery-tool`,
    workflow `publish.yml`, and environment `pypi`.

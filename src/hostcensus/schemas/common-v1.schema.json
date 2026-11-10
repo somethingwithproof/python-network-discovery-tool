@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/somethingwithproof/python-network-discovery-tool/schemas/common-v1.schema.json",
-  "title": "Definitions shared by netprobe JSON documents",
+  "title": "Definitions shared by hostcensus JSON documents",
   "$defs": {
     "port": {
       "type": "integer",
@@ -141,16 +141,31 @@
       "required": [
         "format",
         "version",
-        "netprobe_version",
         "created",
         "target",
         "complete",
         "services",
         "devices"
       ],
+      "anyOf": [
+        {
+          "required": [
+            "hostcensus_version"
+          ]
+        },
+        {
+          "required": [
+            "netprobe_version"
+          ]
+        }
+      ],
       "properties": {
-        "netprobe_version": {
+        "hostcensus_version": {
           "type": "string"
+        },
+        "netprobe_version": {
+          "type": "string",
+          "description": "Written instead of hostcensus_version by releases from before the project was renamed."
         },
         "created": {
           "type": "string",
