@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/somethingwithproof/python-network-discovery-tool/schemas/diff-v1.schema.json",
   "title": "netprobe diff, version 1",
-  "description": "Written by `diff -f json`. `changed` is true when any list other than `warnings` is non-empty; `diff` then exits 3.",
+  "description": "Written by `diff -f json`. `changed` is true when any list other than `warnings` is non-empty or `partial` is true; `diff` then exits 3.",
   "type": "object",
   "required": [
     "format",
@@ -67,7 +67,7 @@
     },
     "unsettled_hosts": {
       "type": "array",
-      "description": "Hosts whose probes all failed without an answer in at least one scan. `absent` means the scan did not list the host.",
+      "description": "Hosts not observed in at least one scan: all probes failed (`uncertain`) or an incomplete scan never reached them (`unscanned`). `absent` means a complete scan did not list the host.",
       "items": {
         "type": "object",
         "required": [
@@ -83,14 +83,16 @@
             "enum": [
               "up",
               "uncertain",
-              "absent"
+              "absent",
+              "unscanned"
             ]
           },
           "after": {
             "enum": [
               "up",
               "uncertain",
-              "absent"
+              "absent",
+              "unscanned"
             ]
           }
         }
@@ -143,6 +145,10 @@
       "items": {
         "type": "string"
       }
+    },
+    "partial": {
+      "type": "boolean",
+      "description": "True when `--allow-partial` let an incomplete scan through; hosts it did not list are `unscanned`. Optional so diffs written before this field still validate; this netprobe always writes it."
     }
   },
   "$defs": {

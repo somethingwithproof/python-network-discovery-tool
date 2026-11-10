@@ -101,8 +101,8 @@ add --description=netprobe-it-web-1.netprobe-it_lab --ip=172.30.57.13 --template
 | `profiles` | validated profiles listed | — | unreadable/invalid configuration or selection | — | — |
 | `history` | summaries listed | missing, invalid, or unsupported history | invalid CLI options | — | — |
 | `compare` | comparison produced, including when changes exist | unreadable history, incompatible scope/order, or write failure | invalid CLI options | — | — |
-| `diff` | no changes | `-o` file could not be written | missing, unreadable or unsupported input | changes found or unconfirmed observations | — |
-| `export` | script written | script could not be written | unreadable input, or data that cannot be exported safely | — | — |
+| `diff` | no changes | `-o` file could not be written | missing, unreadable or unsupported input, or an incomplete scan without `--allow-partial` | changes found, unconfirmed observations, or an incomplete scan | — |
+| `export` | script written | script could not be written | unreadable input, an incomplete scan without `--allow-partial`, or data that cannot be exported safely | — | — |
 
 ## Layout
 
@@ -305,7 +305,9 @@ A snapshot is JSON with `format: "netprobe-snapshot"`, `version: 1`, the netprob
 
 `diff` reports new and vanished hosts, ports that opened or closed on hosts present in both, and services whose `version` changed. Ports that were probed in only one of the two scans are not compared, and a warning says so. Failed observations never read as "no change": a port that is `unknown` in either scan and not open in the later one is listed under `unconfirmed`, not `closed`, with `before` of `open`, `unknown` or `not-open` (probed and closed or filtered) and `after` of `unknown` or `not-open`; a port that is open now is reported under `opened` even if the earlier probe failed. A host whose probes all failed without an answer in either scan is listed under `unsettled_hosts` (with `before`/`after` of `up`, `uncertain` or `absent`, including when it failed in both scans or is missing from the other file) instead of `vanished_hosts`; if it answers in the later scan it is also reported as a new host with its open ports. Snapshots keep those failed hosts for this reason. A warning also appears when the targets differ, and when both files recorded a timeout or backend and those values differ. `-o PATH` writes the JSON form to a file as well.
 
-`diff` exit codes: `0` no changes, `3` changes found or observations that could not be confirmed (`changed` is true whenever any list, including `unsettled_hosts` and `unconfirmed`, is non-empty), `2` a file is missing, unreadable or not a supported snapshot, `1` the `-o` file could not be written.
+A report from a scan stopped by `--deadline` (`"complete": false`) lists only the hosts it reached, so `diff` and `export` refuse it with exit code 2. `--allow-partial` accepts it with a warning on stderr: `diff` then lists hosts the incomplete scan did not list at all under `unsettled_hosts` as `unscanned` instead of vanished (a host it listed as down is still vanished), sets `partial` to true and never reports no change, and `export` writes a warning into the script header.
+
+`diff` exit codes: `0` no changes, `3` changes found, observations that could not be confirmed, or an incomplete input (`changed` is true whenever any list, including `unsettled_hosts` and `unconfirmed`, is non-empty, or `partial` is true), `2` a file is missing, unreadable, not a supported snapshot, or incomplete without `--allow-partial`, `1` the `-o` file could not be written.
 
 ## Kadupul export
 
@@ -329,7 +331,7 @@ Each alive host becomes `php "$KADUPUL_ROOT/cli/add_device.php" --description=..
 
 Every value is validated and shell-quoted with `shlex.quote`. By default no SNMP secret is written: the script expands `NETPROBE_SNMP_COMMUNITY`, `NETPROBE_SNMP_AUTH_KEY` or `NETPROBE_SNMP_PRIV_KEY` at run time and stops if one is unset. `--include-credentials` writes the values from those environment variables into the script instead, creates it with mode 0600, and logs a warning. `add_device.php` itself prints the community and receives secrets as arguments, which are visible in the Kadupul server's process list while each call runs.
 
-`add_device.php` exits 1 for duplicates and errors; the script continues, counts failures, and exits 1 if any device was not added. Template ids come from `php cli/add_device.php --list-host-templates`. `export` exit codes: `0` written, `2` unreadable input or data that cannot be exported safely, `1` the script could not be written.
+`add_device.php` exits 1 for duplicates and errors; the script continues, counts failures, and exits 1 if any device was not added. Template ids come from `php cli/add_device.php --list-host-templates`. `export` exit codes: `0` written, `2` unreadable input, an incomplete scan without `--allow-partial`, or data that cannot be exported safely, `1` the script could not be written.
 
 ## Versioning and release process
 
