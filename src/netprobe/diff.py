@@ -5,12 +5,10 @@
 
 from __future__ import annotations
 
-import ipaddress
 import json
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
-from importlib.metadata import version as package_version
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +18,13 @@ from rich.table import Table
 
 from netprobe.models import Device, ServiceSpec
 from netprobe.output import write_text
-from netprobe.scan_settings import effective_timeouts, timeout_warnings
+from netprobe.scan_settings import (
+    NETPROBE_VERSION,
+    RecordedSettings,
+    effective_timeouts,
+    host_sort_key,
+    setting_warnings,
+)
 
 SNAPSHOT_FORMAT = "netprobe-snapshot"
 SNAPSHOT_VERSION = 1
@@ -54,7 +58,7 @@ def write_snapshot(
     document: dict[str, Any] = {
         "format": SNAPSHOT_FORMAT,
         "version": SNAPSHOT_VERSION,
-        "netprobe_version": package_version("netprobe"),
+        "netprobe_version": NETPROBE_VERSION,
         "created": datetime.now(UTC).isoformat(timespec="seconds"),
         "target": network,
         "services": [
@@ -106,9 +110,21 @@ class Inventory:
     backend: str | None = None
     service_timeouts: dict[str, float] = field(default_factory=dict)
 
+    @property
+    def settings(self) -> RecordedSettings:
+        return RecordedSettings(self.target, self.timeout, self.backend, self.service_timeouts)
+
 
 def _uncertain(device: Device) -> bool:
     return any(s.state == "unknown" for s in device.services)
+
+
+def _endpoint(service: dict[str, Any]) -> Port:
+    """A stored service's (port, protocol), rejecting values no scan produces."""
+    port, protocol = service["port"], service["protocol"]
+    if type(port) is not int or not 1 <= port <= 65535 or protocol not in ("tcp", "udp"):
+        raise ValueError(f"invalid service endpoint {port!r}/{protocol!r}")
+    return port, protocol
 
 
 def _host(entry: Any) -> Host:
@@ -124,15 +140,11 @@ def _host(entry: Any) -> Host:
         return Host(entry["ip"], str(entry.get("hostname", "")), legacy)
     listed = [s for s in services if isinstance(s, dict)]
     found = {
-        (int(s["port"]), str(s["protocol"]), str(s["name"])): str(s.get("version", ""))
+        (*_endpoint(s), str(s["name"])): str(s.get("version", ""))
         for s in listed
         if s.get("state") == "open"
     }
-    unknown = {
-        (int(s["port"]), str(s["protocol"])): str(s["name"])
-        for s in listed
-        if s.get("state") == "unknown"
-    }
+    unknown = {_endpoint(s): str(s["name"]) for s in listed if s.get("state") == "unknown"}
     return Host(entry["ip"], str(entry.get("hostname", "")), found, unknown)
 
 
@@ -173,7 +185,7 @@ def _snapshot_parts(path: Path, document: dict[str, Any]) -> dict[str, Any]:
     timeout, backend = _recorded_settings(document)
     return {
         "devices": document["devices"],
-        "probed": {(int(s["port"]), str(s["protocol"])) for s in document["services"]},
+        "probed": {_endpoint(s) for s in document["services"]},
         "created": str(document.get("created", "")),
         "target": str(document.get("target", "")),
         "timeout": timeout,
@@ -278,15 +290,6 @@ class Diff:
         return {"changed": self.changed, **asdict(self)}
 
 
-def _ip_key(ip: str) -> tuple[int, int, str]:
-    """IPv4 numerically, then IPv6, then hostnames alphabetically."""
-    try:
-        address = ipaddress.ip_address(ip)
-    except ValueError:
-        return (99, 0, ip)
-    return (address.version, int(address), "")
-
-
 def _summary(host: Host) -> dict[str, Any]:
     return {
         "ip": host.ip,
@@ -296,18 +299,6 @@ def _summary(host: Host) -> dict[str, Any]:
             for (port, proto, name), version in sorted(host.open.items())
         ],
     }
-
-
-def _setting_warnings(old: Inventory, new: Inventory) -> list[str]:
-    warnings = []
-    if old.target and new.target and old.target != new.target:
-        warnings.append(f"targets differ: {old.target} vs {new.target}")
-    if old.timeout is not None and new.timeout is not None and old.timeout != new.timeout:
-        warnings.append(f"timeouts differ: {old.timeout} vs {new.timeout}")
-    if old.backend is not None and new.backend is not None and old.backend != new.backend:
-        warnings.append(f"backends differ: {old.backend} vs {new.backend}")
-    warnings.extend(timeout_warnings(old.service_timeouts, new.service_timeouts))
-    return warnings
 
 
 def compare(old: Inventory, new: Inventory) -> Diff:
@@ -320,7 +311,7 @@ def compare(old: Inventory, new: Inventory) -> Diff:
         old={"source": old.label, "created": old.created, "target": old.target},
         new={"source": new.label, "created": new.created, "target": new.target},
     )
-    diff.warnings.extend(_setting_warnings(old, new))
+    diff.warnings.extend(setting_warnings(old.settings, new.settings))
     comparable: set[Port] | None = None
     if old.probed is not None and new.probed is not None:
         comparable = old.probed & new.probed
@@ -334,12 +325,12 @@ def compare(old: Inventory, new: Inventory) -> Diff:
     # A host now answering is reported with its open ports even when the
     # earlier scan could not observe it; only the reverse is held back,
     # because failed probes do not show that a host went away.
-    appeared = sorted(new.hosts.keys() - old.hosts.keys(), key=_ip_key)
+    appeared = sorted(new.hosts.keys() - old.hosts.keys(), key=host_sort_key)
     diff.new_hosts.extend(_summary(new.hosts[ip]) for ip in appeared)
     diff.unsettled_hosts.extend(
         {"ip": ip, "before": "uncertain", "after": "up"} for ip in appeared if ip in old.uncertain
     )
-    for ip in sorted(old.hosts.keys() - new.hosts.keys(), key=_ip_key):
+    for ip in sorted(old.hosts.keys() - new.hosts.keys(), key=host_sort_key):
         if ip in new.uncertain:
             diff.unsettled_hosts.append({"ip": ip, "before": "up", "after": "uncertain"})
         else:
@@ -348,10 +339,10 @@ def compare(old: Inventory, new: Inventory) -> Diff:
     # needs attention rather than a "no changes" result.
     diff.unsettled_hosts.extend(
         {"ip": ip, "before": "uncertain", "after": "uncertain"}
-        for ip in sorted(old.uncertain & new.uncertain, key=_ip_key)
+        for ip in sorted(old.uncertain & new.uncertain, key=host_sort_key)
     )
 
-    for ip in sorted(old.hosts.keys() & new.hosts.keys(), key=_ip_key):
+    for ip in sorted(old.hosts.keys() & new.hosts.keys(), key=host_sort_key):
         compare_host_ports(diff, ip, old.hosts[ip], new.hosts[ip], comparable)
 
     return diff

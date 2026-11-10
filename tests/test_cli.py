@@ -332,3 +332,9 @@ def test_importing_netprobe_leaves_root_logging_alone():
     code = "import logging, netprobe.cli; print(len(logging.getLogger().handlers))"
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
     assert out.stdout.strip() == "0"
+
+
+def test_version_flag_prints_the_installed_version():
+    result = runner.invoke(cli.app, ["--version"])
+    assert result.exit_code == 0
+    assert result.output == f"netprobe {version('netprobe')}\n"
