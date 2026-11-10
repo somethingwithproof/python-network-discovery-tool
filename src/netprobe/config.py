@@ -43,7 +43,7 @@ DEFAULT_SERVICES: tuple[ServiceSpec, ...] = (
 MAX_SERVICES = 64
 
 # Names end up in CSV cells and in exported shell scripts, so keep them plain.
-_NAME = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
+_NAME = re.compile(r"[a-z][a-z0-9_-]{0,31}")
 
 
 def _check_port(port: object, where: str) -> int:
@@ -53,7 +53,7 @@ def _check_port(port: object, where: str) -> int:
 
 
 def _check_name(name: str, where: str) -> str:
-    if not _NAME.match(name):
+    if not _NAME.fullmatch(name):
         raise ConfigError(f"{where}: invalid service name {name!r}")
     return name
 
