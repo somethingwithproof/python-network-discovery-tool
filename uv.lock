@@ -829,21 +829,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-dev = [
-    { name = "bandit" },
-    { name = "hatchling" },
-    { name = "installer" },
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "python-nmap" },
-    { name = "ruff" },
-    { name = "twine" },
-]
-fuzz = [
-    { name = "atheris", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
-]
 nmap = [
     { name = "python-nmap" },
 ]
@@ -854,27 +839,30 @@ build = [
     { name = "setuptools" },
     { name = "wheel" },
 ]
+dev = [
+    { name = "bandit" },
+    { name = "hatchling" },
+    { name = "installer" },
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "twine" },
+]
+fuzz = [
+    { name = "atheris", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+]
 
 [package.metadata]
 requires-dist = [
-    { name = "atheris", marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'fuzz'", specifier = ">=3.1.0" },
-    { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.8.0" },
     { name = "cryptography", specifier = ">=46.0.0" },
-    { name = "hatchling", marker = "extra == 'dev'", specifier = ">=1.33.0" },
-    { name = "installer", marker = "extra == 'dev'", specifier = ">=1.1.0" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=2.4.1" },
     { name = "pysnmp", specifier = ">=7.1.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.2.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.4.1" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=7.1.0" },
-    { name = "python-nmap", marker = "extra == 'dev'", specifier = ">=0.7.1" },
     { name = "python-nmap", marker = "extra == 'nmap'", specifier = ">=0.7.1" },
     { name = "rich", specifier = ">=15.0.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.17.3" },
-    { name = "twine", marker = "extra == 'dev'", specifier = ">=6.2.0" },
     { name = "typer", specifier = ">=0.25.1" },
 ]
-provides-extras = ["fuzz", "nmap", "dev"]
+provides-extras = ["nmap"]
 
 [package.metadata.requires-dev]
 build = [
@@ -882,6 +870,18 @@ build = [
     { name = "setuptools", specifier = ">=84.2.1" },
     { name = "wheel", specifier = ">=0.46.0" },
 ]
+dev = [
+    { name = "bandit", specifier = ">=1.8.0" },
+    { name = "hatchling", specifier = ">=1.33.0" },
+    { name = "installer", specifier = ">=1.1.0" },
+    { name = "mypy", specifier = ">=2.4.1" },
+    { name = "pytest", specifier = ">=9.2.0" },
+    { name = "pytest-asyncio", specifier = ">=1.4.1" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "ruff", specifier = ">=0.17.3" },
+    { name = "twine", specifier = ">=6.2.0" },
+]
+fuzz = [{ name = "atheris", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = ">=3.1.0" }]
 
 [[package]]
 name = "nh3"

@@ -344,14 +344,20 @@ plan and explicit opt-in. See the
 ## Development
 
 ```bash
-mise exec python@3.14 -- uv sync --locked --extra dev
-mise exec python@3.14 -- uv run ruff check .
-mise exec python@3.14 -- uv run ruff format --check .
-mise exec python@3.14 -- uv run mypy
-mise exec python@3.14 -- uv run pytest --cov=netprobe
-mise exec python@3.14 -- uv build --no-build-isolation
-mise exec python@3.14 -- uv run twine check --strict dist/*.whl dist/*.tar.gz
+uv sync --locked                 # runtime plus the default `dev` group
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy
+uv run pytest --cov=netprobe
+uv build --no-build-isolation
+uv run twine check --strict dist/*.whl dist/*.tar.gz
 ```
+
+Development tools live in [PEP 735](https://peps.python.org/pep-0735/) dependency
+groups in `pyproject.toml` (`dev`, `fuzz`, `build`), so they never appear in the
+published package metadata. `uv.lock` is the single lockfile; CI installs with
+`uv sync --locked` and fails when the lockfile is stale. Select the interpreter with
+`uv python`, mise (`mise exec python@3.14 -- uv sync --locked`), or any Python 3.12+.
 
 CI enforces a 90% package coverage floor. Unit tests include controlled loopback
 servers and offline profile/history/release-validator cases; the Compose lab runs

@@ -95,12 +95,18 @@ services:
       context: ../..
       dockerfile_inline: |
         FROM python:3.12-slim
+        COPY --from=ghcr.io/astral-sh/uv:0.12.23@sha256:61d393e44e249f2e4b526b6c7ddcecce245946826e608e11c93ad4f5bba55b21 /uv /usr/local/bin/uv
         RUN apt-get update && apt-get install -y --no-install-recommends nmap \
             && rm -rf /var/lib/apt/lists/*
         WORKDIR /src
-        COPY pyproject.toml README.md ./
+        COPY pyproject.toml uv.lock README.md ./
         COPY src ./src
-        RUN pip install --no-cache-dir ".[dev,nmap]"
+        # The source tree is mounted at /src, so the environment lives outside
+        # it. The installed copy supplies package metadata; PYTHONPATH below
+        # makes the mounted sources the code under test.
+        ENV UV_PROJECT_ENVIRONMENT=/opt/venv UV_PYTHON_DOWNLOADS=never
+        RUN uv sync --locked --extra nmap --no-editable
+        ENV PATH="/opt/venv/bin:$PATH"
     environment:
       PYTHONPATH: /src/src
       PYTHONDONTWRITEBYTECODE: "1"

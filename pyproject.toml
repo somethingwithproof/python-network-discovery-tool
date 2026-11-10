@@ -40,14 +40,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-fuzz = [
-    "atheris>=3.1.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
-]
 nmap = [
     "python-nmap>=0.7.1",
 ]
+
+# PEP 735 groups: development tooling never ships as package metadata.
+# `uv sync --locked` installs the default `dev` group.
+[dependency-groups]
 dev = [
-    "python-nmap>=0.7.1",
     "pytest>=9.2.0",
     "pytest-asyncio>=1.4.1",
     "pytest-cov>=7.1.0",
@@ -58,8 +58,9 @@ dev = [
     "bandit>=1.8.0",
     "twine>=6.2.0",
 ]
-
-[dependency-groups]
+fuzz = [
+    "atheris>=3.1.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
 build = ["hatchling>=1.33.0", "setuptools>=84.2.1", "wheel>=0.46.0"]
 
 [project.scripts]
@@ -115,6 +116,7 @@ python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 markers = [
     "integration: scans the docker compose lab (tests/integration/compose.yml)",
 ]

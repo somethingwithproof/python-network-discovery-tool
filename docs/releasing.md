@@ -59,11 +59,11 @@ Start from up-to-date `main` with a clean checkout:
 git switch main
 git pull --ff-only
 git switch -c release/3.1.0
-mise exec python@3.14 -- uv sync --locked --extra dev
+mise exec python@3.14 -- uv sync --locked
 mise exec python@3.14 -- python scripts/release.py prepare minor --dry-run
 mise exec python@3.14 -- python scripts/release.py prepare minor
 mise exec python@3.14 -- python scripts/release.py check
-mise exec python@3.14 -- uv sync --locked --extra dev
+mise exec python@3.14 -- uv sync --locked
 ```
 
 Replace `minor` with `major`, `patch`, or an explicit version such as
@@ -93,7 +93,7 @@ The workflow checks that the tag agrees with project and lockfile metadata, the
 notes are complete, Unreleased has no pending content, and the tagged commit is
 reachable from `main`. It then:
 
-1. Installs Python 3.14 and uv through `mise`, and installs locked development tools.
+1. Installs Python 3.14 and uv with `actions/setup-python` and `astral-sh/setup-uv`, and installs the locked `dev` group.
 2. Runs Ruff, formatting, strict mypy, and tests with the existing 90% coverage floor.
 3. Builds a wheel and source distribution once, using the installed locked build backend.
 4. Runs strict Twine metadata checks and validates both distributions against the version.
