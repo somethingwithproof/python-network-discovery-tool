@@ -517,3 +517,25 @@ async def test_reverse_dns_deadline_starts_after_a_lookup_slot_frees(monkeypatch
     )
 
     assert names == ["host.example"] * 3
+
+
+async def test_expired_lookup_keeps_its_slot_until_the_resolver_returns(monkeypatch):
+    import threading
+
+    monkeypatch.undo()
+    monkeypatch.setattr(scanner, "HOSTNAME_TIMEOUT", 0.1)
+    release = threading.Event()
+
+    def stuck(ip):
+        release.wait(5)
+        return ("late.example", [], [ip])
+
+    monkeypatch.setattr(socket, "gethostbyaddr", stuck)
+    one_slot = asyncio.Semaphore(1)
+
+    assert await scanner.resolve_hostname("10.0.0.1", one_slot) == ""
+    assert one_slot.locked()  # the resolver thread is still running
+    release.set()
+    async with asyncio.timeout(5):
+        while one_slot.locked():
+            await asyncio.sleep(0.01)

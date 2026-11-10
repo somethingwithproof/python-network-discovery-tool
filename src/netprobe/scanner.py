@@ -18,7 +18,7 @@ import logging
 import math
 import re
 import socket
-from collections.abc import Iterable
+from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import replace
 from typing import Any, Literal
 
@@ -216,6 +216,32 @@ def ensure_file_limit(concurrency: int) -> None:
         )
 
 
+async def _lookup[T](slots: asyncio.Semaphore | None, start: Callable[[], Awaitable[T]]) -> T:
+    """Run one resolver call in a lookup slot, giving up after HOSTNAME_TIMEOUT.
+
+    The deadline starts once a slot is free, so a long queue does not expire
+    lookups that never ran. The slot is freed when the resolver thread
+    finishes rather than when the caller stops waiting, so lookups that
+    outlive their deadline still count toward the limit.
+    """
+    slots = slots or asyncio.Semaphore(1)
+    await slots.acquire()
+    try:
+        lookup = asyncio.ensure_future(start())
+    except BaseException:
+        slots.release()
+        raise
+
+    def finished(done: asyncio.Future[T]) -> None:
+        slots.release()
+        if not done.cancelled():
+            done.exception()  # retrieved, so an abandoned failure is not logged
+
+    lookup.add_done_callback(finished)
+    async with asyncio.timeout(HOSTNAME_TIMEOUT):
+        return await asyncio.shield(lookup)
+
+
 async def resolve_hostname(ip: str, lookups: asyncio.Semaphore | None = None) -> str:
     """Reverse DNS name for ip, or "" when there is none or it is not a plain name.
 
@@ -223,10 +249,7 @@ async def resolve_hostname(ip: str, lookups: asyncio.Semaphore | None = None) ->
     anything but hostname characters is dropped rather than printed.
     """
     try:
-        # Contexts are entered left to right: the deadline starts once a lookup
-        # slot is free, so a long queue does not expire lookups that never ran.
-        async with lookups or contextlib.nullcontext(), asyncio.timeout(HOSTNAME_TIMEOUT):
-            name, _, _ = await asyncio.to_thread(socket.gethostbyaddr, ip)
+        name, _, _ = await _lookup(lookups, lambda: asyncio.to_thread(socket.gethostbyaddr, ip))
     except OSError as e:
         logger.debug(f"Could not resolve hostname for {ip}: {e}")
         return ""
@@ -247,8 +270,8 @@ async def resolve_address(
         return str(ipaddress.ip_address(target)), None
     except ValueError:
         pass
-    async with lookups or contextlib.nullcontext(), asyncio.timeout(HOSTNAME_TIMEOUT):
-        infos = await asyncio.get_running_loop().getaddrinfo(target, None, type=socket.SOCK_STREAM)
+    loop = asyncio.get_running_loop()
+    infos = await _lookup(lookups, lambda: loop.getaddrinfo(target, None, type=socket.SOCK_STREAM))
     if not infos:
         raise OSError(f"no address for {target}")
     return str(infos[0][4][0]), target
