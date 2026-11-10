@@ -608,7 +608,8 @@ def diff(
     Compare two snapshots: new and vanished hosts, opened and closed ports,
     changed service versions.
 
-    Exit status: 0 no changes, 3 changes found, 2 unreadable input, 1 write error.
+    Exit status: 0 no changes, 3 changes or unconfirmed observations, 2 unreadable
+    input, 1 write error.
     """
     try:
         result = compare(load_inventory(old), load_inventory(new))

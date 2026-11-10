@@ -8,7 +8,6 @@ from __future__ import annotations
 import ipaddress
 import json
 from collections import Counter
-from collections.abc import Set as AbstractSet
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from importlib.metadata import version as package_version
@@ -85,8 +84,9 @@ class Host:
     hostname: str
     # (port, protocol, name) -> version
     open: dict[OpenKey, str]
-    # Ports whose probe failed or timed out; their state is not known either way.
-    unknown: set[Port] = field(default_factory=set)
+    # Ports whose probe failed or timed out, with the service name; their
+    # state is not known either way.
+    unknown: dict[Port, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -115,7 +115,7 @@ def _host(entry: Any) -> Host:
     if not isinstance(entry, dict) or not isinstance(entry.get("ip"), str):
         raise SnapshotError("device entry without an ip")
     found: dict[OpenKey, str] = {}
-    unknown: set[Port] = set()
+    unknown: dict[Port, str] = {}
     services = entry.get("services")
     if isinstance(services, list):
         for s in services:
@@ -126,7 +126,7 @@ def _host(entry: Any) -> Host:
                     s.get("version", "")
                 )
             elif s.get("state") == "unknown":
-                unknown.add((int(s["port"]), str(s["protocol"])))
+                unknown[(int(s["port"]), str(s["protocol"]))] = str(s["name"])
     else:
         for name, (port, protocol) in LEGACY_PORTS.items():
             if entry.get(name) is True:
@@ -214,6 +214,18 @@ class Change:
 
 
 @dataclass
+class Unconfirmed:
+    """A port whose state is "unknown" in at least one scan and is not now open."""
+
+    ip: str
+    name: str
+    port: int
+    protocol: str
+    before: str
+    after: str
+
+
+@dataclass
 class Diff:
     old: dict[str, str]
     new: dict[str, str]
@@ -222,16 +234,27 @@ class Diff:
     opened: list[Change] = field(default_factory=list)
     closed: list[Change] = field(default_factory=list)
     version_changes: list[Change] = field(default_factory=list)
+    # Hosts answering in one scan whose probes all failed in the other.
+    unsettled_hosts: list[dict[str, str]] = field(default_factory=list)
+    # Ports that cannot be confirmed open or closed because a probe failed.
+    unconfirmed: list[Unconfirmed] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
     @property
     def changed(self) -> bool:
+        """True when anything changed or could not be confirmed unchanged.
+
+        A failed observation must never read as "no change", so unsettled
+        hosts and unconfirmed ports count, and `diff` exits 3 for them.
+        """
         return bool(
             self.new_hosts
             or self.vanished_hosts
             or self.opened
             or self.closed
             or self.version_changes
+            or self.unsettled_hosts
+            or self.unconfirmed
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -285,27 +308,21 @@ def compare(old: Inventory, new: Inventory) -> Diff:
                 + ", ".join(f"{p}/{proto}" for p, proto in skipped)
             )
 
-    for ip in sorted(new.hosts.keys() - old.hosts.keys() - old.uncertain, key=_ip_key):
+    # A host now answering is reported with its open ports even when the
+    # earlier scan could not observe it; only the reverse is held back,
+    # because failed probes do not show that a host went away.
+    for ip in sorted(new.hosts.keys() - old.hosts.keys(), key=_ip_key):
         diff.new_hosts.append(_summary(new.hosts[ip]))
-    for ip in sorted(old.hosts.keys() - new.hosts.keys() - new.uncertain, key=_ip_key):
-        diff.vanished_hosts.append(_summary(old.hosts[ip]))
-    unsettled = (new.hosts.keys() & old.uncertain) | (old.hosts.keys() & new.uncertain)
-    if unsettled:
-        diff.warnings.append(
-            "hosts whose probes failed without an answer are not compared: "
-            + ", ".join(sorted(unsettled, key=_ip_key))
-        )
+        if ip in old.uncertain:
+            diff.unsettled_hosts.append({"ip": ip, "before": "uncertain", "after": "up"})
+    for ip in sorted(old.hosts.keys() - new.hosts.keys(), key=_ip_key):
+        if ip in new.uncertain:
+            diff.unsettled_hosts.append({"ip": ip, "before": "up", "after": "uncertain"})
+        else:
+            diff.vanished_hosts.append(_summary(old.hosts[ip]))
 
-    uncertain: list[str] = []
     for ip in sorted(old.hosts.keys() & new.hosts.keys(), key=_ip_key):
-        before, after = old.hosts[ip], new.hosts[ip]
-        unsure = before.unknown | after.unknown
-        uncertain.extend(f"{ip} {port}/{proto}" for port, proto in sorted(unsure))
-        compare_host_ports(diff, ip, before.open, after.open, comparable, unsure)
-    if uncertain:
-        diff.warnings.append(
-            "ports with an unknown state in either scan are not compared: " + ", ".join(uncertain)
-        )
+        compare_host_ports(diff, ip, old.hosts[ip], new.hosts[ip], comparable)
 
     return diff
 
@@ -361,40 +378,58 @@ def print_diff(diff: Diff, console: Console) -> None:
             f"{escape(c.name)}:{c.port}/{c.protocol}",
             escape(f"{c.old_version or '-'} -> {c.version or '-'}"),
         )
+    for h in diff.unsettled_hosts:
+        table.add_row(
+            "[magenta]unsettled host[/magenta]", h["ip"], "", f"{h['before']} -> {h['after']}"
+        )
+    for u in diff.unconfirmed:
+        table.add_row(
+            "[magenta]unconfirmed[/magenta]",
+            u.ip,
+            f"{escape(u.name)}:{u.port}/{u.protocol}",
+            f"{u.before} -> {u.after}",
+        )
     console.print(table)
 
 
 def compare_host_ports(
-    diff: Diff,
-    ip: str,
-    before: dict[OpenKey, str],
-    after: dict[OpenKey, str],
-    comparable: set[Port] | None,
-    skipped: AbstractSet[Port] = frozenset(),
+    diff: Diff, ip: str, old: Host, new: Host, comparable: set[Port] | None
 ) -> None:
     # A label change is not a port transition. Retain name matching only for
     # older inventories that contain multiple services on the same socket.
-    before_counts = Counter((port, protocol) for port, protocol, _ in before)
-    after_counts = Counter((port, protocol) for port, protocol, _ in after)
+    before_counts = Counter((port, protocol) for port, protocol, _ in old.open)
+    after_counts = Counter((port, protocol) for port, protocol, _ in new.open)
     unique_after = {
         (port, protocol): (port, protocol, name)
-        for port, protocol, name in after
+        for port, protocol, name in new.open
         if after_counts[(port, protocol)] == 1
     }
     before = {
         unique_after.get((port, protocol), (port, protocol, name))
         if before_counts[(port, protocol)] == 1
         else (port, protocol, name): version
-        for (port, protocol, name), version in before.items()
+        for (port, protocol, name), version in old.open.items()
     }
+    after = new.open
+
+    def compared(endpoint: Port) -> bool:
+        return comparable is None or endpoint in comparable
+
     for port, protocol, name in sorted(before.keys() | after.keys()):
-        endpoint = (port, protocol)
-        if endpoint in skipped or (comparable is not None and endpoint not in comparable):
+        if not compared((port, protocol)):
             continue
         key = (port, protocol, name)
         if key not in before:
+            # Reported even when the earlier probe failed: an open port is news.
             diff.opened.append(Change(ip, name, port, protocol, after[key]))
         elif key not in after:
-            diff.closed.append(Change(ip, name, port, protocol, "", before[key]))
+            if (port, protocol) in new.unknown:
+                diff.unconfirmed.append(Unconfirmed(ip, name, port, protocol, "open", "unknown"))
+            else:
+                diff.closed.append(Change(ip, name, port, protocol, "", before[key]))
         elif before[key] != after[key]:
             diff.version_changes.append(Change(ip, name, port, protocol, after[key], before[key]))
+    for port, protocol in sorted(old.unknown.keys() & new.unknown.keys()):
+        if compared((port, protocol)):
+            name = new.unknown[(port, protocol)]
+            diff.unconfirmed.append(Unconfirmed(ip, name, port, protocol, "unknown", "unknown"))

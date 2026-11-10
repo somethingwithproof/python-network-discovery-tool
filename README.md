@@ -98,7 +98,7 @@ add --description=netprobe-it-web-1.netprobe-it_lab --ip=172.30.57.13 --template
 | `profiles` | validated profiles listed | — | unreadable/invalid configuration or selection | — |
 | `history` | summaries listed | missing, invalid, or unsupported history | invalid CLI options | — |
 | `compare` | comparison produced, including when changes exist | unreadable history, incompatible scope/order, or write failure | invalid CLI options | — |
-| `diff` | no changes | `-o` file could not be written | missing, unreadable or unsupported input | changes found |
+| `diff` | no changes | `-o` file could not be written | missing, unreadable or unsupported input | changes found or unconfirmed observations |
 | `export` | script written | script could not be written | unreadable input, or data that cannot be exported safely | |
 
 ## Layout
@@ -289,9 +289,9 @@ netprobe diff monday.json tuesday.json -f json     # JSON on stdout
 
 A snapshot is JSON with `format: "netprobe-snapshot"`, `version: 1`, the netprobe version, the UTC creation time, the target, the scan `timeout` and `backend` when the scan recorded them, the services that were probed, and the alive hosts in the same shape as the `-o` report. Down hosts are left out. `diff` also accepts plain `scan -o` JSON reports, including ones from before the `services` field existed.
 
-`diff` reports new and vanished hosts, ports that opened or closed on hosts present in both, and services whose `version` changed. Ports that were probed in only one of the two scans, ports whose state is `unknown` in either scan, and hosts whose probes all failed without an answer are not compared, and a warning names them. Snapshots keep those failed hosts so they are not mistaken for vanished ones. A warning also appears when the targets differ, and when both files recorded a timeout or backend and those values differ. `-o PATH` writes the JSON form to a file as well.
+`diff` reports new and vanished hosts, ports that opened or closed on hosts present in both, and services whose `version` changed. Ports that were probed in only one of the two scans are not compared, and a warning says so. Failed observations never read as "no change": a port that was open and is now `unknown`, or `unknown` in both scans, is listed under `unconfirmed` (with `before`/`after`), not `closed`; a port that is open now is reported under `opened` even if the earlier probe failed. A host whose probes all failed without an answer is listed under `unsettled_hosts` instead of `vanished_hosts`; if it answers in the later scan it is also reported as a new host with its open ports. Snapshots keep those failed hosts for this reason. A warning also appears when the targets differ, and when both files recorded a timeout or backend and those values differ. `-o PATH` writes the JSON form to a file as well.
 
-`diff` exit codes: `0` no changes, `3` changes found, `2` a file is missing, unreadable or not a supported snapshot, `1` the `-o` file could not be written.
+`diff` exit codes: `0` no changes, `3` changes found or observations that could not be confirmed (`changed` is true whenever any list, including `unsettled_hosts` and `unconfirmed`, is non-empty), `2` a file is missing, unreadable or not a supported snapshot, `1` the `-o` file could not be written.
 
 ## Kadupul export
 

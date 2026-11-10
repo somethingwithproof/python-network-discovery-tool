@@ -342,38 +342,92 @@ def test_cli_diff_warnings_are_shown(tmp_path):
     assert "targets differ" in result.output
 
 
-def test_unknown_port_is_not_reported_closed(tmp_path):
-    failed = Device(
-        ip="10.0.0.1",
-        alive=True,
-        services=[Service("ssh", 22, "tcp", "unknown"), Service("http", 80, "tcp", "closed")],
-        errors=["Error checking port 22: probe timed out"],
-    )
-    old = snap(tmp_path, "old.json", [host("10.0.0.1", SSH)])
-    new = snap(tmp_path, "new.json", [failed])
+def failed_host(ip, *ports, alive=False, opened=()):
+    """A device whose probes on `ports` failed; `opened` services still answered."""
+    services = [Service(n, p, proto, "unknown") for n, p, proto in ports]
+    services += [Service(n, p, proto, "open", v) for n, p, proto, v in opened]
+    return Device(ip=ip, alive=alive, services=services, errors=["probe timed out"])
+
+
+SSH_PORT = ("ssh", 22, "tcp")
+HTTP_PORT = ("http", 80, "tcp")
+
+
+def diff_exit(old, new):
+    return runner.invoke(cli.app, ["diff", str(old), str(new), "-f", "json"])
+
+
+def test_open_port_now_unknown_is_unconfirmed_not_closed(tmp_path):
+    old = snap(tmp_path, "old.json", [host("10.0.0.1", SSH, HTTP)])
+    new = snap(tmp_path, "new.json", [failed_host("10.0.0.1", SSH_PORT, alive=True, opened=[HTTP])])
 
     result = compare(load_inventory(old), load_inventory(new))
 
-    assert not result.changed
     assert result.closed == []
-    assert result.warnings == [
-        "ports with an unknown state in either scan are not compared: 10.0.0.1 22/tcp"
+    assert [(u.ip, u.port, u.before, u.after) for u in result.unconfirmed] == [
+        ("10.0.0.1", 22, "open", "unknown")
     ]
+    assert result.changed
+    outcome = diff_exit(old, new)
+    assert outcome.exit_code == 3
+    assert json.loads(outcome.output)["unconfirmed"][0]["after"] == "unknown"
 
 
-def test_host_with_only_failed_probes_has_not_vanished(tmp_path):
-    failed = Device(
-        ip="10.0.0.1",
-        services=[Service("ssh", 22, "tcp", "unknown")],
-        errors=["Error checking port 22: [Errno 24] Too many open files"],
-    )
+def test_unknown_port_now_open_is_reported_opened(tmp_path):
+    old = snap(tmp_path, "old.json", [failed_host("10.0.0.1", SSH_PORT, alive=True, opened=[HTTP])])
+    new = snap(tmp_path, "new.json", [host("10.0.0.1", SSH, HTTP)])
+
+    result = compare(load_inventory(old), load_inventory(new))
+
+    assert [(c.ip, c.port) for c in result.opened] == [("10.0.0.1", 22)]
+    assert result.unconfirmed == []
+    assert diff_exit(old, new).exit_code == 3
+
+
+def test_port_unknown_in_both_scans_needs_attention(tmp_path):
+    old = snap(tmp_path, "old.json", [failed_host("10.0.0.1", SSH_PORT, alive=True, opened=[HTTP])])
+    new = snap(tmp_path, "new.json", [failed_host("10.0.0.1", SSH_PORT, alive=True, opened=[HTTP])])
+
+    result = compare(load_inventory(old), load_inventory(new))
+
+    assert [(u.port, u.before, u.after) for u in result.unconfirmed] == [(22, "unknown", "unknown")]
+    assert result.opened == result.closed == []
+    assert diff_exit(old, new).exit_code == 3
+
+
+def test_host_with_uncertain_baseline_now_open_is_reported_new(tmp_path):
+    old = snap(tmp_path, "old.json", [failed_host("10.0.0.1", SSH_PORT)])
+    new = snap(tmp_path, "new.json", [host("10.0.0.1", SSH, HTTP)])
+
+    result = compare(load_inventory(old), load_inventory(new))
+
+    assert [h["ip"] for h in result.new_hosts] == ["10.0.0.1"]
+    assert [s["port"] for s in result.new_hosts[0]["services"]] == [22, 80]
+    assert result.unsettled_hosts == [{"ip": "10.0.0.1", "before": "uncertain", "after": "up"}]
+    assert diff_exit(old, new).exit_code == 3
+
+
+def test_host_with_only_failed_probes_is_unsettled_not_vanished(tmp_path):
     old = snap(tmp_path, "old.json", [host("10.0.0.1", SSH)])
-    new = snap(tmp_path, "new.json", [failed])
+    new = snap(tmp_path, "new.json", [failed_host("10.0.0.1", SSH_PORT)])
 
     assert [d["ip"] for d in json.loads(new.read_text())["devices"]] == ["10.0.0.1"]
     result = compare(load_inventory(old), load_inventory(new))
 
     assert result.vanished_hosts == []
-    assert result.warnings == [
-        "hosts whose probes failed without an answer are not compared: 10.0.0.1"
-    ]
+    assert result.unsettled_hosts == [{"ip": "10.0.0.1", "before": "up", "after": "uncertain"}]
+    outcome = diff_exit(old, new)
+    assert outcome.exit_code == 3
+    assert json.loads(outcome.output)["changed"] is True
+
+
+def test_unchanged_scans_still_exit_zero(tmp_path):
+    old = snap(tmp_path, "old.json", [host("10.0.0.1", SSH, HTTP)])
+    new = snap(tmp_path, "new.json", [host("10.0.0.1", SSH, HTTP)])
+
+    outcome = diff_exit(old, new)
+
+    assert outcome.exit_code == 0
+    report = json.loads(outcome.output)
+    assert report["changed"] is False
+    assert report["unsettled_hosts"] == report["unconfirmed"] == []
