@@ -127,16 +127,25 @@ class ProbeContext:
     timeout: float
     snmp: SnmpCredentials | None = None
     tls_ca_file: str | None = None
-    # Filled on the first HTTPS probe. Creating a context loads the trust store.
-    _tls: ssl.SSLContext | None = field(default=None, init=False, repr=False, compare=False)
+    # The DNS name a hostname target was given as; probes connect to the
+    # pinned address and use this name only for TLS SNI, certificate
+    # verification and the HTTP Host header.
+    server_name: str | None = None
+    # Shared by every copy dataclasses.replace() makes for per-service
+    # budgets, so a scan loads the trust store once.
+    _tls_cache: dict[str | None, ssl.SSLContext] = field(
+        default_factory=dict, repr=False, compare=False
+    )
 
     def tls_context(self) -> ssl.SSLContext:
         """Return this scan's TLS context, loading the trust store only once."""
-        cached = self._tls
+        cached = self._tls_cache.get(self.tls_ca_file)
         if cached is None:
-            cached = _tls_context(self.tls_ca_file)
-            object.__setattr__(self, "_tls", cached)
+            cached = self._tls_cache[self.tls_ca_file] = _tls_context(self.tls_ca_file)
         return cached
+
+    def name_for(self, host: str) -> str:
+        return self.server_name or host
 
 
 @dataclass
@@ -156,21 +165,14 @@ def clean(raw: bytes | str, limit: int = MAX_TEXT) -> str:
 
 
 async def _open(
-    host: str, port: int, timeout_seconds: float, tls: ssl.SSLContext | None = None
+    host: str, port: int, timeout_seconds: float
 ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter] | PortState:
-    """Connect, returning the streams, or the port state when the connect fails.
-
-    TLS errors propagate so the HTTPS probe can tell them apart.
-    """
+    """Connect, returning the streams, or the port state when the connect fails."""
     try:
         async with asyncio.timeout(timeout_seconds):
-            return await asyncio.open_connection(
-                host, port, ssl=tls, server_hostname=host if tls else None, limit=MAX_LINE_BYTES
-            )
+            return await asyncio.open_connection(host, port, limit=MAX_LINE_BYTES)
     except ConnectionRefusedError:
         return "closed"
-    except ssl.SSLError:
-        raise
     except OSError as e:
         if e.errno in LOCAL_ERRNOS:
             raise
@@ -348,7 +350,7 @@ async def http_probe(host: str, port: int, ctx: ProbeContext) -> ProbeResult:
         return ProbeResult(streams)
     reader, writer = streams
     try:
-        details = await _http_exchange(reader, writer, host, port, 80, ctx.timeout)
+        details = await _http_exchange(reader, writer, ctx.name_for(host), port, 80, ctx.timeout)
     finally:
         await _close(writer)
     return ProbeResult("open", details.get("server", ""), details)
@@ -383,26 +385,28 @@ def _tls_context(ca_file: str | None) -> ssl.SSLContext:
 
 async def https_probe(host: str, port: int, ctx: ProbeContext) -> ProbeResult:
     verified_ctx = ctx.tls_context()
-    details: Details = {"cert_verified": True}
-    try:
-        streams = await _open(host, port, ctx.timeout, verified_ctx)
-    except ssl.SSLCertVerificationError as e:
-        return ProbeResult(
-            "open",
-            "",
-            {
-                "cert_verified": False,
-                "cert_verify_error": clean(e.verify_message or str(e)),
-            },
-        )
-    except ssl.SSLError as e:
-        # Something listens but does not complete a TLS handshake.
-        return ProbeResult("open", "", {"tls_error": clean(str(e))})
+    name = ctx.name_for(host)
+    # Connect first, then handshake: a port that accepts TCP is open even when
+    # the TLS handshake stalls or fails.
+    streams = await _open(host, port, ctx.timeout)
     if isinstance(streams, str):
         return ProbeResult(streams)
-
     reader, writer = streams
+    details: Details = {"cert_verified": True}
     try:
+        try:
+            async with asyncio.timeout(ctx.timeout):
+                await writer.start_tls(verified_ctx, server_hostname=name)
+        except ssl.SSLCertVerificationError as e:
+            return ProbeResult(
+                "open",
+                "",
+                {"cert_verified": False, "cert_verify_error": clean(e.verify_message or str(e))},
+            )
+        except OSError as e:
+            # Something listens but does not complete a TLS handshake. This
+            # includes ssl.SSLError, resets and the handshake deadline.
+            return ProbeResult("open", "", {"tls_error": clean(str(e)) or type(e).__name__})
         tls = writer.get_extra_info("ssl_object")
         if isinstance(tls, ssl.SSLObject):
             details["tls_version"] = tls.version() or ""
@@ -412,7 +416,7 @@ async def https_probe(host: str, port: int, ctx: ProbeContext) -> ProbeResult:
                     details.update(parse_certificate(der))
                 except ValueError as e:
                     details["cert_error"] = clean(str(e))
-        details.update(await _http_exchange(reader, writer, host, port, 443, ctx.timeout))
+        details.update(await _http_exchange(reader, writer, name, port, 443, ctx.timeout))
     finally:
         await _close(writer)
     return ProbeResult("open", details.get("server", ""), details)
@@ -557,9 +561,8 @@ async def snmp_system(
 
     engine = hlapi.SnmpEngine()
     try:
-        target = await hlapi.UdpTransportTarget.create(
-            (host, port), timeout=timeout_seconds, retries=0
-        )
+        transport = hlapi.Udp6TransportTarget if ":" in host else hlapi.UdpTransportTarget
+        target = await transport.create((host, port), timeout=timeout_seconds, retries=0)
         error, status, _, binds = await hlapi.get_cmd(
             engine,
             auth,
@@ -569,10 +572,12 @@ async def snmp_system(
         )
     finally:
         engine.close_dispatcher()
+    # Redact before clean: truncation or replaced characters must not leave a
+    # partial secret that redaction no longer matches.
     if error:
-        raise RuntimeError(creds.redact(clean(str(error))))
+        raise RuntimeError(clean(creds.redact(str(error))))
     if status:
-        raise RuntimeError(creds.redact(clean(status.prettyPrint())))
+        raise RuntimeError(clean(creds.redact(status.prettyPrint())))
     values = {str(oid): clean(str(value)) for oid, value in binds}
     return {name: values.get(oid, "") for name, oid in SYSTEM_OIDS.items()}
 
@@ -588,7 +593,7 @@ async def snmp_probe(host: str, port: int, ctx: ProbeContext) -> ProbeResult:
     except Exception as e:
         # A failed GET keeps whatever state discovery found and is never
         # retried with another SNMP version or a lower security level.
-        details["snmp_error"] = creds.redact(clean(str(e))) or type(e).__name__
+        details["snmp_error"] = clean(creds.redact(str(e))) or type(e).__name__
         return ProbeResult(state, "", details)
     details.update(system)
     details["snmp_version"] = creds.version

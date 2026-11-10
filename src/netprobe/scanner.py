@@ -18,7 +18,7 @@ import logging
 import math
 import re
 import socket
-from collections.abc import Iterable
+from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import replace
 from typing import Any, Literal
 
@@ -26,7 +26,7 @@ from rich.progress import Progress
 
 from netprobe.config import DEFAULT_SERVICES
 from netprobe.models import LEGACY_FLAGS, Device, Service, ServiceSpec
-from netprobe.probes import PROBES, ProbeContext, ProbeResult, SnmpCredentials
+from netprobe.probes import PROBES, ProbeContext, ProbeResult, SnmpCredentials, clean
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,10 @@ FD_HEADROOM = 64
 
 
 _HOSTNAME_LABEL = re.compile(r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$")
+# Reverse DNS names in the wild also use underscores.
+_PTR_NAME = re.compile(r"\w(?:[\w.-]{0,251}\w)?", re.ASCII)
+# Concurrent forward and reverse lookups; each occupies a resolver thread.
+DNS_CONCURRENCY = 16
 
 
 class BackendUnavailableError(RuntimeError):
@@ -212,14 +216,65 @@ def ensure_file_limit(concurrency: int) -> None:
         )
 
 
-async def resolve_hostname(ip: str) -> str:
+async def _lookup[T](slots: asyncio.Semaphore | None, start: Callable[[], Awaitable[T]]) -> T:
+    """Run one resolver call in a lookup slot, giving up after HOSTNAME_TIMEOUT.
+
+    The deadline starts once a slot is free, so a long queue does not expire
+    lookups that never ran. The slot is freed when the resolver thread
+    finishes rather than when the caller stops waiting, so lookups that
+    outlive their deadline still count toward the limit.
+    """
+    slots = slots or asyncio.Semaphore(1)
+    await slots.acquire()
     try:
-        async with asyncio.timeout(HOSTNAME_TIMEOUT):
-            name, _, _ = await asyncio.to_thread(socket.gethostbyaddr, ip)
+        lookup = asyncio.ensure_future(start())
+    except BaseException:
+        slots.release()
+        raise
+
+    def finished(done: asyncio.Future[T]) -> None:
+        slots.release()
+        if not done.cancelled():
+            done.exception()  # retrieved, so an abandoned failure is not logged
+
+    lookup.add_done_callback(finished)
+    async with asyncio.timeout(HOSTNAME_TIMEOUT):
+        return await asyncio.shield(lookup)
+
+
+async def resolve_hostname(ip: str, lookups: asyncio.Semaphore | None = None) -> str:
+    """Reverse DNS name for ip, or "" when there is none or it is not a plain name.
+
+    PTR data comes from whoever controls the reverse zone, so a name with
+    anything but hostname characters is dropped rather than printed.
+    """
+    try:
+        name, _, _ = await _lookup(lookups, lambda: asyncio.to_thread(socket.gethostbyaddr, ip))
     except OSError as e:
         logger.debug(f"Could not resolve hostname for {ip}: {e}")
         return ""
-    return name
+    name = name.rstrip(".")
+    return name if _PTR_NAME.fullmatch(name) else ""
+
+
+async def resolve_address(
+    target: str, lookups: asyncio.Semaphore | None = None
+) -> tuple[str, str | None]:
+    """Return (address to probe, DNS name or None) for an IP or a hostname.
+
+    A hostname is resolved once per host so every probe reaches the same
+    address; resolving per connection would let round-robin or rebinding
+    DNS answers send probes for one host to different machines.
+    """
+    try:
+        return str(ipaddress.ip_address(target)), None
+    except ValueError:
+        pass
+    loop = asyncio.get_running_loop()
+    infos = await _lookup(lookups, lambda: loop.getaddrinfo(target, None, type=socket.SOCK_STREAM))
+    if not infos:
+        raise OSError(f"no address for {target}")
+    return str(infos[0][4][0]), target
 
 
 class NetworkScanner:
@@ -262,7 +317,12 @@ class NetworkScanner:
             _nmap_scanner()
 
     async def scan_device(
-        self, ip: str, *, probes: asyncio.Semaphore | None = None, known_up: bool = False
+        self,
+        ip: str,
+        *,
+        probes: asyncio.Semaphore | None = None,
+        known_up: bool = False,
+        lookups: asyncio.Semaphore | None = None,
     ) -> Device:
         """Probe every configured service on one host.
 
@@ -270,6 +330,7 @@ class NetworkScanner:
             ip: IP address or hostname to scan
             probes: shared limit on probes in flight across hosts
             known_up: host discovery already saw the host, even if no probe answers
+            lookups: shared limit on DNS lookups in flight across hosts
 
         Returns:
             Device object with scan results
@@ -281,11 +342,21 @@ class NetworkScanner:
             device.errors.append(str(e))
             return device
 
+        try:
+            address, server_name = await resolve_address(ip, lookups)
+        except OSError as e:
+            device.errors.append(f"Cannot resolve {ip}: {clean(str(e)) or type(e).__name__}")
+            device.services = [
+                Service(s.name, s.port, s.protocol, "unknown") for s in self.services
+            ]
+            return device
+        device.address = address
+
         limit = probes or asyncio.Semaphore(self.concurrency)
         tasks: list[asyncio.Task[Service]] = []
         async with asyncio.TaskGroup() as tg:
             for spec in self.services:
-                tasks.append(tg.create_task(self._probe(ip, spec, limit, device)))
+                tasks.append(tg.create_task(self._probe(address, server_name, spec, limit, device)))
 
         device.services = [t.result() for t in tasks]
         open_names = {s.name for s in device.open_services}
@@ -295,21 +366,26 @@ class NetworkScanner:
         # hit its deadline says nothing, so such a host is not reported down.
         device.alive = known_up or any(s.state in ANSWERED for s in device.services)
         if device.alive:
-            device.hostname = await resolve_hostname(ip)
+            device.hostname = await resolve_hostname(address, lookups)
         elif all(s.state == "filtered" for s in device.services):
             device.errors.append(HOST_DOWN)
         return device
 
     async def _probe(
-        self, ip: str, spec: ServiceSpec, limit: asyncio.Semaphore, device: Device
+        self,
+        address: str,
+        server_name: str | None,
+        spec: ServiceSpec,
+        limit: asyncio.Semaphore,
+        device: Device,
     ) -> Service:
         budget = self.timeout if spec.timeout is None else spec.timeout
-        context = replace(self.context, timeout=budget)
+        context = replace(self.context, timeout=budget, server_name=server_name)
         async with limit:
             try:
                 probe, _ = PROBES[spec.probe]
                 async with asyncio.timeout(budget * PROBE_BUDGET):
-                    result = await probe(ip, spec.port, context)
+                    result = await probe(address, spec.port, context)
             except TimeoutError:
                 device.errors.append(f"Error checking port {spec.port}: probe timed out")
                 result = ProbeResult("unknown")
@@ -354,12 +430,13 @@ class NetworkScanner:
             swept = await asyncio.to_thread(nmap_sweep, targets, network)
 
         probes = asyncio.Semaphore(self.concurrency)
+        lookups = asyncio.Semaphore(DNS_CONCURRENCY)
         results: list[Device | None] = [None] * len(targets)
         pending = iter(enumerate(targets))
 
         async def worker() -> None:
             for index, ip in pending:
-                device = await self._scan_target(ip, swept, probes)
+                device = await self._scan_target(ip, swept, probes, lookups)
                 results[index] = device
                 if progress and task is not None:
                     progress.update(task, advance=1)
@@ -373,8 +450,14 @@ class NetworkScanner:
         return [device for device in results if device is not None]
 
     async def _scan_target(
-        self, ip: str, swept: set[str] | None, probes: asyncio.Semaphore
+        self,
+        ip: str,
+        swept: set[str] | None,
+        probes: asyncio.Semaphore,
+        lookups: asyncio.Semaphore,
     ) -> Device:
         if swept is not None and ip not in swept:
             return Device(ip=ip, errors=[HOST_DOWN])
-        return await self.scan_device(ip, probes=probes, known_up=swept is not None)
+        return await self.scan_device(
+            ip, probes=probes, known_up=swept is not None, lookups=lookups
+        )

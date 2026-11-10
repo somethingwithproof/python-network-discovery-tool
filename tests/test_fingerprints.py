@@ -355,25 +355,78 @@ async def test_https_probes_load_the_trust_store_once_per_scan(monkeypatch):
     assert calls == 2
 
 
-async def test_https_probe_verification_failure_never_retries(monkeypatch):
-    calls = []
+class FakeTlsWriter:
+    """A connected stream whose TLS upgrade fails certificate verification."""
 
-    async def fake_open(host, port, timeout, tls=None):
-        calls.append(tls)
-        if len(calls) == 1:
-            error = ssl.SSLCertVerificationError("verify failed")
-            error.verify_message = "certificate has expired"
-            raise error
-        raise ssl.SSLError("handshake failure")
+    def __init__(self):
+        self.upgrades = []
+        self.closed = False
+
+    async def start_tls(self, context, *, server_hostname=None):
+        self.upgrades.append((context, server_hostname))
+        error = ssl.SSLCertVerificationError("verify failed")
+        error.verify_message = "certificate has expired"
+        raise error
+
+    def close(self):
+        self.closed = True
+
+    async def wait_closed(self):
+        return None
+
+
+async def test_https_probe_verification_failure_never_retries(monkeypatch):
+    writer = FakeTlsWriter()
+    connects = []
+
+    async def fake_open(host, port, timeout):
+        connects.append((host, port))
+        return object(), writer
 
     monkeypatch.setattr(probes, "_open", fake_open)
-    result = await probes.https_probe("127.0.0.1", 443, CTX)
+    ctx = ProbeContext(timeout=1.0, server_name="web.example")
+    result = await probes.https_probe("192.0.2.10", 443, ctx)
 
+    assert result.state == "open"
     assert result.details["cert_verified"] is False
     assert result.details["cert_verify_error"] == "certificate has expired"
-    assert len(calls) == 1
-    assert calls[0].verify_mode == ssl.CERT_REQUIRED
-    assert calls[0].check_hostname is True
+    assert connects == [("192.0.2.10", 443)]
+    [(context, server_hostname)] = writer.upgrades
+    assert server_hostname == "web.example"
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert context.check_hostname is True
+    assert writer.closed
+
+
+async def test_https_probe_stalled_handshake_is_open():
+    async def stall(reader, writer):
+        await asyncio.sleep(5)
+
+    server = await asyncio.start_server(stall, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    try:
+        result = await probes.https_probe("127.0.0.1", port, ProbeContext(timeout=0.2))
+    finally:
+        server.close()
+
+    assert result.state == "open"
+    assert result.details == {"tls_error": "TimeoutError"}
+
+
+async def test_scan_loads_the_trust_store_once_across_service_budgets(monkeypatch):
+    from netprobe.models import ServiceSpec
+    from netprobe.scanner import NetworkScanner
+
+    calls = []
+    real = probes._tls_context
+    monkeypatch.setattr(probes, "_tls_context", lambda ca: calls.append(ca) or real(ca))
+    scanner_ = NetworkScanner(
+        services=[ServiceSpec("https", closed_port(), "tcp", "https", 0.2)], timeout=0.2
+    )
+    for _ in range(3):
+        await scanner_.scan_device("127.0.0.1")
+
+    assert calls == [None]
 
 
 # --- SNMP with credentials

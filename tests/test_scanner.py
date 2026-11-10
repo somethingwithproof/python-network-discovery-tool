@@ -3,6 +3,7 @@
 
 import asyncio
 import errno
+import socket
 import sys
 import types
 from typing import ClassVar
@@ -47,7 +48,7 @@ def stub_probes(monkeypatch, fn):
 
 @pytest.fixture(autouse=True)
 def no_reverse_dns(monkeypatch):
-    async def fake(ip):
+    async def fake(ip, lookups=None):
         return "box.example"
 
     monkeypatch.setattr(scanner, "resolve_hostname", fake)
@@ -435,3 +436,106 @@ async def test_scan_network_checks_the_file_limit_before_probing(monkeypatch):
     with pytest.raises(ValueError, match="open files"):
         await scanner_.scan_network("10.0.0.1")
     assert probed == []
+
+
+async def test_hostname_target_is_resolved_once_and_pinned(monkeypatch):
+    lookups = []
+
+    async def fake_getaddrinfo(host, port, **kwargs):
+        lookups.append(host)
+        # A rebinding answer would differ on the next lookup; only the first is used.
+        address = "192.0.2.10" if len(lookups) == 1 else "127.0.0.1"
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (address, 0))]
+
+    seen = []
+
+    async def probe(host, port, ctx):
+        seen.append((host, ctx.server_name))
+        return ProbeResult("closed")
+
+    for name, (_, protocol) in list(probes.PROBES.items()):
+        monkeypatch.setitem(probes.PROBES, name, (probe, protocol))
+    monkeypatch.setattr(asyncio.get_running_loop(), "getaddrinfo", fake_getaddrinfo)
+    services = [ServiceSpec("ssh", 22), ServiceSpec("http", 80), ServiceSpec("https", 443)]
+    device = await NetworkScanner(services=services).scan_device("web.example")
+
+    assert lookups == ["web.example"]
+    assert seen == [("192.0.2.10", "web.example")] * 3
+    assert device.ip == "web.example"
+    assert device.address == "192.0.2.10"
+
+
+async def test_unresolvable_hostname_is_unknown_not_down(monkeypatch):
+    async def fail(host, port, **kwargs):
+        raise socket.gaierror(socket.EAI_NONAME, "Name or service not known")
+
+    monkeypatch.setattr(asyncio.get_running_loop(), "getaddrinfo", fail)
+    device = await NetworkScanner(services=[ServiceSpec("ssh", 22)]).scan_device("gone.example")
+
+    assert [s.state for s in device.services] == ["unknown"]
+    assert device.errors == [
+        f"Cannot resolve gone.example: [Errno {socket.EAI_NONAME}] Name or service not known"
+    ]
+    assert not device.alive
+
+
+@pytest.mark.parametrize(
+    ("ptr", "expected"),
+    [
+        ("host.example.", "host.example"),
+        ("_gateway", "_gateway"),
+        ("xn--hst-cna.example", "xn--hst-cna.example"),
+        ("h\u00f4st.example", ""),
+        ("evil\x1b[2Jname", ""),
+        ("[bold]x[/bold]", ""),
+        ("a" * 300, ""),
+    ],
+)
+async def test_reverse_dns_names_are_plain_hostnames(monkeypatch, ptr, expected):
+    monkeypatch.undo()  # drop the autouse stub for this test
+    with patch("socket.gethostbyaddr", return_value=(ptr, [], ["10.0.0.1"])):
+        assert await scanner.resolve_hostname("10.0.0.1") == expected
+
+
+async def test_reverse_dns_deadline_starts_after_a_lookup_slot_frees(monkeypatch):
+    monkeypatch.undo()
+    # Three serial lookups take 1.2s against a 1.0s deadline: a deadline that
+    # included queueing would expire the third, while each lookup alone
+    # leaves 0.6s of slack for slow CI thread scheduling.
+    monkeypatch.setattr(scanner, "HOSTNAME_TIMEOUT", 1.0)
+
+    def slow(ip):
+        import time
+
+        time.sleep(0.4)
+        return ("host.example", [], [ip])
+
+    monkeypatch.setattr(socket, "gethostbyaddr", slow)
+    one_slot = asyncio.Semaphore(1)
+    names = await asyncio.gather(
+        *(scanner.resolve_hostname("10.0.0.1", one_slot) for _ in range(3))
+    )
+
+    assert names == ["host.example"] * 3
+
+
+async def test_expired_lookup_keeps_its_slot_until_the_resolver_returns(monkeypatch):
+    import threading
+
+    monkeypatch.undo()
+    monkeypatch.setattr(scanner, "HOSTNAME_TIMEOUT", 0.1)
+    release = threading.Event()
+
+    def stuck(ip):
+        release.wait(5)
+        return ("late.example", [], [ip])
+
+    monkeypatch.setattr(socket, "gethostbyaddr", stuck)
+    one_slot = asyncio.Semaphore(1)
+
+    assert await scanner.resolve_hostname("10.0.0.1", one_slot) == ""
+    assert one_slot.locked()  # the resolver thread is still running
+    release.set()
+    async with asyncio.timeout(5):
+        while one_slot.locked():
+            await asyncio.sleep(0.01)
