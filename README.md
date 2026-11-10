@@ -94,15 +94,15 @@ add --description=netprobe-it-web-1.netprobe-it_lab --ip=172.30.57.13 --template
 
 ## Exit codes
 
-| Command | 0 | 1 | 2 | 3 |
-| --- | --- | --- | --- | --- |
-| `scan` | observations/report recorded | failed preflight/backend, history, or report/snapshot write | invalid target, options, configuration, or limits | — |
-| `preflight` | checks passed | local check failed | invalid target/configuration or conflicting destinations | — |
-| `profiles` | validated profiles listed | — | unreadable/invalid configuration or selection | — |
-| `history` | summaries listed | missing, invalid, or unsupported history | invalid CLI options | — |
-| `compare` | comparison produced, including when changes exist | unreadable history, incompatible scope/order, or write failure | invalid CLI options | — |
-| `diff` | no changes | `-o` file could not be written | missing, unreadable or unsupported input | changes found or unconfirmed observations |
-| `export` | script written | script could not be written | unreadable input, or data that cannot be exported safely | |
+| Command | 0 | 1 | 2 | 3 | 4 |
+| --- | --- | --- | --- | --- | --- |
+| `scan` | observations/report recorded | failed preflight/backend, history, or report/snapshot write | invalid target, options, configuration, or limits | — | `--deadline` reached; partial report written, history and snapshot skipped |
+| `preflight` | checks passed | local check failed | invalid target/configuration or conflicting destinations | — | — |
+| `profiles` | validated profiles listed | — | unreadable/invalid configuration or selection | — | — |
+| `history` | summaries listed | missing, invalid, or unsupported history | invalid CLI options | — | — |
+| `compare` | comparison produced, including when changes exist | unreadable history, incompatible scope/order, or write failure | invalid CLI options | — | — |
+| `diff` | no changes | `-o` file could not be written | missing, unreadable or unsupported input | changes found or unconfirmed observations | — |
+| `export` | script written | script could not be written | unreadable input, or data that cannot be exported safely | — | — |
 
 ## Layout
 
@@ -145,6 +145,7 @@ netprobe scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on stdo
 | `--backend asyncio\|nmap` | Host discovery. `asyncio` (default) probes the service ports directly; `nmap` runs an nmap ping sweep first and needs the `nmap` executable on `PATH`. |
 | `--timeout SECONDS` | Wait for probes that do not set their own budget (default 1.0). Built-in connect probes use 0.3s unless the service table sets `timeout`. |
 | `--concurrency N` | Probes in flight at once (default 256). |
+| `--deadline SECONDS` | Stop the whole scan, nmap sweep included, after this long (default 3600, at most 604800; env `NETPROBE_DEADLINE`). Hosts that finished are written to the report with `"complete": false`, no history or snapshot is written, and `scan` exits 4. |
 | `--config PATH` | TOML service definitions and optional named `[profiles]` settings. |
 | `--profile NAME` | Use a named profile; defaults to `netprobe.toml` when `--config` is omitted. |
 | `--exclude IP/CIDR` | Add an exclusion; repeat as needed. |
@@ -181,7 +182,7 @@ Banner text is reduced to printable characters and capped at 256 characters befo
 
 ### Limits
 
-One run accepts at most 65,536 addresses, 64 services, and 524,288 probes (hosts times services); larger requests exit with code 2 before anything is sent. `--concurrency` is capped at 4096 sockets. Each probe has a hard deadline of four times its own budget. Connect probes (`tcp`, `ssh`, `mysql`, `http`) use 0.3 seconds unless that service sets `timeout`. SNMP and HTTPS use `--timeout` (default 1.0) when they do not set one. A probe that hits the deadline is reported as `unknown` with "probe timed out" in `errors`. Local socket failures (for example running out of file descriptors) are also `unknown` with the error recorded; they never count as a filtered port or a down host. Before probing, netprobe raises the open-file soft limit toward the hard limit to fit `--concurrency` plus 64 descriptors; when it cannot, the `open files` preflight check fails and `scan` exits 1 before sending traffic. Nmap discovery uses a 30-second host timeout. A full prefix is one nmap process whose subprocess deadline is 35 seconds for every 256 addresses, rounded up. Sweeps with exclusions use batches of 256 hosts and a 35-second deadline for each batch. Worker creation is bounded independently of range size. Reverse DNS has a separate two-second deadline. These are operation limits, not a total scan deadline.
+One run accepts at most 65,536 addresses, 64 services, and 524,288 probes (hosts times services); larger requests exit with code 2 before anything is sent. `--concurrency` is capped at 4096 sockets. Each probe has a hard deadline of four times its own budget. Connect probes (`tcp`, `ssh`, `mysql`, `http`) use 0.3 seconds unless that service sets `timeout`. SNMP and HTTPS use `--timeout` (default 1.0) when they do not set one. A probe that hits the deadline is reported as `unknown` with "probe timed out" in `errors`. Local socket failures (for example running out of file descriptors) are also `unknown` with the error recorded; they never count as a filtered port or a down host. Before probing, netprobe raises the open-file soft limit toward the hard limit to fit `--concurrency` plus 64 descriptors; when it cannot, the `open files` preflight check fails and `scan` exits 1 before sending traffic. Nmap discovery uses a 30-second host timeout. A full prefix is one nmap process whose subprocess deadline is 35 seconds for every 256 addresses, rounded up. Sweeps with exclusions use batches of 256 hosts and a 35-second deadline for each batch. Worker creation is bounded independently of range size. Reverse DNS has a separate two-second deadline. `--deadline` (default one hour) bounds the whole run on top of these.
 
 ### Configuring services
 

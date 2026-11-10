@@ -194,6 +194,7 @@ def _minimal(name):
         "netprobe_version": "0",
         "created": "2026-01-01T00:00:00+00:00",
         "target": "10.0.0.1",
+        "complete": True,
         "services": [],
         "devices": [],
     }
