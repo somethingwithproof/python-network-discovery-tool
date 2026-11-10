@@ -119,8 +119,10 @@ add --description=netprobe-it-web-1.netprobe-it_lab --ip=172.30.57.13 --template
 Each service observation records its state separately from its advertised identity.
 Reads and deadlines are bounded; probe exceptions remain in host errors. SQLite
 history uses transactions, explicit connection cleanup, and read-only listing and
-comparison paths. Credentials enter through runtime options or environment
-variables; inventory history stores the effective non-secret settings.
+comparison paths. SNMP secrets enter only through environment variables or secret
+files; inventory history stores the effective non-secret settings. See
+[Architecture](docs/architecture.md) for the scan pipeline, its limits and trust
+boundaries, and [SECURITY.md](SECURITY.md#authorized-use) for authorized use.
 
 
 ## Usage
