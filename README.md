@@ -374,9 +374,18 @@ OpenSSH, MariaDB, nginx and net-snmp on an isolated bridge. Run it with
 `make test-integration`. See [CONTRIBUTING.md](CONTRIBUTING.md) and
 [release tooling](scripts/README.md).
 
-The runtime container runs as UID 10001 and can write to `/app/output`.
-Give that user write access to any mounted output directory. Nmap uses its
-unprivileged TCP discovery behavior in this container.
+The runtime container runs as UID/GID 10001 with no home directory, no shell
+login and no pip, and can write to `/app/output`. Give that user write access to
+any mounted output directory. It needs no capabilities and works with a
+read-only root filesystem, so it can run as:
+
+```sh
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+  --tmpfs /tmp -v "$PWD/out:/app/output" IMAGE scan 192.0.2.0/28 -o /app/output/report.json
+```
+
+Nmap uses its unprivileged TCP discovery behavior in this container. CI fails
+the image build on any fixable HIGH or CRITICAL vulnerability that Trivy reports.
 
 ## Supply-chain checks
 

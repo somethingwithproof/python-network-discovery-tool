@@ -11,17 +11,29 @@ COPY src ./src
 # Build backends are locked; every install rejects source builds.
 RUN uv sync --locked --no-dev --group build --no-build --no-install-project \
     && uv build --wheel --no-build-isolation --out-dir /wheels \
-    && uv sync --locked --no-dev --extra nmap --no-build --no-install-project \
+    && uv sync --locked --no-dev --no-build --no-install-project \
     && uv pip install --python .venv/bin/python --no-build --no-deps /wheels/*.whl
 
 FROM python@sha256:f17ec845ebdd4f3347431579e1c22eaeec82913f039f2a54b937c7ff870bacdb AS runtime
+LABEL org.opencontainers.image.title="netprobe" \
+      org.opencontainers.image.description="Service inventory for networks you administer" \
+      org.opencontainers.image.source="https://github.com/somethingwithproof/python-network-discovery-tool" \
+      org.opencontainers.image.licenses="MIT"
+# The runtime needs only Python, the locked virtualenv and nmap. pip,
+# setuptools and the package lists are removed so nothing in the image can
+# install code at run time, and the user has no home directory or shell.
 RUN apt-get update && apt-get install -y --no-install-recommends nmap \
-    && apt-get clean && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home --uid 10001 netprobe \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
+    && rm -rf /usr/local/lib/python3.*/site-packages/pip* \
+        /usr/local/lib/python3.*/site-packages/setuptools* \
+        /usr/local/lib/python3.*/ensurepip /usr/local/bin/pip* \
+    && useradd --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin \
+        --uid 10001 --user-group netprobe \
     && mkdir -p /app/output && chown netprobe:netprobe /app/output
 WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
-ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
-USER netprobe
+ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+# Numeric so Kubernetes runAsNonRoot can verify it without resolving names.
+USER 10001:10001
 ENTRYPOINT ["netprobe"]
 CMD ["--help"]
