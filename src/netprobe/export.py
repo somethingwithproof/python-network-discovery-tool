@@ -75,11 +75,17 @@ def _description(device: dict[str, Any], seen: set[str]) -> str:
     hostname = str(device.get("hostname") or "")
     name = hostname if _DESCRIPTION.fullmatch(hostname) else str(device["ip"])
     # add_device.php treats an existing description as "update that device",
-    # so two hosts must never share one.
-    if name in seen:
-        name = f"{name}-{device['ip']}"
-    seen.add(name)
-    return name
+    # so two hosts must never share one. A suffixed name can itself be taken
+    # (another host may be called "web-10.0.0.1"), so keep counting until free.
+    candidate = name
+    if candidate in seen:
+        candidate = f"{name}-{device['ip']}"
+    count = 2
+    while candidate in seen:
+        candidate = f"{name}-{device['ip']}-{count}"
+        count += 1
+    seen.add(candidate)
+    return candidate
 
 
 def _open(device: dict[str, Any]) -> list[dict[str, Any]]:
