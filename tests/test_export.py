@@ -408,3 +408,14 @@ def test_every_device_gets_a_distinct_description(hostnames):
     descriptions = re.findall(r"--description=([^' ]+)", script)
     assert len(descriptions) == len(devices)
     assert len(set(descriptions)) == len(descriptions)
+
+
+def test_snmp_user_with_trailing_newline_is_refused():
+    with pytest.raises(ExportError, match="SNMPv3 user names"):
+        KadupulOptions(snmp_user="ops\n")
+
+
+def test_hostname_with_trailing_newline_is_not_used_as_description():
+    script = kadupul_script([device("10.0.0.5", SSH, hostname="sw1.lab\n")], KadupulOptions(), "t")
+    assert "--description=10.0.0.5" in script
+    assert "sw1.lab" not in script

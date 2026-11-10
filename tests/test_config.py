@@ -78,6 +78,7 @@ def test_config_without_services_table_keeps_defaults(tmp_path):
         ("[services.web]\nport = 80\ntimeout = 0.01", "timeout must be"),
         ("[services.web]\nport = 80\ntimeout = 'fast'", "timeout must be"),
         ('[services."Bad Name"]\nport = 80', "invalid service name"),
+        ('[services."web\\n"]\nport = 80', "invalid service name"),
         ("[services.web\nport = 80", "cannot read config"),
     ],
 )
