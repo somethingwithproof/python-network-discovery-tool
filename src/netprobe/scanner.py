@@ -104,6 +104,17 @@ def validate_target(target: str) -> str:
     return target
 
 
+def stored_target(value: object) -> str:
+    """A target read back from a snapshot, report or history database.
+
+    It must already be in validate_target's canonical form, so a file cannot
+    carry control characters, markup or option-like text into output.
+    """
+    if not isinstance(value, str) or validate_target(value) != value:
+        raise ValueError(f"invalid stored address {clean(str(value), 64)!r}")
+    return value
+
+
 def expand_targets(
     network: str, max_hosts: int = MAX_HOSTS, exclusions: Iterable[str] = ()
 ) -> list[str]:

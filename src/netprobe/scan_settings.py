@@ -8,6 +8,7 @@ from __future__ import annotations
 import ipaddress
 import math
 from dataclasses import dataclass, field
+from enum import StrEnum
 from importlib.metadata import version as _package_version
 from typing import Any
 
@@ -23,6 +24,38 @@ def host_sort_key(value: str) -> tuple[int, int, str]:
     except ValueError:
         return 99, 0, value
     return address.version, int(address), ""
+
+
+# A probe failed or timed out, so the port's state was not observed.
+UNKNOWN = "unknown"
+
+
+class PortTransition(StrEnum):
+    """How one port's observation changed between two scans."""
+
+    UNCHANGED = "unchanged"
+    OPENED = "opened"
+    CLOSED = "closed"
+    # Between two observed states that are both not open, e.g. closed -> filtered.
+    CHANGED = "changed"
+    # A failed observation on either side that does not leave the port open.
+    UNCONFIRMED = "unconfirmed"
+
+
+def port_transition(before: str, after: str) -> PortTransition:
+    """Classify a port's state in two scans; `diff` and `compare` both use this.
+
+    A port open now is news even when the earlier probe failed. Any other
+    transition with a failed observation is unconfirmed, never unchanged:
+    a failed probe proves nothing, so it cannot show that nothing changed.
+    """
+    if after == "open" and before != "open":
+        return PortTransition.OPENED
+    if UNKNOWN in (before, after):
+        return PortTransition.UNCONFIRMED
+    if before == after:
+        return PortTransition.UNCHANGED
+    return PortTransition.CLOSED if before == "open" else PortTransition.CHANGED
 
 
 @dataclass(frozen=True, slots=True)

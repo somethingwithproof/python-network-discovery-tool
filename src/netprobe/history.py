@@ -15,12 +15,14 @@ from pathlib import Path
 from typing import Any
 
 from netprobe.scan_settings import (
+    PortTransition,
     RecordedSettings,
     effective_timeouts,
     host_sort_key,
+    port_transition,
     setting_warnings,
 )
-from netprobe.scanner import validate_target
+from netprobe.scanner import stored_target
 
 type JSONDocument = dict[str, Any]
 type SnapshotRow = tuple[Any, ...]
@@ -264,8 +266,11 @@ def validate_observation(device: Any, ports: list[str], seen: set[str]) -> None:
     }
     if not isinstance(device, dict):
         raise ValueError(OBSERVATION_ERROR)
-    ip = device.get("ip")
-    if not isinstance(ip, str) or "%" in ip or validate_target(ip) != ip or ip in seen:
+    try:
+        ip = stored_target(device.get("ip"))
+    except ValueError as exc:
+        raise ValueError("Snapshot contains invalid or duplicate IP addresses") from exc
+    if ip in seen:
         raise ValueError("Snapshot contains invalid or duplicate IP addresses")
     seen.add(ip)
     errors, observed = device.get("errors"), device.get("port_states")
@@ -297,11 +302,12 @@ def compare_host_observations(
     for port in sorted(previous["port_states"].keys() & current["port_states"].keys()):
         old_state, new_state = previous["port_states"][port], current["port_states"][port]
         change = {"ip": ip, "port": port, "before": old_state, "after": new_state}
-        # A failed observation is listed, never dropped: unknown -> open must
-        # not hide a port that now answers.
-        if "unknown" in (old_state, new_state):
+        # The same classification as `diff`: a failed observation is listed,
+        # never dropped, and a port open now is a change even after a failure.
+        transition = port_transition(old_state, new_state)
+        if transition is PortTransition.UNCONFIRMED:
             report["unconfirmed_ports"].append(change)
-        elif old_state != new_state:
+        elif transition is not PortTransition.UNCHANGED:
             report["port_changes"].append(change)
 
 
