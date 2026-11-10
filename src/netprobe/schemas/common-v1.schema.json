@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/somethingwithproof/python-network-discovery-tool/schemas/common-v1.schema.json",
+  "title": "Definitions shared by netprobe JSON documents",
+  "$defs": {
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "protocol": {
+      "enum": [
+        "tcp",
+        "udp"
+      ]
+    },
+    "state": {
+      "enum": [
+        "open",
+        "closed",
+        "filtered",
+        "unknown"
+      ]
+    },
+    "service": {
+      "type": "object",
+      "required": [
+        "name",
+        "port",
+        "protocol",
+        "state",
+        "version",
+        "details"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "port": {
+          "$ref": "#/$defs/port"
+        },
+        "protocol": {
+          "$ref": "#/$defs/protocol"
+        },
+        "state": {
+          "$ref": "#/$defs/state"
+        },
+        "version": {
+          "type": "string"
+        },
+        "details": {
+          "type": "object",
+          "description": "Probe-specific facts; keys depend on the probe."
+        }
+      }
+    },
+    "device": {
+      "type": "object",
+      "required": [
+        "ip",
+        "alive",
+        "ssh",
+        "snmp",
+        "mysql",
+        "hostname",
+        "errors",
+        "services",
+        "address"
+      ],
+      "properties": {
+        "ip": {
+          "type": "string",
+          "description": "The target as given: an address or a hostname."
+        },
+        "alive": {
+          "type": "boolean"
+        },
+        "ssh": {
+          "type": "boolean"
+        },
+        "snmp": {
+          "type": "boolean"
+        },
+        "mysql": {
+          "type": "boolean"
+        },
+        "hostname": {
+          "type": "string"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/service"
+          }
+        },
+        "address": {
+          "type": "string",
+          "description": "The address every probe used; empty when the target did not resolve."
+        }
+      }
+    },
+    "serviceSpec": {
+      "type": "object",
+      "required": [
+        "name",
+        "port",
+        "protocol",
+        "probe",
+        "timeout"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "port": {
+          "$ref": "#/$defs/port"
+        },
+        "protocol": {
+          "$ref": "#/$defs/protocol"
+        },
+        "probe": {
+          "type": "string"
+        },
+        "timeout": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "scanDocument": {
+      "type": "object",
+      "required": [
+        "format",
+        "version",
+        "netprobe_version",
+        "created",
+        "target",
+        "services",
+        "devices"
+      ],
+      "properties": {
+        "netprobe_version": {
+          "type": "string"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "target": {
+          "type": "string"
+        },
+        "timeout": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "backend": {
+          "enum": [
+            "asyncio",
+            "nmap"
+          ]
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/serviceSpec"
+          }
+        },
+        "devices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/device"
+          }
+        }
+      }
+    }
+  }
+}

@@ -27,7 +27,14 @@ from netprobe.diff import SnapshotError, compare, load_inventory, print_diff, wr
 from netprobe.export import ExportError, KadupulOptions, kadupul_script, write_script
 from netprobe.history import HistoryStore, compare_scans, utc_now
 from netprobe.models import Device, ServiceSpec
-from netprobe.output import console, print_results, save_csv, save_json, write_text
+from netprobe.output import (
+    console,
+    print_results,
+    report_json,
+    save_csv,
+    save_json,
+    write_text,
+)
 from netprobe.preflight import PreflightResult, check_plan, paths_overlap
 from netprobe.probes import SnmpCredentials
 from netprobe.profiles import load_profiles, resolve_profile
@@ -122,7 +129,7 @@ class ScanOptions:
                 "auto",
                 "--format",
                 "-f",
-                help="Output format (auto-detects from filename; .sh means kadupul)",
+                help="Output format (auto-detects from filename; .sh means kadupul; json without -o goes to stdout)",
             )
         },
     )
@@ -614,9 +621,14 @@ def record_history(
 
 
 def report_scan(options: ScanOptions, plan: ScanPlan, devices: list[Device]) -> None:
-    if options.output_format != "auto" and options.output is None:
-        logger.warning("--format has no effect without --output")
-    if not options.quiet:
+    if options.output is None and options.output_format == "json":
+        # The report replaces the table so stdout stays one JSON document.
+        typer.echo(report_json(devices, **_report_context(plan)), nl=False)
+    elif options.output_format != "auto" and options.output is None:
+        logger.warning(
+            f"--format {options.output_format} needs --output; only json can go to stdout"
+        )
+    elif not options.quiet:
         print_results(devices)
     if options.output:
         save_report(options, plan, devices)
@@ -635,6 +647,15 @@ def report_scan(options: ScanOptions, plan: ScanPlan, devices: list[Device]) -> 
             raise typer.Exit(1) from exc
 
 
+def _report_context(plan: ScanPlan) -> dict[str, Any]:
+    return {
+        "network": plan.network,
+        "services": plan.services,
+        "timeout": plan.timeout,
+        "backend": plan.backend,
+    }
+
+
 def report_format(output: Path, selected: str) -> str:
     if selected != "auto":
         return selected
@@ -651,7 +672,7 @@ def save_report(options: ScanOptions, plan: ScanPlan, devices: list[Device]) -> 
     try:
         match report_format(options.output, options.output_format):
             case "json":
-                save_json(devices, options.output)
+                save_json(devices, options.output, **_report_context(plan))
             case "csv":
                 save_csv(devices, options.output)
             case "kadupul":
@@ -777,7 +798,8 @@ def history_command(
     """List saved inventory IDs and summaries, newest first; never creates a database."""
     try:
         summaries = HistoryStore(history_path).list_summaries(limit)
-        typer.echo(json.dumps(summaries, indent=2))
+        listing = {"format": "netprobe-history", "version": 1, "scans": summaries}
+        typer.echo(json.dumps(listing, indent=2))
     except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as exc:
         typer.echo(f"History failed: {exc}", err=True)
         raise typer.Exit(1) from exc

@@ -38,7 +38,9 @@ def test_save_json_keeps_legacy_fields_and_adds_services(tmp_path):
     out = tmp_path / "test.json"
     save_json(sample(), out)
 
-    data = json.loads(out.read_text())
+    document = json.loads(out.read_text())
+    assert (document["format"], document["version"]) == ("netprobe-report", 1)
+    data = document["devices"]
     assert list(data[0])[:7] == ["ip", "alive", "ssh", "snmp", "mysql", "hostname", "errors"]
     assert data[0]["ssh"] is True
     assert data[0]["services"][0] == {

@@ -1,0 +1,243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/somethingwithproof/python-network-discovery-tool/schemas/diff-v1.schema.json",
+  "title": "netprobe diff, version 1",
+  "description": "Written by `diff -f json`. `changed` is true when any list other than `warnings` is non-empty; `diff` then exits 3.",
+  "type": "object",
+  "required": [
+    "format",
+    "version",
+    "changed",
+    "old",
+    "new",
+    "new_hosts",
+    "vanished_hosts",
+    "opened",
+    "closed",
+    "version_changes",
+    "unsettled_hosts",
+    "unconfirmed",
+    "warnings"
+  ],
+  "properties": {
+    "format": {
+      "const": "netprobe-diff"
+    },
+    "version": {
+      "const": 1
+    },
+    "changed": {
+      "type": "boolean"
+    },
+    "old": {
+      "$ref": "#/$defs/side"
+    },
+    "new": {
+      "$ref": "#/$defs/side"
+    },
+    "new_hosts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/host"
+      }
+    },
+    "vanished_hosts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/host"
+      }
+    },
+    "opened": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/change"
+      }
+    },
+    "closed": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/change"
+      }
+    },
+    "version_changes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/change"
+      }
+    },
+    "unsettled_hosts": {
+      "type": "array",
+      "description": "Hosts answering in one scan, or neither, whose probes all failed otherwise.",
+      "items": {
+        "type": "object",
+        "required": [
+          "ip",
+          "before",
+          "after"
+        ],
+        "properties": {
+          "ip": {
+            "type": "string"
+          },
+          "before": {
+            "enum": [
+              "up",
+              "uncertain"
+            ]
+          },
+          "after": {
+            "enum": [
+              "up",
+              "uncertain"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "unconfirmed": {
+      "type": "array",
+      "description": "Ports whose state is unknown in at least one scan and not open now.",
+      "items": {
+        "type": "object",
+        "required": [
+          "ip",
+          "name",
+          "port",
+          "protocol",
+          "before",
+          "after"
+        ],
+        "properties": {
+          "ip": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "port": {
+            "$ref": "common-v1.schema.json#/$defs/port"
+          },
+          "protocol": {
+            "$ref": "common-v1.schema.json#/$defs/protocol"
+          },
+          "before": {
+            "enum": [
+              "open",
+              "unknown"
+            ]
+          },
+          "after": {
+            "const": "unknown"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "side": {
+      "type": "object",
+      "required": [
+        "source",
+        "created",
+        "target"
+      ],
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "created": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "host": {
+      "type": "object",
+      "required": [
+        "ip",
+        "hostname",
+        "services"
+      ],
+      "properties": {
+        "ip": {
+          "type": "string"
+        },
+        "hostname": {
+          "type": "string"
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "port",
+              "protocol",
+              "version"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "port": {
+                "$ref": "common-v1.schema.json#/$defs/port"
+              },
+              "protocol": {
+                "$ref": "common-v1.schema.json#/$defs/protocol"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "change": {
+      "type": "object",
+      "required": [
+        "ip",
+        "name",
+        "port",
+        "protocol",
+        "version",
+        "old_version"
+      ],
+      "properties": {
+        "ip": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "port": {
+          "$ref": "common-v1.schema.json#/$defs/port"
+        },
+        "protocol": {
+          "$ref": "common-v1.schema.json#/$defs/protocol"
+        },
+        "version": {
+          "type": "string"
+        },
+        "old_version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

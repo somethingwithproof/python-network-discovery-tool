@@ -458,3 +458,19 @@ def test_snapshot_with_impossible_endpoint_is_rejected(tmp_path, port, protocol)
         load_inventory(path)
     result = CliRunner().invoke(cli.app, ["export", str(path), "-o", str(tmp_path / "x.sh")])
     assert result.exit_code == 2, result.output
+
+
+def test_versioned_report_is_read_like_a_snapshot(tmp_path):
+    from netprobe.output import save_json
+
+    report = tmp_path / "report.json"
+    devices = [host("10.0.0.1", SSH), Device("10.0.0.2", errors=["Host is down"])]
+    save_json(devices, report, network="10.0.0.0/30", services=DEFAULT_SERVICES, timeout=1.0)
+    inventory = load_inventory(report)
+
+    assert list(inventory.hosts) == ["10.0.0.1"]
+    assert inventory.target == "10.0.0.0/30"
+    assert inventory.timeout == 1.0
+    assert inventory.probed == {(s.port, s.protocol) for s in DEFAULT_SERVICES}
+    snapshot = snap(tmp_path, "s.json", [host("10.0.0.1", SSH)], target="10.0.0.0/30", timeout=1.0)
+    assert not compare(inventory, load_inventory(snapshot)).changed

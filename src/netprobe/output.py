@@ -12,14 +12,18 @@ import json
 import logging
 import os
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import asdict
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
-from netprobe.models import LEGACY_FLAGS, Device
+from netprobe.models import LEGACY_FLAGS, Device, ServiceSpec
+from netprobe.scan_settings import NETPROBE_VERSION
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -81,10 +85,82 @@ def _csv_field(value: object) -> object:
     return value
 
 
-def save_json(devices: list[Device], output_path: Path) -> None:
-    """Save devices to JSON file."""
-    data = [asdict(d) for d in devices]
-    write_text(output_path, json.dumps(data, indent=2))
+# `scan -o report.json` and `--format json` on stdout. Every device scanned.
+REPORT_FORMAT = "netprobe-report"
+REPORT_VERSION = 1
+# `--save-snapshot`. Only hosts that answered or had a probe fail.
+SNAPSHOT_FORMAT = "netprobe-snapshot"
+SNAPSHOT_VERSION = 1
+
+
+def scan_document(
+    format_name: str,
+    version: int,
+    network: str,
+    services: Iterable[ServiceSpec],
+    devices: Iterable[Device],
+    *,
+    timeout: float | None = None,
+    backend: str | None = None,
+) -> dict[str, Any]:
+    """The versioned JSON envelope shared by reports and snapshots.
+
+    The schemas in netprobe/schemas describe it; a change that removes or
+    renames a field needs a new version.
+    """
+    document: dict[str, Any] = {
+        "format": format_name,
+        "version": version,
+        "netprobe_version": NETPROBE_VERSION,
+        "created": datetime.now(UTC).isoformat(timespec="seconds"),
+        "target": network,
+        "services": [
+            {
+                "name": s.name,
+                "port": s.port,
+                "protocol": s.protocol,
+                "probe": s.probe,
+                "timeout": s.timeout,
+            }
+            for s in services
+        ],
+    }
+    if timeout is not None:
+        document["timeout"] = timeout
+    if backend is not None:
+        document["backend"] = backend
+    document["devices"] = [asdict(d) for d in devices]
+    return document
+
+
+def report_json(
+    devices: list[Device],
+    *,
+    network: str = "",
+    services: Iterable[ServiceSpec] = (),
+    timeout: float | None = None,
+    backend: str | None = None,
+) -> str:
+    document = scan_document(
+        REPORT_FORMAT, REPORT_VERSION, network, services, devices, timeout=timeout, backend=backend
+    )
+    return json.dumps(document, indent=2) + "\n"
+
+
+def save_json(
+    devices: list[Device],
+    output_path: Path,
+    *,
+    network: str = "",
+    services: Iterable[ServiceSpec] = (),
+    timeout: float | None = None,
+    backend: str | None = None,
+) -> None:
+    """Save a versioned JSON report of every scanned device."""
+    text = report_json(
+        devices, network=network, services=services, timeout=timeout, backend=backend
+    )
+    write_text(output_path, text)
     logger.info(f"Saved JSON report to {output_path}")
 
 

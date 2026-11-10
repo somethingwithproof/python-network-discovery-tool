@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/somethingwithproof/python-network-discovery-tool/schemas/history-v1.schema.json",
+  "title": "netprobe history listing, version 1",
+  "description": "Printed by `history`, newest scan first. `metadata` is the stored scan metadata.",
+  "type": "object",
+  "required": [
+    "format",
+    "version",
+    "scans"
+  ],
+  "properties": {
+    "format": {
+      "const": "netprobe-history"
+    },
+    "version": {
+      "const": 1
+    },
+    "scans": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "started_at",
+          "finished_at",
+          "metadata"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "metadata": {
+            "type": "object",
+            "required": [
+              "schema_version"
+            ],
+            "properties": {
+              "schema_version": {
+                "const": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -31,7 +31,7 @@ def scan(tmp_path: Path, *args: str) -> dict[str, dict[str, object]]:
     out = tmp_path / "scan.json"
     result = CliRunner().invoke(app, ["scan", LAB, "-q", "-o", str(out), *args])
     assert result.exit_code == 0, result.output
-    return {d["ip"]: d for d in json.loads(out.read_text())}
+    return {d["ip"]: d for d in json.loads(out.read_text())["devices"]}
 
 
 def open_names(device: dict[str, object]) -> set[str]:
@@ -122,7 +122,7 @@ def test_lab_snmp_system_mib(tmp_path, monkeypatch, env):
     )
     assert result.exit_code == 0, result.output
 
-    snmp = json.loads(out.read_text())[0]["services"][0]
+    snmp = json.loads(out.read_text())["devices"][0]["services"][0]
     assert snmp["details"]["sys_name"] == "snmp-lab"
     assert snmp["details"]["sys_object_id"] == "1.3.6.1.4.1.8072.3.2.10"
     assert snmp["details"]["snmp_version"] == ("3" if "NETPROBE_SNMP_USER" in env else "2c")
@@ -139,7 +139,7 @@ def test_lab_snmp_wrong_key_is_reported(tmp_path, monkeypatch):
     out = tmp_path / "scan.json"
     CliRunner().invoke(app, ["scan", SNMP, "-q", "-o", str(out), "--services", "snmp"])
 
-    snmp = json.loads(out.read_text())[0]["services"][0]
+    snmp = json.loads(out.read_text())["devices"][0]["services"][0]
     assert snmp["state"] == "open"
     assert "digest" in snmp["details"]["snmp_error"].lower()
 

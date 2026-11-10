@@ -56,7 +56,7 @@ def test_cli_scan_writes_report(tmp_path, args, suffix):
     if suffix == ".csv" or "csv" in args:
         assert text.startswith("ip,alive")
     else:
-        assert json.loads(text)[0]["ip"] == "10.0.0.1"
+        assert json.loads(text)["devices"][0]["ip"] == "10.0.0.1"
 
 
 def test_cli_scan_prints_table_without_output_file():
@@ -192,7 +192,7 @@ def test_cli_snmp_secrets_reach_probe_but_never_output(tmp_path, monkeypatch, ca
         )
 
     assert result.exit_code == 0, result.output
-    service = json.loads(out.read_text())[0]["services"][0]
+    service = json.loads(out.read_text())["devices"][0]["services"][0]
     assert "No SNMP response" in service["details"]["snmp_error"]
     everything = out.read_text() + result.output + caplog.text
     for name, value in secrets.items():
