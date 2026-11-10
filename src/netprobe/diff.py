@@ -110,6 +110,8 @@ class Inventory:
     # False for a report from a scan stopped by --deadline: hosts it never
     # reached are missing, not gone.
     complete: bool = True
+    # Every address the file lists, including hosts reported down.
+    listed: set[str] = field(default_factory=set)
 
     @property
     def settings(self) -> RecordedSettings:
@@ -160,13 +162,14 @@ def _host(entry: Any) -> Host:
     return Host(ip, hostname, found, unknown)
 
 
-def _partition(devices: list[Any]) -> tuple[list[Any], list[Host], set[str]]:
-    """Split stored devices into alive entries, their hosts, and uncertain IPs."""
+def _partition(devices: list[Any]) -> tuple[list[Any], list[Host], set[str], set[str]]:
+    """Split stored devices into alive entries, their hosts, uncertain IPs and every IP."""
     answered = [not isinstance(d, dict) or bool(d.get("alive", True)) for d in devices]
     alive = [d for d, up in zip(devices, answered, strict=True) if up]
-    quiet = [d for d, up in zip(devices, answered, strict=True) if not up]
-    uncertain = {h.ip for h in map(_host, quiet) if h.unknown}
-    return alive, [_host(d) for d in alive], uncertain
+    quiet = [_host(d) for d, up in zip(devices, answered, strict=True) if not up]
+    hosts = [_host(d) for d in alive]
+    uncertain = {h.ip for h in quiet if h.unknown}
+    return alive, hosts, uncertain, {h.ip for h in (*hosts, *quiet)}
 
 
 def _recorded_number(document: dict[str, Any], key: str) -> float | None:
@@ -239,7 +242,7 @@ def load_inventory(path: Path, *, allow_partial: bool = False) -> Inventory:
             parts = _snapshot_parts(path, document)
         else:
             raise SnapshotError(f"{path}: not a netprobe snapshot or JSON report")
-        alive, hosts, uncertain = _partition(parts["devices"])
+        alive, hosts, uncertain, listed = _partition(parts["devices"])
     except SnapshotError:
         raise
     except (KeyError, TypeError, ValueError) as e:
@@ -262,6 +265,7 @@ def load_inventory(path: Path, *, allow_partial: bool = False) -> Inventory:
         service_timeouts=parts.get("service_timeouts", {}),
         uncertain=uncertain,
         complete=complete,
+        listed=listed,
     )
 
 
@@ -276,8 +280,9 @@ def _host_state(inventory: Inventory, ip: str) -> str:
         return UP
     if ip in inventory.uncertain:
         return UNCERTAIN
-    # An incomplete scan may simply not have reached the host.
-    return ABSENT if inventory.complete else UNSCANNED
+    # An incomplete scan may simply not have reached a host it does not list;
+    # one it lists as down was reached.
+    return ABSENT if inventory.complete or ip in inventory.listed else UNSCANNED
 
 
 @dataclass

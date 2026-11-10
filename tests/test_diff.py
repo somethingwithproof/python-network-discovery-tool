@@ -662,6 +662,19 @@ def test_allow_partial_marks_unreached_hosts_unsettled(tmp_path):
     assert any("incomplete scan" in warning for warning in document["warnings"])
 
 
+def test_allow_partial_still_reports_hosts_it_reached_as_down_vanished(tmp_path):
+    up = [host("10.0.0.1", SSH), host("10.0.0.2", SSH)]
+    full = report(tmp_path, "full.json", up, complete=True)
+    reached = [host("10.0.0.1", SSH), Device("10.0.0.2", errors=["Host is down"])]
+    partial = report(tmp_path, "partial.json", reached, complete=False)
+
+    result = compare(load_inventory(full), load_inventory(partial, allow_partial=True))
+
+    assert [h["ip"] for h in result.vanished_hosts] == ["10.0.0.2"]
+    assert result.unsettled_hosts == []
+    assert result.partial and result.changed
+
+
 def test_allow_partial_never_reports_no_change(tmp_path):
     partial = report(tmp_path, "partial.json", [host("10.0.0.1", SSH)], complete=False)
 

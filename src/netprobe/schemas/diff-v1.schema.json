@@ -148,7 +148,7 @@
     },
     "partial": {
       "type": "boolean",
-      "description": "True when `--allow-partial` let an incomplete scan through; hosts it did not reach are `unscanned`."
+      "description": "True when `--allow-partial` let an incomplete scan through; hosts it did not list are `unscanned`. Optional so diffs written before this field still validate; this netprobe always writes it."
     }
   },
   "$defs": {
