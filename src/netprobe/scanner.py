@@ -159,16 +159,34 @@ def _nmap_executable() -> str:
     return executable
 
 
-def parse_nmap_hosts(document: bytes) -> list[str]:
+def requested_addresses(hosts: Iterable[str]) -> int:
+    """How many addresses nmap must report for these arguments: a prefix counts all of them."""
+    return sum(
+        ipaddress.ip_network(host, strict=False).num_addresses if "/" in host else 1
+        for host in hosts
+    )
+
+
+def parse_nmap_hosts(document: bytes, requested: int) -> list[str]:
     """Addresses of hosts nmap's XML output reports as up.
 
-    defusedxml refuses entity expansion and external references, so a
-    malformed or hostile document fails instead of exhausting memory.
+    nmap exits 0 even when it scanned nothing, for example for a hostname
+    it cannot resolve, so a run whose hosts total is below ``requested``
+    fails instead of reporting every target down. defusedxml refuses entity
+    expansion and external references, so a malformed or hostile document
+    fails instead of exhausting memory.
     """
     try:
         root = fromstring(document)
     except (ParseError, ValueError) as e:
         raise BackendUnavailableError(f"Nmap discovery failed: unreadable XML ({e})") from e
+    stats = root.find("runstats/hosts")
+    total = "" if stats is None else stats.get("total", "")
+    if not total.isdecimal() or int(total) < requested:
+        raise BackendUnavailableError(
+            f"Nmap discovery failed: nmap reported {total or 'no'} of {requested} "
+            "requested addresses"
+        )
     up: list[str] = []
     for host in root.iter("host"):
         status = host.find("status")
@@ -229,7 +247,7 @@ async def _run_nmap(executable: str, hosts: list[str], ipv6: bool, deadline: flo
         raise BackendUnavailableError(f"Nmap discovery failed: {e}") from e
     if status != 0:
         raise BackendUnavailableError(f"Nmap discovery failed: nmap exited with status {status}")
-    return parse_nmap_hosts(output)
+    return parse_nmap_hosts(output, requested_addresses(hosts))
 
 
 def nmap_deadline(host_count: int) -> int:
@@ -249,7 +267,10 @@ async def nmap_sweep(targets: list[str], network: str) -> set[str]:
     ipv6 = all(":" in target for target in targets)
     batches: list[tuple[list[str], float]]
     if "/" in network and targets == expand_targets(network):
-        batches = [([network], nmap_deadline(len(targets)))]
+        # Canonical CIDR: nmap reads netmask forms such as /255.255.255.0
+        # as hostnames and scans nothing.
+        prefix = str(ipaddress.ip_network(network, strict=False))
+        batches = [([prefix], nmap_deadline(len(targets)))]
     else:
         batches = [
             (targets[index : index + NMAP_BATCH], NMAP_TIMEOUT)
