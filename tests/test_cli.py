@@ -267,7 +267,8 @@ def test_cli_rejects_missing_secret_file_and_conflicts(tmp_path, monkeypatch):
         both = runner.invoke(cli.app, ["scan", "10.0.0.1", "--snmp-community-file", str(secret)])
     assert both.exit_code == 2
     assert "use one" in both.output
-    assert "from-env" not in both.output and "from-file" not in both.output
+    assert "from-env" not in both.output
+    assert "from-file" not in both.output
 
 
 @pytest.mark.parametrize(
