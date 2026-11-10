@@ -59,6 +59,7 @@ checkout, install the locked runtime dependencies:
 ```bash
 uv sync --locked
 uv run netprobe --help
+uv run netprobe --version
 uv run netprobe preflight 127.0.0.1
 uv run netprobe scan 127.0.0.1 --services ssh -o loopback.json
 ```
@@ -222,6 +223,10 @@ netprobe profiles --config netprobe.toml
 netprobe preflight --profile office --config netprobe.toml
 netprobe scan --profile office --config netprobe.toml -o report.json
 ```
+
+`preflight` resolves options and profiles exactly as `scan` does, including
+`--concurrency` for the open-file check, so a passing preflight means `scan` will
+start with the same plan.
 
 Profiles accept `network`, `exclusions`, `services`, `ports`, `backend`, `timeout`,
 `concurrency`, and `max_hosts`. `services` and `ports` use the existing comma-list
