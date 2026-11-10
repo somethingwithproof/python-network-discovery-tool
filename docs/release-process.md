@@ -8,8 +8,8 @@ SPDX-License-Identifier: MIT
 The current process is documented in [Versioning and releases](releasing.md):
 release-please opens a release PR from Conventional Commits, merging it creates
 the `vMAJOR.MINOR.PATCH` tag and a draft GitHub release with tested, attested
-artifacts, and a maintainer publishes the draft, which can trigger PyPI trusted
-publishing of those same files.
+artifacts, and a maintainer publishes the draft once the Release workflow has
+attached its files, which can trigger PyPI trusted publishing of those same files.
 
 The legacy GitFlow/development-version workflow and `scripts/release.py prepare`
 are retired.

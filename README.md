@@ -336,13 +336,15 @@ netprobe follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html): com
 fixes increment the patch version, compatible features/deprecations increment the
 minor version, and breaking compatibility changes increment the major version.
 Commands and options, exit codes and the JSON schemas are the public contract;
-deprecated behavior keeps working until the next major release.
+deprecated behavior keeps working until the next major release, unless a
+security fix requires changing it sooner (the changelog then says why).
 
 release-please opens a release PR from the Conventional Commit titles on `main`,
 bumping `pyproject.toml`, `uv.lock` and `CHANGES.md`. Merging it creates the
 `vMAJOR.MINOR.PATCH` tag and a draft GitHub release, to which CI attaches a tested
-wheel, source distribution, checksums and build attestations. A maintainer reviews
-and publishes the draft. Releases are never replaced.
+wheel, source distribution and checksums; GitHub stores build attestations for
+those files through its attestations API. A maintainer reviews and publishes the
+draft once the files are attached. Releases are never replaced.
 
 PyPI trusted publishing is opt-in and requires project ownership, a trusted
 publisher and the `pypi` environment. It publishes the same checked release artifacts

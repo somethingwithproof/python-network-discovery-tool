@@ -42,7 +42,7 @@ jobs:
     name: Build, attest and attach release artifacts
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
-    # A tag pushed with GITHUB_TOKEN does not trigger release.yml, so call it.
+    # release.yml has no tag-push trigger; this call is the only automatic build.
     permissions:
       contents: write
       id-token: write

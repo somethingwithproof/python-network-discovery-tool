@@ -66,8 +66,10 @@ which the **PR title** workflow checks:
 | `feat!: ...`, `fix(cli)!: ...`, or a `BREAKING CHANGE:` footer | major | Breaking Changes |
 | `build`, `chore`, `ci`, `docs`, `refactor`, `style`, `test` | none | not listed |
 
-Mark every change to the public contract with `!` and explain the migration in a
-`BREAKING CHANGE:` footer; release-please copies the footer into the changelog.
+Mark every incompatible change to the public contract with `!` and explain the
+migration in a `BREAKING CHANGE:` footer; release-please copies the footer into the
+changelog. Compatible additions, such as a new option or an optional JSON field,
+are `feat:` without `!`.
 
 ## Release flow
 
@@ -88,23 +90,29 @@ Mark every change to the public contract with `!` and explain the migration in a
       with the 90% coverage floor;
    2. builds a wheel and source distribution once and runs strict Twine checks
       against the version;
-   3. writes `SHA256SUMS`, creates GitHub artifact attestations for the files,
-      and attaches them to the draft.
-4. A maintainer reviews the draft's files and notes and publishes it, in the
-   GitHub UI or with `gh release edit vX.Y.Z --draft=false --latest`. Publishing
-   triggers the optional PyPI workflow below. Workflows never publish their own
-   drafts.
+   3. writes `SHA256SUMS` and creates GitHub artifact attestations for the
+      files (GitHub stores these through its attestations API; they are not
+      release assets);
+   4. attaches the wheel, source distribution and `SHA256SUMS` to the draft and
+      sets the draft's notes to the `CHANGES.md` section it validated.
+4. When the Release workflow has finished and the draft lists the wheel, source
+   distribution and `SHA256SUMS`, a maintainer reviews the files and notes and
+   publishes it, in the GitHub UI or with
+   `gh release edit vX.Y.Z --draft=false --latest`. Do not publish earlier: the
+   workflow never changes a published release, so its files would be missing.
+   Publishing triggers the optional PyPI workflow below. Workflows never publish
+   their own drafts.
 
-Tags pushed with `GITHUB_TOKEN` do not start other workflows, which is why
-release-please calls the build directly. Pull requests opened with `GITHUB_TOKEN`
-do not start CI either: set a `RELEASE_PLEASE_TOKEN` secret (a GitHub App or
-fine-grained token with contents and pull-requests write) so the release PR's
+`release.yml` has no tag-push trigger, so release-please's call is the only
+automatic build and a tag never starts two. Pull requests opened with
+`GITHUB_TOKEN` do not start CI: set a `RELEASE_PLEASE_TOKEN` secret (a GitHub App
+or fine-grained token with contents and pull-requests write) so the release PR's
 required checks run. `scripts/release.py check` validates metadata, notes and
 artifacts; release-please does the preparation.
 
-A tag pushed by hand still starts the same build and creates the draft itself,
-and the manual **Release** workflow rebuilds an existing tag after a failure. Both
-refuse to touch a published release or one that already has assets.
+To build a tag pushed by hand, or to rebuild a tag after a failed build, run the
+**Release** workflow manually with the tag. It creates the draft when none exists,
+and refuses to touch a published release or one that already has assets.
 
 ### Overriding the version
 
@@ -126,9 +134,18 @@ metadata. Python distribution versions use the matching PEP 440 spelling:
 | `v3.2.0-rc.1` | `3.2.0rc1` |
 | `v3.2.0` | `3.2.0` |
 
-This release-please configuration creates stable releases only. The checks still
-accept prerelease tags pushed by hand, and those are marked as prereleases on
-GitHub.
+This release-please configuration creates stable releases only. To prepare a
+prerelease by hand:
+
+1. In a pull request titled `chore: prepare 3.2.0-rc.1`, set `version` in
+   `pyproject.toml` to the PEP 440 spelling (`3.2.0rc1`), run `uv lock`, and add a
+   dated section at the top of `CHANGES.md`, such as
+   `## [3.2.0-rc.1](https://github.com/somethingwithproof/python-network-discovery-tool/compare/v3.1.0...v3.2.0-rc.1) (2026-12-01)`.
+   This is the one case where `CHANGES.md` is edited by hand; keep the bracketed
+   heading so release-please still inserts later sections above it.
+2. After it merges, push the `v3.2.0-rc.1` tag on that commit and run the
+   **Release** workflow with it. The draft is marked as a prerelease.
+3. The next release PR sets the stable version again; nothing needs reverting.
 
 ## Checksums and build provenance
 
@@ -169,8 +186,13 @@ and attached files cannot refer to different builds.
 PyPI publishing is **disabled by default**. Before enabling it:
 
 1. Choose the PyPI distribution name. `netprobe` is already registered on PyPI
-   by an unrelated project, so the `name` in `pyproject.toml` (and the environment
-   URL in `publish.yml`) must change to a name this project owns before publishing.
+   by an unrelated project, so the distribution must be renamed before
+   publishing. The name appears in `pyproject.toml` (`name`), the environment URL
+   in `publish.yml`, `release-please-config.json` (`package-name` and the
+   `uv.lock` jsonpath), and the lockfile, distribution filename and
+   metadata checks in `scripts/release.py` and its tests. Change them in one pull request, run
+   `uv lock`, and confirm `scripts/release.py check` and the Release workflow pass
+   before enabling publishing. The import package and command can stay `netprobe`.
 2. Configure a [PyPI trusted publisher](https://docs.pypi.org/trusted-publishers/using-a-publisher/)
    for owner `somethingwithproof`, repository `python-network-discovery-tool`,
    workflow `publish.yml`, and environment `pypi`.

@@ -280,6 +280,10 @@ def test_release_please_config_matches_the_release_checks():
     }
 
 
+# DEFAULT_VERSION_HEADER_REGEX in release-please's changelog updater.
+RELEASE_PLEASE_HEADER = r"\n###? v?[0-9[]"
+
+
 def test_changelog_lets_release_please_insert_above_every_entry():
     """release-please inserts before the first match of this header pattern
     (DEFAULT_VERSION_HEADER_REGEX in its changelog updater). With no match it
@@ -287,7 +291,22 @@ def test_changelog_lets_release_please_insert_above_every_entry():
 
     changelog = (ROOT / "CHANGES.md").read_text()
     first_section = changelog.index("\n## ")
-    assert re.search(r"\n###? v?[0-9[]", changelog, re.S).start() == first_section
+    assert re.search(RELEASE_PLEASE_HEADER, changelog).start() <= first_section
+
+
+def test_hand_written_notes_are_released_with_3_0_0(release):
+    """The first generated section absorbs the hand-written block, so the notes
+    the draft release is given include the breaking-change migration details."""
+
+    changelog = (ROOT / "CHANGES.md").read_text()
+    insert_at = re.search(RELEASE_PLEASE_HEADER, changelog).start() + 1
+    generated = "## [3.0.0](https://github.com/o/r/compare/v0.3.0...v3.0.0) (2026-11-10)\n\n"
+    generated += "### ⚠ BREAKING CHANGES\n\n* generated entry\n\n"
+    released = changelog[:insert_at] + generated + changelog[insert_at:]
+    notes = release.release_notes(released, release.parse_version("3.0.0"))
+    assert "* generated entry" in notes
+    assert "##### Breaking changes" in notes
+    assert "Version 0.4.0" not in notes
 
 
 def test_notes_are_required_only_when_a_release_is_prepared(release, project):

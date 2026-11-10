@@ -4,9 +4,10 @@
 
 name: Release
 
+# No tag-push trigger: release-please calls this workflow for the tags it creates,
+# and a tag-push trigger would start a second build whenever RELEASE_PLEASE_TOKEN
+# lets that tag start workflows. Build a hand-pushed tag with workflow_dispatch.
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
     inputs:
       tag:
@@ -41,7 +42,8 @@ env:
   UV_PYTHON_DOWNLOADS: never
 
 concurrency:
-  group: release-${{ github.event_name }}-${{ inputs.tag || github.ref }}
+  # One build per tag, however it was started.
+  group: release-${{ inputs.tag || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -159,8 +161,9 @@ jobs:
           PRERELEASE: ${{ needs.build.outputs.prerelease }}
         run: |
           # release-please has already created an empty draft for its tag; attach
-          # the tested files to it. Never touch a published release or replace
-          # assets: corrections get a new version.
+          # the tested files and the validated CHANGES.md section to it. Never
+          # touch a published release or replace assets: corrections get a new
+          # version.
           if gh release view "$RELEASE_TAG" --json isDraft,assets > "$RUNNER_TEMP/release.json" 2>/dev/null; then
             if [ "$(jq -r .isDraft "$RUNNER_TEMP/release.json")" != "true" ] ||
                [ "$(jq '.assets | length' "$RUNNER_TEMP/release.json")" != "0" ]; then
@@ -168,6 +171,7 @@ jobs:
               exit 1
             fi
             gh release upload "$RELEASE_TAG" artifacts/dist/*.whl artifacts/dist/*.tar.gz artifacts/dist/SHA256SUMS
+            gh release edit "$RELEASE_TAG" --notes-file artifacts/release-notes.md
             exit 0
           fi
           args=()

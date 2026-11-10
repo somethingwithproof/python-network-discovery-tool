@@ -14,8 +14,10 @@ mise exec python@3.14 -- python scripts/release.py check
 mise exec python@3.14 -- python scripts/release.py check --tag v3.1.0
 ```
 
-`check` confirms that `pyproject.toml`, netprobe's `uv.lock` entry, the tag and a
-dated `CHANGES.md` section agree. Checksum and distribution validation options are
+`check` always confirms that `pyproject.toml` and netprobe's `uv.lock` entry
+agree. It also requires a dated `CHANGES.md` section for the version, and checks
+the tag, only when `--tag` is given or `--previous-version` is lower than the
+project version; the first command above therefore does not validate a release. Checksum and distribution validation options are
 shown by `check --help`.
 
 See [Versioning and releases](../docs/releasing.md) for the compatibility and
