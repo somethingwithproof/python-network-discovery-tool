@@ -4,12 +4,11 @@
 """Every JSON document netprobe writes validates against its published schema."""
 
 import json
-from importlib.resources import files
 from unittest.mock import MagicMock, patch
 
 import pytest
+from conftest import SCHEMAS, validator
 from jsonschema import Draft202012Validator, ValidationError
-from referencing import Registry, Resource
 from typer.testing import CliRunner
 
 from netprobe import cli
@@ -17,65 +16,7 @@ from netprobe.config import DEFAULT_SERVICES
 from netprobe.diff import write_snapshot
 from netprobe.models import Device, Service
 
-SCHEMAS = {
-    path.name: json.loads(path.read_text())
-    for path in files("netprobe").joinpath("schemas").iterdir()
-    if path.name.endswith(".schema.json")
-}
-
-
-def composed_targets(schemas):
-    """(file, JSON pointer) of every subschema that is only used through allOf."""
-    targets = set()
-    for name, schema in schemas.items():
-        for part in schema.get("allOf", []):
-            ref = part.get("$ref", "")
-            path, _, pointer = ref.partition("#")
-            targets.add((path or name, pointer))
-    return targets
-
-
-def closed(node, name, pointer, skip):
-    """Copy of a schema that rejects every property it does not declare.
-
-    The published schemas accept unknown fields so that an additive change does
-    not break consumers; the tests use closed copies so a field netprobe writes
-    without documenting it fails here instead. unevaluatedProperties sees through
-    allOf, so composed parts are left open and their composite is closed.
-    Objects whose schema says additionalProperties: true stay open.
-    """
-    if isinstance(node, list):
-        return [closed(item, name, f"{pointer}/{i}", skip) for i, item in enumerate(node)]
-    if not isinstance(node, dict):
-        return node
-    copy = {key: closed(value, name, f"{pointer}/{key}", skip) for key, value in node.items()}
-    if "properties" in copy and "additionalProperties" not in copy and (name, pointer) not in skip:
-        copy["unevaluatedProperties"] = False
-    return copy
-
-
-def registry(schemas):
-    return Registry().with_resources(
-        (schema["$id"], Resource.from_contents(schema)) for schema in schemas.values()
-    )
-
-
-PUBLISHED = registry(SCHEMAS)
-CLOSED_SCHEMAS = {
-    name: closed(schema, name, "", composed_targets(SCHEMAS)) for name, schema in SCHEMAS.items()
-}
-CLOSED = registry(CLOSED_SCHEMAS)
 runner = CliRunner()
-
-
-def validator(name, *, published=False):
-    """Closed validator by default; published=True uses the shipped schema."""
-    schemas, store = (SCHEMAS, PUBLISHED) if published else (CLOSED_SCHEMAS, CLOSED)
-    return Draft202012Validator(
-        schemas[f"{name}-v1.schema.json"],
-        registry=store,
-        format_checker=Draft202012Validator.FORMAT_CHECKER,
-    )
 
 
 def devices():
@@ -194,6 +135,7 @@ def _minimal(name):
         "netprobe_version": "0",
         "created": "2026-01-01T00:00:00+00:00",
         "target": "10.0.0.1",
+        "complete": True,
         "services": [],
         "devices": [],
     }

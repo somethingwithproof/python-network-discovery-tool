@@ -144,6 +144,7 @@
         "netprobe_version",
         "created",
         "target",
+        "complete",
         "services",
         "devices"
       ],
@@ -157,6 +158,10 @@
         },
         "target": {
           "type": "string"
+        },
+        "complete": {
+          "type": "boolean",
+          "description": "False when the scan stopped at --deadline; devices then lists only the hosts that finished."
         },
         "timeout": {
           "type": "number",

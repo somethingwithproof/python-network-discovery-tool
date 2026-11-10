@@ -41,12 +41,15 @@ from netprobe.profiles import load_profiles, resolve_profile
 from netprobe.scan_settings import NETPROBE_VERSION
 from netprobe.scanner import (
     DEFAULT_CONCURRENCY,
+    DEFAULT_DEADLINE,
     DEFAULT_TIMEOUT,
     HOST_DOWN,
     MAX_CONCURRENCY,
+    MAX_DEADLINE,
     MAX_HOSTS,
     BackendUnavailableError,
     NetworkScanner,
+    ScanDeadlineError,
 )
 
 logger = logging.getLogger(__name__)
@@ -172,6 +175,19 @@ class ScanOptions:
                 min=1,
                 max=MAX_CONCURRENCY,
                 help="Maximum probes in flight",
+            )
+        },
+    )
+    deadline: float = field(
+        default=DEFAULT_DEADLINE,
+        metadata={
+            "cli": typer.Option(
+                DEFAULT_DEADLINE,
+                "--deadline",
+                min=1,
+                max=MAX_DEADLINE,
+                envvar="NETPROBE_DEADLINE",
+                help="Stop the whole scan after this many seconds and exit 4 with a partial report",
             )
         },
     )
@@ -379,10 +395,21 @@ def scan(ctx: typer.Context, **values: Any) -> None:
     plan = scan_plan(ctx, options)
     store = scan_preflight(options, plan)
     started_at = utc_now()
-    devices = scan_devices(options, plan, snmp)
-    if store is not None:
+    devices, complete = scan_devices(options, plan, snmp)
+    if not complete:
+        # A partial scan would make the hosts it never reached look vanished
+        # to diff and history, so only the report records it.
+        typer.echo(
+            f"Error: scan stopped at its {options.deadline:g}s deadline after "
+            f"{len(devices)} host(s); the report is marked incomplete and no "
+            "history or snapshot was written",
+            err=True,
+        )
+    elif store is not None:
         record_history(store, options, plan, devices, started_at)
-    report_scan(options, plan, devices)
+    report_scan(options, plan, devices, complete=complete)
+    if not complete:
+        raise typer.Exit(EXIT_INCOMPLETE)
 
 
 SECRET_OPTIONS = ("snmp_community", "snmp_auth_key", "snmp_priv_key")
@@ -452,6 +479,9 @@ def scan_credentials(ctx: typer.Context, options: ScanOptions) -> SnmpCredential
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(2) from exc
 
+
+# Exit status when --deadline stopped the scan; a partial report was written.
+EXIT_INCOMPLETE = 4
 
 # Options whose CLI value overrides a profile only when given explicitly;
 # otherwise the profile's value wins over the option's default.
@@ -537,7 +567,8 @@ def scan_preflight(options: ScanOptions, plan: ScanPlan) -> HistoryStore | None:
 
 def scan_devices(
     options: ScanOptions, plan: ScanPlan, snmp: SnmpCredentials | None
-) -> list[Device]:
+) -> tuple[list[Device], bool]:
+    """Run the scan; the flag is False when --deadline cut it short."""
     try:
         scanner = NetworkScanner(
             backend=plan.backend,
@@ -548,6 +579,7 @@ def scan_devices(
             tls_ca_file=str(options.tls_ca_file) if options.tls_ca_file else None,
             max_hosts=plan.max_hosts,
             exclusions=plan.exclusions,
+            deadline=options.deadline,
         )
     except BackendUnavailableError as exc:
         typer.echo(f"Error: {exc}", err=True)
@@ -563,7 +595,9 @@ def scan_devices(
         disable=options.quiet,
     ) as progress:
         try:
-            return asyncio.run(scanner.scan_network(plan.network, progress))
+            return asyncio.run(scanner.scan_network(plan.network, progress)), True
+        except ScanDeadlineError as exc:
+            return exc.devices, False
         except (ValueError, BackendUnavailableError) as exc:
             typer.echo(f"Error: {exc}", err=True)
             raise typer.Exit(1 if isinstance(exc, BackendUnavailableError) else 2) from exc
@@ -622,10 +656,13 @@ def record_history(
         typer.echo(f"Saved history scan {scan_id}")
 
 
-def report_scan(options: ScanOptions, plan: ScanPlan, devices: list[Device]) -> None:
+def report_scan(
+    options: ScanOptions, plan: ScanPlan, devices: list[Device], *, complete: bool = True
+) -> None:
+    context = {**_report_context(plan), "complete": complete}
     if options.output is None and options.output_format == "json":
         # The report replaces the table so stdout stays one JSON document.
-        typer.echo(report_json(devices, **_report_context(plan)), nl=False)
+        typer.echo(report_json(devices, **context), nl=False)
     elif options.output_format != "auto" and options.output is None:
         logger.warning(
             f"--format {options.output_format} needs --output; only json can go to stdout"
@@ -633,8 +670,8 @@ def report_scan(options: ScanOptions, plan: ScanPlan, devices: list[Device]) -> 
     elif not options.quiet:
         print_results(devices)
     if options.output:
-        save_report(options, plan, devices)
-    if options.save_snapshot:
+        save_report(options, plan, devices, context)
+    if options.save_snapshot and complete:
         try:
             write_snapshot(
                 options.save_snapshot,
@@ -668,13 +705,15 @@ def report_format(output: Path, selected: str) -> str:
     return formats.get(extension, "json")
 
 
-def save_report(options: ScanOptions, plan: ScanPlan, devices: list[Device]) -> None:
+def save_report(
+    options: ScanOptions, plan: ScanPlan, devices: list[Device], context: dict[str, Any]
+) -> None:
     if options.output is None:
         return
     try:
         match report_format(options.output, options.output_format):
             case "json":
-                save_json(devices, options.output, **_report_context(plan))
+                save_json(devices, options.output, **context)
             case "csv":
                 save_csv(devices, options.output)
             case "kadupul":

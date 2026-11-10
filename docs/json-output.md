@@ -33,10 +33,12 @@ schema = json.loads(files("netprobe").joinpath("schemas/report-v1.schema.json").
 ## Reports and snapshots
 
 Reports and snapshots share one envelope: `netprobe_version`, `created` (UTC,
-ISO 8601), `target`, the probed `services` with their port, protocol, probe and
+ISO 8601), `target`, `complete`, the probed `services` with their port, protocol, probe and
 timeout, the scan `timeout` and `backend`, and `devices`. A report lists every
 scanned device. A snapshot lists only devices that answered or had a probe
 fail, so that `diff` can tell a failed observation from a vanished host.
+`complete` is false only in a report from a scan stopped by `--deadline`; its
+`devices` then lists just the hosts that finished, and no snapshot is written.
 
 Each device keeps the original `ip`, `alive`, `ssh`, `snmp`, `mysql`,
 `hostname` and `errors` fields, the `services` it probed with their `state`
