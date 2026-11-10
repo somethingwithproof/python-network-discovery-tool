@@ -639,7 +639,8 @@ def test_diff_refuses_an_incomplete_report_by_default(tmp_path):
     for args in ([full, partial], [partial, full]):
         outcome = runner.invoke(cli.app, ["diff", *map(str, args), "-f", "json"])
         assert outcome.exit_code == 2
-        assert "complete: false" in outcome.output and "--allow-partial" in outcome.output
+        assert "complete: false" in outcome.output
+        assert "--allow-partial" in outcome.output
         assert "{" not in outcome.stdout
 
 
@@ -656,7 +657,8 @@ def test_allow_partial_marks_unreached_hosts_unsettled(tmp_path):
     assert outcome.exit_code == 3
     document = json.loads(outcome.stdout)
     validator("diff").validate(document)
-    assert document["partial"] is True and document["changed"] is True
+    assert document["partial"] is True
+    assert document["changed"] is True
     assert document["vanished_hosts"] == []
     assert document["unsettled_hosts"] == [{"ip": "10.0.0.2", "before": "up", "after": "unscanned"}]
     assert any("incomplete scan" in warning for warning in document["warnings"])
@@ -672,7 +674,8 @@ def test_allow_partial_still_reports_hosts_it_reached_as_down_vanished(tmp_path)
 
     assert [h["ip"] for h in result.vanished_hosts] == ["10.0.0.2"]
     assert result.unsettled_hosts == []
-    assert result.partial and result.changed
+    assert result.partial
+    assert result.changed
 
 
 def test_allow_partial_never_reports_no_change(tmp_path):
