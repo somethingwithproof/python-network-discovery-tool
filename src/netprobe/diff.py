@@ -271,6 +271,7 @@ UNOBSERVED = frozenset({UNCERTAIN, UNSCANNED})
 
 
 def _host_state(inventory: Inventory, ip: str) -> str:
+    """Whether a scan saw ip answer, saw only failed probes, or did not list it."""
     if ip in inventory.hosts:
         return UP
     if ip in inventory.uncertain:
@@ -513,6 +514,7 @@ def _state(host: Host, key: OpenKey, open_ports: dict[OpenKey, str]) -> str:
 
 
 def _record(diff: Diff, ip: str, key: OpenKey, states: tuple[str, str], versions: Versions) -> None:
+    """File one port's transition under the list port_transition assigns it."""
     port, protocol, name = key
     before, after = states
     old_version, version = versions
