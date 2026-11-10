@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/somethingwithproof/python-network-discovery-tool/schemas/compare-v1.schema.json",
+  "title": "netprobe history comparison, version 1",
+  "description": "Printed by `compare BEFORE AFTER`. Transitions involving `unknown` are listed in `unconfirmed_ports`, never in `port_changes`.",
+  "type": "object",
+  "required": [
+    "format",
+    "version",
+    "before",
+    "after",
+    "newly_responsive",
+    "no_longer_responding",
+    "uncertain_hosts",
+    "status_changes",
+    "port_changes",
+    "unconfirmed_ports",
+    "warnings"
+  ],
+  "properties": {
+    "format": {
+      "const": "netprobe-compare"
+    },
+    "version": {
+      "const": 1
+    },
+    "before": {
+      "type": "integer"
+    },
+    "after": {
+      "type": "integer"
+    },
+    "newly_responsive": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "no_longer_responding": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "uncertain_hosts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "status_changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "ip",
+          "before",
+          "after"
+        ],
+        "properties": {
+          "ip": {
+            "type": "string"
+          },
+          "before": {
+            "type": "string"
+          },
+          "after": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "port_changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "ip",
+          "port",
+          "before",
+          "after"
+        ],
+        "properties": {
+          "ip": {
+            "type": "string"
+          },
+          "port": {
+            "type": "string",
+            "pattern": "^[0-9]{1,5}/(tcp|udp)$"
+          },
+          "before": {
+            "$ref": "common-v1.schema.json#/$defs/state"
+          },
+          "after": {
+            "$ref": "common-v1.schema.json#/$defs/state"
+          }
+        }
+      }
+    },
+    "unconfirmed_ports": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "ip",
+          "port",
+          "before",
+          "after"
+        ],
+        "properties": {
+          "ip": {
+            "type": "string"
+          },
+          "port": {
+            "type": "string",
+            "pattern": "^[0-9]{1,5}/(tcp|udp)$"
+          },
+          "before": {
+            "$ref": "common-v1.schema.json#/$defs/state"
+          },
+          "after": {
+            "$ref": "common-v1.schema.json#/$defs/state"
+          }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

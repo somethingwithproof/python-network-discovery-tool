@@ -12,24 +12,34 @@ import atheris
 
 with atheris.instrument_imports():
     from netprobe.probes import (
+        MAX_ENGINE_ID_OCTETS,
         parse_certificate,
         parse_http_head,
         parse_mysql_handshake,
         parse_ssh_banner,
+        snmp_engine_id,
     )
+
+HEX_DIGITS = frozenset("0123456789abcdef")
 
 
 @atheris.instrument_func
 def fuzz_one_input(data: bytes) -> None:
     if not data:
         return
-    selector, payload = data[0] % 4, data[1:4097]
+    selector, payload = data[0] % 5, data[1:4097]
     if selector == 0:
         parse_ssh_banner(payload)
     elif selector == 1:
         parse_mysql_handshake(payload)
     elif selector == 2:
         parse_http_head(payload)
+    elif selector == 3:
+        # The BER walker must turn any malformed reply into None, never raise.
+        engine_id = snmp_engine_id(payload)
+        if engine_id is not None:
+            assert 0 < len(engine_id) <= 2 * MAX_ENGINE_ID_OCTETS
+            assert set(engine_id) <= HEX_DIGITS
     else:
         # DER decoding rejects malformed certificates by contract.
         with contextlib.suppress(ValueError):

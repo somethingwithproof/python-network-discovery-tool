@@ -132,6 +132,7 @@ netprobe scan 192.168.1.0/24              # table of alive hosts
 netprobe scan 192.168.1.1 -o results.json # JSON report
 netprobe scan 10.0.0.0/24 -o report.csv   # CSV report
 netprobe scan 10.0.0.0/24 -q -o out.json  # no table, file only
+netprobe scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on stdout
 ```
 
 | Option | Meaning |
@@ -198,7 +199,7 @@ probe = "https"
 
 `probe` is one of `tcp`, `ssh`, `mysql`, `http`, `https` or `snmp` and defaults to the service name when that is a probe, else `tcp`. Only `snmp` uses UDP. Service names are lowercase letters, digits, `-` and `_`. Two services cannot share a port and protocol; history records one state for that pair. `timeout` is optional, in seconds, and at least 0.05. Connect-style probes (`tcp`, `ssh`, `mysql`, `http`) default to 0.3 seconds. `snmp` and `https` use the scan `--timeout` when the service does not set `timeout`. `--timeout` does not replace a budget the service already has.
 
-Results keep the original `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` and `errors` fields and add a `services` list with each probe's `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, or `unknown` when the probe failed locally or hit its deadline), `version` and `details`. CSV output gains trailing `services` and `versions` columns for the open ones. The `ssh`, `snmp` and `mysql` booleans follow the services with exactly those names.
+JSON reports are versioned documents (`"format": "netprobe-report"`, `"version": 1`) that record the target, probed services and settings next to `devices`; `--format json` without `-o` writes the report to stdout instead of the table. Every JSON output has a published schema; see [JSON output](docs/json-output.md). Devices keep the original `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` and `errors` fields and add a `services` list with each probe's `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, or `unknown` when the probe failed locally or hit its deadline), `version` and `details`. CSV output gains trailing `services` and `versions` columns for the open ones. The `ssh`, `snmp` and `mysql` booleans follow the services with exactly those names.
 
 
 ## Inventory profiles, preflight, and local history
@@ -381,7 +382,8 @@ unprivileged TCP discovery behavior in this container.
 runs on main and weekly, publishes its real score, and uploads findings to GitHub
 code scanning. Actions and container bases are pinned by immutable hashes; Python
 dependencies are resolved in `uv.lock`. Bandit failures fail CI, and bounded Atheris
-fuzzing exercises protocol parsers without network access.
+fuzzing exercises the SSH, MySQL, HTTP, certificate and SNMPv3 BER parsers
+without network access.
 
 Scorecard also measures historical review activity, contributor diversity, and
 release provenance. Those scores reflect actual evidence; they are not claims

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/somethingwithproof/python-network-discovery-tool/schemas/snapshot-v1.schema.json",
+  "title": "netprobe snapshot, version 1",
+  "description": "Written by `scan --save-snapshot`. Lists devices that answered or had a probe fail.",
+  "allOf": [
+    {
+      "$ref": "common-v1.schema.json#/$defs/scanDocument"
+    }
+  ],
+  "properties": {
+    "format": {
+      "const": "netprobe-snapshot"
+    },
+    "version": {
+      "const": 1
+    }
+  }
+}

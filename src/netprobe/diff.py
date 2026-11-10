@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 from collections import Counter
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -17,17 +16,25 @@ from rich.markup import escape
 from rich.table import Table
 
 from netprobe.models import Device, ServiceSpec
-from netprobe.output import write_text
+from netprobe.output import (
+    REPORT_FORMAT,
+    REPORT_VERSION,
+    SNAPSHOT_FORMAT,
+    SNAPSHOT_VERSION,
+    scan_document,
+    write_text,
+)
 from netprobe.scan_settings import (
-    NETPROBE_VERSION,
     RecordedSettings,
     effective_timeouts,
     host_sort_key,
     setting_warnings,
 )
 
-SNAPSHOT_FORMAT = "netprobe-snapshot"
-SNAPSHOT_VERSION = 1
+DIFF_FORMAT = "netprobe-diff"
+DIFF_VERSION = 1
+# Both carry the same envelope; a report also lists hosts that were down.
+INVENTORY_FORMATS = {REPORT_FORMAT: REPORT_VERSION, SNAPSHOT_FORMAT: SNAPSHOT_VERSION}
 
 # Ports a pre-2.1 report could only express as booleans.
 LEGACY_PORTS = {"ssh": (22, "tcp"), "snmp": (161, "udp"), "mysql": (3306, "tcp")}
@@ -55,30 +62,12 @@ def write_snapshot(
     Hosts that gave no answer but had a probe fail are kept too, so a later
     diff does not mistake a failed observation for a vanished host.
     """
-    document: dict[str, Any] = {
-        "format": SNAPSHOT_FORMAT,
-        "version": SNAPSHOT_VERSION,
-        "netprobe_version": NETPROBE_VERSION,
-        "created": datetime.now(UTC).isoformat(timespec="seconds"),
-        "target": network,
-        "services": [
-            {
-                "name": s.name,
-                "port": s.port,
-                "protocol": s.protocol,
-                "probe": s.probe,
-                "timeout": s.timeout,
-            }
-            for s in services
-        ],
-    }
-    if timeout is not None:
-        document["timeout"] = timeout
-    if backend is not None:
-        document["backend"] = backend
     # Down hosts carry no information worth diffing and would make a /16
     # snapshot 65k entries long.
-    document["devices"] = [asdict(d) for d in devices if d.alive or _uncertain(d)]
+    kept = [d for d in devices if d.alive or _uncertain(d)]
+    document = scan_document(
+        SNAPSHOT_FORMAT, SNAPSHOT_VERSION, network, services, kept, timeout=timeout, backend=backend
+    )
     write_text(path, json.dumps(document, indent=2) + "\n")
 
 
@@ -177,10 +166,11 @@ def _recorded_settings(document: dict[str, Any]) -> tuple[float | None, str | No
 
 
 def _snapshot_parts(path: Path, document: dict[str, Any]) -> dict[str, Any]:
-    if document.get("version") != SNAPSHOT_VERSION:
+    supported = INVENTORY_FORMATS[document["format"]]
+    if document.get("version") != supported:
         raise SnapshotError(
-            f"{path}: snapshot version {document.get('version')!r} is not supported "
-            f"(this netprobe reads version {SNAPSHOT_VERSION})"
+            f"{path}: {document['format']} version {document.get('version')!r} is not "
+            f"supported (this netprobe reads version {supported})"
         )
     timeout, backend = _recorded_settings(document)
     return {
@@ -209,7 +199,7 @@ def load_inventory(path: Path) -> Inventory:
                 "created": "",
                 "target": "",
             }
-        elif isinstance(document, dict) and document.get("format") == SNAPSHOT_FORMAT:
+        elif isinstance(document, dict) and document.get("format") in INVENTORY_FORMATS:
             parts = _snapshot_parts(path, document)
         else:
             raise SnapshotError(f"{path}: not a netprobe snapshot or JSON report")
@@ -287,7 +277,12 @@ class Diff:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return {"changed": self.changed, **asdict(self)}
+        return {
+            "format": DIFF_FORMAT,
+            "version": DIFF_VERSION,
+            "changed": self.changed,
+            **asdict(self),
+        }
 
 
 def _summary(host: Host) -> dict[str, Any]:

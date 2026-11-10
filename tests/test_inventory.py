@@ -268,7 +268,7 @@ def test_history_summary_does_not_load_device_payload(history_store):
         connection.execute("UPDATE scans SET devices='invalid' WHERE id=?", (scan_id,))
     result = CliRunner().invoke(app, ["history", "--history", str(history_store.path)])
     assert result.exit_code == 0
-    assert json.loads(result.output)[0]["responsive"] == 1
+    assert json.loads(result.output)["scans"][0]["responsive"] == 1
     with pytest.raises(ValueError):
         history_store.get(scan_id)
 
@@ -480,7 +480,7 @@ def test_history_cli_workflow(scanner, tmp_path):
         )
         assert result.exit_code == 0, result.output
     listed = runner.invoke(cli.app, ["history", "--history", str(path)])
-    assert json.loads(listed.output)[0]["responsive"] == 1
+    assert json.loads(listed.output)["scans"][0]["responsive"] == 1
     compared = runner.invoke(cli.app, ["compare", "1", "2", "--history", str(path)])
     assert compared.exit_code == 0
     assert json.loads(compared.output)["port_changes"][0]["after"] == "open"
