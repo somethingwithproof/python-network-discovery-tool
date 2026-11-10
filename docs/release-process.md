@@ -5,11 +5,11 @@ SPDX-License-Identifier: MIT
 
 # Release process
 
-The current process is documented in [Versioning and releases](releasing.md).
-It uses a reviewed version-preparation PR, a validated `vMAJOR.MINOR.PATCH` tag
-build, a draft GitHub release, maintainer promotion, and optional PyPI trusted
-publishing of the existing artifacts.
+The current process is documented in [Versioning and releases](releasing.md):
+release-please opens a release PR from Conventional Commits, merging it creates
+the `vMAJOR.MINOR.PATCH` tag and a draft GitHub release with tested, attested
+artifacts, and a maintainer publishes the draft, which can trigger PyPI trusted
+publishing of those same files.
 
-The legacy GitFlow/development-version workflow is retired. Use
-`scripts/release.py prepare --help` and the current release guide rather than
-older commands for the removed `network_discovery` package.
+The legacy GitFlow/development-version workflow and `scripts/release.py prepare`
+are retired.

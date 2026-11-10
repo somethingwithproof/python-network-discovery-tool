@@ -331,17 +331,14 @@ Every value is validated and shell-quoted with `shlex.quote`. By default no SNMP
 netprobe follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html): compatible
 fixes increment the patch version, compatible features/deprecations increment the
 minor version, and breaking compatibility changes increment the major version.
-`pyproject.toml` is the version source of truth.
+Commands and options, exit codes and the JSON schemas are the public contract;
+deprecated behavior keeps working until the next major release.
 
-```bash
-mise exec python@3.14 -- python scripts/release.py prepare minor --dry-run
-```
-
-A reviewed preparation PR updates the version, lockfile and changelog. An annotated
-`vMAJOR.MINOR.PATCH` tag builds and validates a wheel/source distribution and creates
-a draft GitHub release with checksums. A maintainer reviews and promotes the draft.
-Supported prereleases use `-alpha.N`, `-beta.N`, or `-rc.N` tags and corresponding
-PEP 440 package versions. Releases are never replaced.
+release-please opens a release PR from the Conventional Commit titles on `main`,
+bumping `pyproject.toml`, `uv.lock` and `CHANGES.md`. Merging it creates the
+`vMAJOR.MINOR.PATCH` tag and a draft GitHub release, to which CI attaches a tested
+wheel, source distribution, checksums and build attestations. A maintainer reviews
+and publishes the draft. Releases are never replaced.
 
 PyPI trusted publishing is opt-in and requires project ownership, a trusted
 publisher and the `pypi` environment. It publishes the same checked release artifacts

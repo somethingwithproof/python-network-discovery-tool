@@ -2,9 +2,9 @@
 # SPDX-FileCopyrightText: 2025-2026 Thomas Vincent <thomasvincent@gmail.com>
 # SPDX-License-Identifier: MIT
 name: Release Planning
-about: Plan a new release of the Network Discovery Tool
+about: Plan a netprobe release
 title: 'Release [VERSION] Planning'
-labels: 'release'
+labels: ''
 assignees: ''
 ---
 
@@ -63,19 +63,14 @@ assignees: ''
 
 ### Release Checklist
 
-- [ ] All features implemented
-- [ ] All bugs fixed
-- [ ] All tests passing
-- [ ] Documentation updated
-- [ ] Changelog updated
-- [ ] Version numbers updated
-- [ ] Release branch created
-- [ ] Release notes prepared
-- [ ] GitHub release created
-- [ ] PyPI package published
+- [ ] Every change merged with a Conventional Commit title (`!` for breaking changes)
+- [ ] Breaking changes have a `BREAKING CHANGE:` footer with migration steps
+- [ ] Deprecations follow docs/releasing.md
+- [ ] release-please PR reviewed: version, `CHANGES.md`, checks green
+- [ ] Release PR merged; draft release has wheel, sdist, `SHA256SUMS` and attestations
+- [ ] Draft reviewed and published by a maintainer
 
 ### Post-Release Tasks
 
-- [ ] Announce release to users
 - [ ] Close related issues
 - [ ] Plan next release
