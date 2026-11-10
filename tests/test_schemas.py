@@ -169,14 +169,16 @@ def test_published_schemas_accept_fields_added_later(name):
     """Adding an optional field is not a new version, so v1 consumers must accept it."""
     document = {**_minimal(name), "version": 1, "added_in_a_minor_release": True}
     validator(name, published=True).validate(document)
+    closed_check = validator(name)
     with pytest.raises(ValidationError, match="added_in_a_minor_release"):
-        validator(name).validate(document)
+        closed_check.validate(document)
 
 
 def test_date_time_formats_are_checked():
     document = {**_minimal("report"), "version": 1, "created": "yesterday"}
+    check = validator("report")
     with pytest.raises(ValidationError, match="is not a 'date-time'"):
-        validator("report").validate(document)
+        check.validate(document)
 
 
 def _minimal(name):
