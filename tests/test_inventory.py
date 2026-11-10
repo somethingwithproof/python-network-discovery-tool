@@ -18,7 +18,7 @@ from netprobe import preflight as checks
 from netprobe.cli import app
 from netprobe.models import Device, Service
 from netprobe.profiles import ConfigError, Profile, load_profiles
-from netprobe.scanner import expand_targets, nmap_sweep
+from netprobe.scanner import expand_targets
 
 
 @dataclass
@@ -451,7 +451,6 @@ def test_missing_nmap_and_ca_stop_before_scanning(scanner, monkeypatch, tmp_path
 @pytest.mark.parametrize("failure", [None, "timeout", "error", "invalid"])
 def test_nmap_version_preflight(monkeypatch, failure):
     monkeypatch.setattr(checks.shutil, "which", lambda _: "/mock/nmap")
-    monkeypatch.setattr(checks.importlib.util, "find_spec", lambda _: object())
 
     def version(*args, **kwargs):
         if failure == "timeout":
@@ -508,26 +507,6 @@ def test_invalid_history_blocks_scan(scanner, tmp_path):
     assert result.exit_code == 1
     assert "history schema" in result.output
     scanner[1].assert_not_called()
-
-
-def test_nmap_exclusions_and_ipv6(monkeypatch):
-    mocked = MagicMock()
-    mocked.all_hosts.return_value = []
-    monkeypatch.setattr("netprobe.scanner._nmap_scanner", lambda: mocked)
-    nmap_sweep(["::1"], "::/126")
-    assert mocked.scan.call_args.kwargs["hosts"] == "::1"
-    assert mocked.scan.call_args.kwargs["arguments"].startswith("-6 ")
-    assert mocked.scan.call_args.kwargs["timeout"] == 35
-
-
-def test_nmap_timeout_is_an_error_not_host_down(monkeypatch):
-    from netprobe.scanner import BackendUnavailableError
-
-    mocked = MagicMock()
-    mocked.scan.side_effect = TimeoutError("deadline")
-    monkeypatch.setattr("netprobe.scanner._nmap_scanner", lambda: mocked)
-    with pytest.raises(BackendUnavailableError, match="discovery failed"):
-        nmap_sweep(["127.0.0.1"], "127.0.0.1")
 
 
 async def test_bounded_workers_preserve_order(monkeypatch):

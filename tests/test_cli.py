@@ -30,7 +30,6 @@ def patched_scanner(devices):
 def available_nmap_preflight(monkeypatch):
     """Mock the local tool check when testing scanner option/error plumbing."""
     monkeypatch.setattr(preflight.shutil, "which", lambda _: "/mock/nmap")
-    monkeypatch.setattr(preflight.importlib.util, "find_spec", lambda _: object())
     monkeypatch.setattr(preflight, "nmap_version", lambda _: "Nmap version 7.95")
 
 

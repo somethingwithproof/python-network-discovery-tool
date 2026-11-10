@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import asyncio
-import importlib.util
 import shutil
 import sqlite3
 import ssl
@@ -122,11 +121,11 @@ def check_file_limit(concurrency: int) -> Check:
 
 def check_nmap() -> Check:
     executable = shutil.which("nmap")
-    if executable is None or importlib.util.find_spec("nmap") is None:
+    if executable is None:
         return {
             "check": "nmap",
             "status": "error",
-            "detail": "nmap backend requires the executable and python-nmap extra",
+            "detail": "nmap backend requires the nmap executable on PATH",
         }
     try:
         version = nmap_version(executable)
