@@ -7,6 +7,7 @@ import json
 import shutil
 import socket
 import sys
+import threading
 from unittest.mock import patch
 
 import pytest
@@ -320,11 +321,11 @@ async def test_nmap_backend_hostname_target_matches_by_ip(fake_nmap, monkeypatch
     async def filtered(host, port, timeout):
         return "filtered"
 
-    async def fake_getaddrinfo(host, port, **kwargs):
+    def fake_getaddrinfo(host, port, **kwargs):
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))]
 
     stub_probes(monkeypatch, filtered)
-    monkeypatch.setattr(asyncio.get_running_loop(), "getaddrinfo", fake_getaddrinfo)
+    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
     devices = await NetworkScanner(backend="nmap").scan_network("example.com")
 
     assert devices[0].alive
@@ -518,7 +519,7 @@ async def test_scan_network_checks_the_file_limit_before_probing(monkeypatch):
 async def test_hostname_target_is_resolved_once_and_pinned(monkeypatch):
     lookups = []
 
-    async def fake_getaddrinfo(host, port, **kwargs):
+    def fake_getaddrinfo(host, port, **kwargs):
         lookups.append(host)
         # A rebinding answer would differ on the next lookup; only the first is used.
         address = "192.0.2.10" if len(lookups) == 1 else "127.0.0.1"
@@ -532,7 +533,7 @@ async def test_hostname_target_is_resolved_once_and_pinned(monkeypatch):
 
     for name, (_, protocol) in list(probes.PROBES.items()):
         monkeypatch.setitem(probes.PROBES, name, (probe, protocol))
-    monkeypatch.setattr(asyncio.get_running_loop(), "getaddrinfo", fake_getaddrinfo)
+    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
     services = [ServiceSpec("ssh", 22), ServiceSpec("http", 80), ServiceSpec("https", 443)]
     device = await NetworkScanner(services=services).scan_device("web.example")
 
@@ -543,10 +544,10 @@ async def test_hostname_target_is_resolved_once_and_pinned(monkeypatch):
 
 
 async def test_unresolvable_hostname_is_unknown_not_down(monkeypatch):
-    async def fail(host, port, **kwargs):
+    def fail(host, port, **kwargs):
         raise socket.gaierror(socket.EAI_NONAME, "Name or service not known")
 
-    monkeypatch.setattr(asyncio.get_running_loop(), "getaddrinfo", fail)
+    monkeypatch.setattr(socket, "getaddrinfo", fail)
     device = await NetworkScanner(services=[ServiceSpec("ssh", 22)]).scan_device("gone.example")
 
     assert [s.state for s in device.services] == ["unknown"]
@@ -616,6 +617,62 @@ async def test_expired_lookup_keeps_its_slot_until_the_resolver_returns(monkeypa
     async with asyncio.timeout(5):
         while one_slot.locked():
             await asyncio.sleep(0.01)
+
+
+def finishes_within(seconds, run):
+    """Run a blocking call on a thread; True if it returned in time."""
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    worker.join(seconds)
+    return not worker.is_alive()
+
+
+@pytest.fixture
+def hung_resolver(monkeypatch):
+    """Make reverse and forward lookups block until the test ends."""
+    monkeypatch.undo()  # drop the autouse reverse DNS stub
+    release = threading.Event()
+
+    def hang(*args, **kwargs):
+        release.wait(30)
+        raise OSError("released")
+
+    monkeypatch.setattr(socket, "gethostbyaddr", hang)
+    monkeypatch.setattr(socket, "getaddrinfo", hang)
+    yield
+    release.set()
+
+
+@pytest.mark.parametrize("target", ["127.0.0.1", "stuck.example"])
+def test_abandoned_lookups_do_not_hold_the_event_loop_open(hung_resolver, monkeypatch, target):
+    # 127.0.0.1 answers closed, so its reverse lookup runs; the name hangs in getaddrinfo.
+    monkeypatch.setattr(scanner, "HOSTNAME_TIMEOUT", 0.1)
+    scanner_ = NetworkScanner(services=[ServiceSpec("ssh", closed_port())])
+    devices = []
+
+    def run():
+        devices.append(asyncio.run(scanner_.scan_device(target)))
+
+    assert finishes_within(3, run)
+    assert devices[0].hostname == ""
+
+
+def test_cli_deadline_bounds_wall_time_with_a_hung_resolver(hung_resolver, monkeypatch, tmp_path):
+    from typer.testing import CliRunner
+
+    from netprobe import cli
+
+    monkeypatch.setattr(scanner, "HOSTNAME_TIMEOUT", 60)
+    report = tmp_path / "report.json"
+    outcome = []
+    arguments = ["scan", "stuck.example", "--deadline", "1", "-q", "-o", str(report)]
+
+    def run():
+        outcome.append(CliRunner().invoke(cli.app, arguments))
+
+    assert finishes_within(4, run)
+    assert outcome[0].exit_code == cli.EXIT_INCOMPLETE
+    assert json.loads(report.read_text())["complete"] is False
 
 
 async def test_deadline_stops_the_scan_and_keeps_finished_hosts(monkeypatch):
