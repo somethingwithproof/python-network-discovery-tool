@@ -11,34 +11,121 @@ package version. `netprobe version` reads installed package metadata.
 
 ## Public compatibility contract
 
-Version changes cover documented CLI options and defaults, exit codes, report
-fields and their meaning, snapshot/history formats, supported Python versions,
-and the exported Python API in `netprobe.__all__`.
+These are public, and a release that changes them incompatibly is a **major**
+version:
+
+- **Commands and options**: the `netprobe` subcommands, their arguments, option
+  names, accepted values, defaults and environment variables.
+- **Exit codes**: the meaning of each status in the README's exit-code table.
+- **JSON documents**: every document described in [JSON output](json-output.md)
+  and its schema in `src/netprobe/schemas`. Removing or renaming a field, changing
+  its type or meaning, or tightening what a schema accepts needs a new document
+  `version` and a major release. Adding an optional field is a minor change.
+- **Stored data**: snapshot and SQLite history formats netprobe must still read.
+- **Runtime support**: the supported Python versions (3.12–3.14) and the Python
+  API exported in `netprobe.__all__`.
 
 | Change | Bump | Example |
 | --- | --- | --- |
 | Backward-compatible correction | Patch | `3.1.0` → `3.1.1` |
 | Backward-compatible feature or deprecation | Minor | `3.1.1` → `3.2.0` |
-| Incompatible API, CLI, output, default, or runtime support change | Major | `3.2.0` → `4.0.0` |
+| Incompatible change to anything listed above | Major | `3.2.0` → `4.0.0` |
 
-Adding optional report fields is normally a minor change; removing or changing an
-existing field's meaning requires a major change. Internal refactoring that
-preserves behavior does not itself require a major release. Released versions,
-tags, and published distribution bytes are never replaced. Corrections receive a
-new version.
+Log text, table layout, Rich formatting, and fields marked experimental in the
+docs are not part of the contract. Internal refactoring that preserves behavior
+needs no major release. Released versions, tags and published distribution bytes
+are never replaced; corrections get a new version.
 
-Development changes accumulate under `## Unreleased` in `CHANGES.md`. The version
-changes in a reviewed release-preparation PR rather than after every feature merge.
-Use conventional PR titles such as `feat:`, `fix:`, and `docs:` to aid review;
-maintainers choose the bump based on the compatibility contract, not title alone.
-GitHub-generated notes can categorize PRs using `.github/release.yml` labels, while
-the committed changelog remains the source of the release description.
+## Deprecation policy
+
+A public behavior is deprecated before it is removed:
+
+1. The release that deprecates it is at least a minor release. Its changelog
+   entry says what replaces it, and using it logs a warning on stderr (JSON on
+   stdout is never changed to carry the warning).
+2. It keeps working for every later release in that major series, and for at
+   least 90 days after the deprecating release.
+3. It is removed only in a major release, listed under breaking changes.
+
+Security fixes are the exception: when keeping a behavior would leave users
+exposed (for example a secret accepted on the command line), it may change in the
+next release, with the reason in the changelog and a breaking-change footer.
+
+## How versions are chosen
+
+[release-please](https://github.com/googleapis/release-please) derives the next
+version and the changelog from [Conventional Commits](https://www.conventionalcommits.org/)
+on `main`, so every PR title (the squash-merge subject) must follow the format,
+which the **PR title** workflow checks:
+
+| Commit | Release | Changelog section |
+| --- | --- | --- |
+| `fix: ...`, `fix(scan): ...` | patch | Bug Fixes |
+| `feat: ...` | minor | Features |
+| `perf: ...` | patch | Performance Improvements |
+| `feat!: ...`, `fix(cli)!: ...`, or a `BREAKING CHANGE:` footer | major | Breaking Changes |
+| `build`, `chore`, `ci`, `docs`, `refactor`, `style`, `test` | none | not listed |
+
+Mark every incompatible change to the public contract with `!` and explain the
+migration in a `BREAKING CHANGE:` footer; release-please copies the footer into the
+changelog. Compatible additions, such as a new option or an optional JSON field,
+are `feat:` without `!`.
+
+## Release flow
+
+1. After each push to `main`, `.github/workflows/release-please.yml` opens or
+   updates one release PR titled `chore(main): release X.Y.Z`. It bumps
+   `pyproject.toml` and netprobe's entry in `uv.lock`, adds a dated section at the
+   top of `CHANGES.md`, and updates `.release-please-manifest.json`. Edit the
+   release by adding commits to `main`, not to the release PR, which is rewritten.
+2. A maintainer reviews the release PR like any other: the version, the
+   generated notes and the release checks, which validate exactly what will be
+   tagged. Merging it is the decision to release.
+3. On that merge release-please creates the `vX.Y.Z` tag and an empty **draft**
+   GitHub release with the changelog notes, then calls
+   `.github/workflows/release.yml` for the tag. That workflow checks that the tag,
+   project version, lockfile and changelog agree and that the commit is on
+   `main`, then:
+   1. installs the locked tools, runs Ruff, formatting, strict mypy and the tests
+      with the 90% coverage floor;
+   2. builds a wheel and source distribution once and runs strict Twine checks
+      against the version;
+   3. writes `SHA256SUMS` and creates GitHub artifact attestations for the
+      files (GitHub stores these through its attestations API; they are not
+      release assets);
+   4. attaches the wheel, source distribution and `SHA256SUMS` to the draft and
+      sets the draft's notes to the `CHANGES.md` section it validated.
+4. When the Release workflow has finished and the draft lists the wheel, source
+   distribution and `SHA256SUMS`, a maintainer reviews the files and notes and
+   publishes it, in the GitHub UI or with
+   `gh release edit vX.Y.Z --draft=false --latest`. Do not publish earlier: the
+   workflow never changes a published release, so its files would be missing.
+   Publishing triggers the optional PyPI workflow below. Workflows never publish
+   their own drafts.
+
+`release.yml` has no tag-push trigger, so release-please's call is the only
+automatic build and a tag never starts two. Pull requests opened with
+`GITHUB_TOKEN` do not start CI: set a `RELEASE_PLEASE_TOKEN` secret (a GitHub App
+or fine-grained token with contents and pull-requests write) so the release PR's
+required checks run. `scripts/release.py check` validates metadata, notes and
+artifacts; release-please does the preparation.
+
+To build a tag pushed by hand, or to rebuild a tag after a failed build, run the
+**Release** workflow manually with the tag. It creates the draft when none exists,
+and refuses to touch a published release or one that already has assets.
+
+### Overriding the version
+
+To force a version, for example the first automated release, set `release-as` in
+`release-please-config.json`, or add a `Release-As: X.Y.Z` footer to a commit on
+`main`. Remove `release-as` after that release, or every later release PR will
+propose the same version.
 
 ## Prereleases
 
-Stable versions use `MAJOR.MINOR.PATCH`. The supported prerelease subset is
-`MAJOR.MINOR.PATCH-alpha.N`, `-beta.N`, or `-rc.N`, without leading zeros or build
-metadata. Python distribution versions use the corresponding PEP 440 spelling:
+Stable versions use `MAJOR.MINOR.PATCH`. The release checks also accept
+`MAJOR.MINOR.PATCH-alpha.N`, `-beta.N` and `-rc.N`, without leading zeros or build
+metadata. Python distribution versions use the matching PEP 440 spelling:
 
 | Git tag | Package metadata |
 | --- | --- |
@@ -47,76 +134,18 @@ metadata. Python distribution versions use the corresponding PEP 440 spelling:
 | `v3.2.0-rc.1` | `3.2.0rc1` |
 | `v3.2.0` | `3.2.0` |
 
-The helper validates ordering, including prereleases before a stable version.
-A prerelease must have its own release notes. Supported prereleases are marked
-as prereleases in GitHub; stable releases are promoted separately.
+This release-please configuration creates stable releases only. To prepare a
+prerelease by hand:
 
-## Prepare a release PR
-
-Start from up-to-date `main` with a clean checkout:
-
-```bash
-git switch main
-git pull --ff-only
-git switch -c release/3.1.0
-mise exec python@3.14 -- uv sync --locked
-mise exec python@3.14 -- python scripts/release.py prepare minor --dry-run
-mise exec python@3.14 -- python scripts/release.py prepare minor
-mise exec python@3.14 -- python scripts/release.py check
-mise exec python@3.14 -- uv sync --locked
-```
-
-Replace `minor` with `major`, `patch`, or an explicit version such as
-`3.2.0-rc.1`. The helper updates only the project version, its lockfile entry, and
-the changelog: it moves nonempty Unreleased notes to a dated version section and
-leaves a fresh Unreleased heading. It performs no Git operations or uploads.
-
-Review those changes, run the usual checks, commit with `git commit -s`, push, and
-open a release-preparation PR. Merge after all applicable checks and reviews pass.
-If the PR includes an actual dependency change, refresh `uv.lock` separately with
-`uv lock` and review the resulting dependency diff.
-
-## Tag and build
-
-After the preparation PR is merged, tag that exact commit:
-
-```bash
-git switch main
-git pull --ff-only
-mise exec python@3.14 -- python scripts/release.py check --tag v3.1.0
-git tag -a v3.1.0 -m "Release v3.1.0"
-git push origin v3.1.0
-```
-
-Use the version actually prepared. A `v*` tag starts `.github/workflows/release.yml`.
-The workflow checks that the tag agrees with project and lockfile metadata, the
-notes are complete, Unreleased has no pending content, and the tagged commit is
-reachable from `main`. It then:
-
-1. Installs Python 3.14 and uv with `actions/setup-python` and `astral-sh/setup-uv`, and installs the locked `dev` group.
-2. Runs Ruff, formatting, strict mypy, and tests with the existing 90% coverage floor.
-3. Builds a wheel and source distribution once, using the installed locked build backend.
-4. Runs strict Twine metadata checks and validates both distributions against the version.
-5. Generates `SHA256SUMS` and retains the same distribution files as workflow artifacts.
-6. Creates a **draft** GitHub release with changelog notes and the tested files.
-
-Pull requests changing release configuration exercise the validation/build path
-without tagging, creating a release, requesting signing tokens, or publishing.
-The manual Release workflow accepts an existing tag for retrying a failed build.
-It refuses to replace an existing release or its assets.
-
-Review the draft assets and notes, then publish through the GitHub Releases UI or
-with your own authenticated GitHub CLI:
-
-```bash
-gh release edit v3.1.0 --draft=false --latest
-```
-
-For a prerelease, use its prerelease tag and `--latest=false`. Promotion is a
-maintainer action: workflows do not publish their own drafts. This also avoids
-[GitHub's restriction on downstream workflow events generated by `GITHUB_TOKEN`](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
-Enable immutable releases in repository settings where available. Attach all
-artifacts before promotion; published release contents should remain unchanged.
+1. In a pull request titled `chore: prepare 3.2.0-rc.1`, set `version` in
+   `pyproject.toml` to the PEP 440 spelling (`3.2.0rc1`), run `uv lock`, and add a
+   dated section at the top of `CHANGES.md`, such as
+   `## [3.2.0-rc.1](https://github.com/somethingwithproof/python-network-discovery-tool/compare/v3.1.0...v3.2.0-rc.1) (2026-12-01)`.
+   This is the one case where `CHANGES.md` is edited by hand; keep the bracketed
+   heading so release-please still inserts later sections above it.
+2. After it merges, push the `v3.2.0-rc.1` tag on that commit and run the
+   **Release** workflow with it. The draft is marked as a prerelease.
+3. The next release PR sets the stable version again; nothing needs reverting.
 
 ## Checksums and build provenance
 
@@ -156,7 +185,14 @@ and attached files cannot refer to different builds.
 
 PyPI publishing is **disabled by default**. Before enabling it:
 
-1. Confirm ownership of the `netprobe` project on PyPI.
+1. Choose the PyPI distribution name. `netprobe` is already registered on PyPI
+   by an unrelated project, so the distribution must be renamed before
+   publishing. The name appears in `pyproject.toml` (`name`), the environment URL
+   in `publish.yml`, `release-please-config.json` (`package-name` and the
+   `uv.lock` jsonpath), and the lockfile, distribution filename and
+   metadata checks in `scripts/release.py` and its tests. Change them in one pull request, run
+   `uv lock`, and confirm `scripts/release.py check` and the Release workflow pass
+   before enabling publishing. The import package and command can stay `netprobe`.
 2. Configure a [PyPI trusted publisher](https://docs.pypi.org/trusted-publishers/using-a-publisher/)
    for owner `somethingwithproof`, repository `python-network-discovery-tool`,
    workflow `publish.yml`, and environment `pypi`.
@@ -180,6 +216,7 @@ if the release needs changes, prepare a new version.
 
 The old GitFlow helpers, development-version bumper, independent tag-based release
 notes, duplicate PyPI uploader, Maven-targeted Python upload, and independent SLSA
-build are removed. Use the preparation helper, tag build, draft promotion, and
-optional trusted-publisher workflow described here. No `develop` branch or
+build are removed. Use release-please, the tag build, draft promotion, and the
+optional trusted-publisher workflow described here. `scripts/release.py prepare`
+is replaced by release-please. No `develop` branch or
 post-release `.dev0` mutation is required.

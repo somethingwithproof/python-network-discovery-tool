@@ -5,7 +5,55 @@ SPDX-License-Identifier: MIT
 
 # Changelog
 
-## Unreleased
+### [Notes for 3.0.0 written before release automation]
+
+release-please writes each release's section above this block from
+Conventional Commit titles; the 3.0.0 section it inserts ends with this block,
+so these notes are part of the 3.0.0 release notes. They were kept by hand while
+3.0.0 was prepared; it was never tagged before release automation took over, and
+v0.3.0 is the last release.
+
+#### Overview drafted on 2026-10-08
+
+3.0.0 is a major release. The JSON report only gained fields, which alone
+would be a minor bump, but several behaviours that scripts can depend on
+changed: host liveness, the default service set, exit code 1, the Python API
+of `NetworkScanner`, and python-nmap is no longer installed by default.
+
+##### Breaking changes
+- Probes use asyncio sockets instead of nmap. A host is alive when any probe
+  is answered (a refused connection counts); hosts that drop every probe are
+  now reported down where nmap's ICMP ping may have found them. Use
+  `--backend nmap` for an nmap ping sweep.
+- python-nmap moved to the optional `nmap` extra.
+- HTTP (80) and HTTPS (443) are probed by default alongside SSH, SNMP and MySQL.
+- SNMP is detected with an SNMPv3 discovery request and no longer needs root;
+  v1/v2c-only agents are found only when a community is given.
+- Exit code 1 from `scan` now means the nmap backend is unavailable (it used
+  to mean nmap was missing for every scan).
+- Scans over 524,288 probes (hosts x services) or 64 services, and
+  `--concurrency` above 4096, are refused with exit code 2.
+- `NetworkScanner` takes keyword options and no longer exposes the nmap
+  `PortScanner` or the `_check_alive`/`_check_port` helpers.
+
+##### Features
+- `services` list in JSON (name, port, protocol, state, version, details) and
+  `services`/`versions` CSV columns; existing fields keep their names.
+- Fingerprints: SSH identification, MySQL/MariaDB handshake, HTTP `Server`,
+  TLS certificate with recorded verification result, SNMP system MIB with
+  v2c or v3 credentials from `NETPROBE_SNMP_*`.
+- `--config` TOML services, `--services`, `--ports`, `--timeout`,
+  `--concurrency`, `--tls-ca-file`.
+- `--save-snapshot` and `netprobe diff` (exit 3 on changes).
+- `netprobe export` and `scan -o file.sh`: Kadupul `cli/add_device.php` script.
+
+##### Other
+- Code moved to `src/netprobe/`; `python -m netprobe` works.
+- Unused scripts, configs and docs for the removed `network_discovery`
+  package were deleted.
+- Docker compose integration lab and CI job.
+
+#### Later changes
 
 - Refuse report writes when the platform cannot open files without following symlinks, and create new reports and export scripts with owner-only permissions. Existing file permissions remain unchanged; exports containing credentials still force mode 0600.
 - Treat a service rename on a unique port/protocol as the same open port while preserving distinct services in older snapshots.
@@ -25,46 +73,6 @@ SPDX-License-Identifier: MIT
 - Apply exclusions to optional Nmap discovery as well as service probes; reject scoped IPv6 targets and bound Nmap subprocess duration.
 - Add Python 3.14 to CI and locked dependency installation.
 - Use modern type statements, typed preflight results, keyword-only slotted profiles, and bounded structured concurrency while retaining Python 3.12 compatibility.
-
-## Version 3.0.0 (2026-10-08)
-
-3.0.0 is a major release. The JSON report only gained fields, which alone
-would be a minor bump, but several behaviours that scripts can depend on
-changed: host liveness, the default service set, exit code 1, the Python API
-of `NetworkScanner`, and python-nmap is no longer installed by default.
-
-### Breaking changes
-- Probes use asyncio sockets instead of nmap. A host is alive when any probe
-  is answered (a refused connection counts); hosts that drop every probe are
-  now reported down where nmap's ICMP ping may have found them. Use
-  `--backend nmap` for an nmap ping sweep.
-- python-nmap moved to the optional `nmap` extra.
-- HTTP (80) and HTTPS (443) are probed by default alongside SSH, SNMP and MySQL.
-- SNMP is detected with an SNMPv3 discovery request and no longer needs root;
-  v1/v2c-only agents are found only when a community is given.
-- Exit code 1 from `scan` now means the nmap backend is unavailable (it used
-  to mean nmap was missing for every scan).
-- Scans over 524,288 probes (hosts x services) or 64 services, and
-  `--concurrency` above 4096, are refused with exit code 2.
-- `NetworkScanner` takes keyword options and no longer exposes the nmap
-  `PortScanner` or the `_check_alive`/`_check_port` helpers.
-
-### Features
-- `services` list in JSON (name, port, protocol, state, version, details) and
-  `services`/`versions` CSV columns; existing fields keep their names.
-- Fingerprints: SSH identification, MySQL/MariaDB handshake, HTTP `Server`,
-  TLS certificate with recorded verification result, SNMP system MIB with
-  v2c or v3 credentials from `NETPROBE_SNMP_*`.
-- `--config` TOML services, `--services`, `--ports`, `--timeout`,
-  `--concurrency`, `--tls-ca-file`.
-- `--save-snapshot` and `netprobe diff` (exit 3 on changes).
-- `netprobe export` and `scan -o file.sh`: Kadupul `cli/add_device.php` script.
-
-### Other
-- Code moved to `src/netprobe/`; `python -m netprobe` works.
-- Unused scripts, configs and docs for the removed `network_discovery`
-  package were deleted.
-- Docker compose integration lab and CI job.
 
 ## Version 0.4.0 (2025-04-23)
 

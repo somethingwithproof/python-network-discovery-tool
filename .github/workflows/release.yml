@@ -4,19 +4,30 @@
 
 name: Release
 
+# No tag-push trigger: release-please calls this workflow for the tags it creates,
+# and a tag-push trigger would start a second build whenever RELEASE_PLEASE_TOKEN
+# lets that tag start workflows. Build a hand-pushed tag with workflow_dispatch.
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
     inputs:
       tag:
         description: "Existing release tag, for example v3.1.0 or v3.2.0-rc.1"
         required: true
         type: string
+  # Called by release-please.yml after it creates the tag and draft release.
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release tag created by release-please"
+        required: true
+        type: string
   pull_request:
     paths:
       - ".github/workflows/release.yml"
       - ".github/workflows/publish.yml"
+      - ".github/workflows/release-please.yml"
+      - "release-please-config.json"
+      - ".release-please-manifest.json"
       - "scripts/release.py"
       - "tests/test_release.py"
       - "pyproject.toml"
@@ -31,7 +42,8 @@ env:
   UV_PYTHON_DOWNLOADS: never
 
 concurrency:
-  group: release-${{ github.event_name }}-${{ inputs.tag || github.ref }}
+  # One build per tag, however it was started.
+  group: release-${{ inputs.tag || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -74,9 +86,10 @@ jobs:
           else
             git show-ref --verify "refs/tags/$RELEASE_TAG"
             git merge-base --is-ancestor HEAD origin/main
-            args+=(--tag "$RELEASE_TAG")
+            # Only a release has notes; a pull request may be between releases.
+            args+=(--tag "$RELEASE_TAG" --notes release-notes.md)
           fi
-          python scripts/release.py check "${args[@]}" --notes release-notes.md > release-metadata.json
+          python scripts/release.py check "${args[@]}" > release-metadata.json
           jq -r '"tag=" + .tag, "prerelease=" + (.prerelease | tostring)' release-metadata.json >> "$GITHUB_OUTPUT"
       - name: Build once and install the release wheel for testing
         run: |
@@ -147,9 +160,19 @@ jobs:
           RELEASE_TAG: ${{ needs.build.outputs.tag }}
           PRERELEASE: ${{ needs.build.outputs.prerelease }}
         run: |
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "Release already exists; refusing to replace its assets."
-            exit 1
+          # release-please has already created an empty draft for its tag; attach
+          # the tested files and the validated CHANGES.md section to it. Never
+          # touch a published release or replace assets: corrections get a new
+          # version.
+          if gh release view "$RELEASE_TAG" --json isDraft,assets > "$RUNNER_TEMP/release.json" 2>/dev/null; then
+            if [ "$(jq -r .isDraft "$RUNNER_TEMP/release.json")" != "true" ] ||
+               [ "$(jq '.assets | length' "$RUNNER_TEMP/release.json")" != "0" ]; then
+              echo "Release $RELEASE_TAG is published or already has assets; refusing to change it."
+              exit 1
+            fi
+            gh release upload "$RELEASE_TAG" artifacts/dist/*.whl artifacts/dist/*.tar.gz artifacts/dist/SHA256SUMS
+            gh release edit "$RELEASE_TAG" --notes-file artifacts/release-notes.md
+            exit 0
           fi
           args=()
           if [ "$PRERELEASE" = "true" ]; then args+=(--prerelease); fi

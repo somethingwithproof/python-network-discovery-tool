@@ -79,7 +79,7 @@ Please note that the Network Discovery Tool project is released with a Contribut
 
 ## Versioning and releases
 
-Add user-visible changes under `## Unreleased` in `CHANGES.md`. Use conventional PR titles and choose release bumps based on the documented compatibility contract. See [Versioning and releases](docs/releasing.md) for preparation, tag validation, GitHub draft releases, and optional PyPI trusted publishing.
+Give every PR a [Conventional Commit](https://www.conventionalcommits.org/) title (`fix(scan): ...`, `feat: ...`, `feat!: ...`); the PR title check enforces it, and release-please builds the version and `CHANGES.md` from those titles, so do not edit `CHANGES.md` by hand (preparing a prerelease is the one exception). Mark incompatible changes to commands, options, exit codes or JSON documents with `!` and a `BREAKING CHANGE:` footer; compatible additions such as a new option or an optional JSON field are plain `feat:`. See [Versioning and releases](docs/releasing.md) for the compatibility and deprecation policy, the release PR, draft releases, and optional PyPI trusted publishing.
 
 ## Dependencies and GitHub Actions
 

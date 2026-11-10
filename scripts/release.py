@@ -2,7 +2,11 @@
 # SPDX-FileCopyrightText: 2025-2026 Thomas Vincent <thomasvincent@gmail.com>
 # SPDX-License-Identifier: MIT
 
-"""Prepare and validate releases without committing, tagging, or publishing."""
+"""Validate release metadata, notes and artifacts without committing, tagging, or publishing.
+
+release-please prepares versions and CHANGES.md; this script checks what it
+produced before anything is built, attached to a release, or published.
+"""
 
 from __future__ import annotations
 
@@ -13,10 +17,8 @@ import re
 import tarfile
 import tomllib
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from email.parser import Parser
 from pathlib import Path
-from typing import Literal
 from zipfile import BadZipFile, ZipFile
 
 PROJECT_FILE = "pyproject.toml"
@@ -26,7 +28,6 @@ CHANGELOG_FILE = "CHANGES.md"
 _NUMBER = r"(0|[1-9][0-9]*)"
 _SEMVER = re.compile(rf"^{_NUMBER}\.{_NUMBER}\.{_NUMBER}(?:-(alpha|beta|rc)\.{_NUMBER})?$")
 _PACKAGE = re.compile(rf"^{_NUMBER}\.{_NUMBER}\.{_NUMBER}(?:(a|b|rc){_NUMBER})?$")
-type Bump = Literal["major", "minor", "patch"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,109 +76,23 @@ def project_version(root: Path) -> ReleaseVersion:
     return parse_version(document["project"]["version"], package=True)
 
 
-def next_version(current: ReleaseVersion, bump: Bump) -> ReleaseVersion:
-    if bump == "major":
-        return ReleaseVersion(current.major + 1, 0, 0)
-    if bump == "minor":
-        return ReleaseVersion(current.major, current.minor + 1, 0)
-    return ReleaseVersion(current.major, current.minor, current.patch + 1)
-
-
 def release_notes(changelog: str, version: ReleaseVersion) -> str:
+    # release-please writes "## [3.1.0](compare-url) (2026-11-10)"; sections
+    # written by hand before it used "## Version 3.0.0 (2026-10-08)".
+    number = re.escape(version.semantic)
     heading = (
-        rf"^## Version {re.escape(version.semantic)} \([0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}\)\s*\n"
+        rf"^## (?:\[{number}\]\([^)\s]+\)|Version {number}) "
+        rf"\([0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}\)[ \t]*\n"
     )
     match = re.search(heading, changelog, re.MULTILINE)
     if match is None:
-        raise ValueError(f"CHANGES.md needs a dated Version {version.semantic} section")
+        raise ValueError(f"CHANGES.md needs a dated {version.semantic} section")
     body = changelog[match.end() :]
     following = re.search(r"^## ", body, re.MULTILINE)
     notes = body[: following.start()] if following else body
     if not notes.strip():
         raise ValueError("Release notes must not be empty")
     return notes.strip() + "\n"
-
-
-def section_span(text: str, heading: str, following: str) -> tuple[int, int, int] | None:
-    """Locate a heading and its body without mixing lazy matches and alternatives."""
-    start = re.search(heading, text, re.MULTILINE)
-    if start is None:
-        return None
-    next_heading = re.search(following, text[start.end() :], re.MULTILINE)
-    end = start.end() + next_heading.start() if next_heading else len(text)
-    return start.start(), start.end(), end
-
-
-def _replace_project_version(text: str, value: str) -> str:
-    section = section_span(text, r"^\[project\][ \t]*\n", r"^\[")
-    if section is None:
-        raise ValueError("Missing [project] metadata")
-    replacement, count = re.subn(
-        r'^version\s*=\s*["\'][^"\']+["\']',
-        f'version = "{value}"',
-        text[section[0] : section[2]],
-        count=1,
-        flags=re.MULTILINE,
-    )
-    if count != 1:
-        raise ValueError("Expected one project version assignment")
-    return text[: section[0]] + replacement + text[section[2] :]
-
-
-def _replace_lock_version(text: str, value: str) -> str:
-    headers = list(re.finditer(r"^\[\[package\]\][ \t]*\n", text, re.MULTILINE))
-    entries = [
-        (header.start(), headers[index + 1].start() if index + 1 < len(headers) else len(text))
-        for index, header in enumerate(headers)
-    ]
-    matches = [
-        entry
-        for entry in entries
-        if re.search(r'^name = "netprobe"$', text[entry[0] : entry[1]], re.MULTILINE)
-    ]
-    if len(matches) != 1:
-        raise ValueError("uv.lock must contain exactly one netprobe entry")
-    entry = matches[0]
-    replacement, count = re.subn(
-        r'^version = "[^"]+"',
-        f'version = "{value}"',
-        text[entry[0] : entry[1]],
-        count=1,
-        flags=re.MULTILINE,
-    )
-    if count != 1:
-        raise ValueError("Missing netprobe lockfile version")
-    return text[: entry[0]] + replacement + text[entry[1] :]
-
-
-def prepare(root: Path, version: ReleaseVersion, *, dry_run: bool = False) -> list[str]:
-    current = project_version(root)
-    if version.precedence <= current.precedence:
-        raise ValueError(f"New version must be greater than {current.semantic}")
-    check_lock(root, current)
-    project = (root / PROJECT_FILE).read_text(encoding="utf-8")
-    lock = (root / LOCK_FILE).read_text(encoding="utf-8")
-    changelog = (root / CHANGELOG_FILE).read_text(encoding="utf-8")
-    match = section_span(changelog, r"^## Unreleased[ \t]*\n", r"^## ")
-    if match is None or not changelog[match[1] : match[2]].strip():
-        raise ValueError("Add nonempty release notes under ## Unreleased first")
-    if re.search(rf"^## Version {re.escape(version.semantic)}(?: |$)", changelog, re.MULTILINE):
-        raise ValueError("That release already has a changelog section")
-    date = datetime.now(UTC).date().isoformat()
-    section = f"## Unreleased\n\n## Version {version.semantic} ({date})\n\n{changelog[match[1] : match[2]].strip()}\n\n"
-    changes = {
-        PROJECT_FILE: _replace_project_version(project, version.package),
-        LOCK_FILE: _replace_lock_version(lock, version.package),
-        CHANGELOG_FILE: changelog[: match[0]] + section + changelog[match[2] :],
-    }
-    # Calculate and validate every replacement before writing any file.
-    parse_version(tomllib.loads(changes[PROJECT_FILE])["project"]["version"], package=True)
-    tomllib.loads(changes[LOCK_FILE])
-    release_notes(changes[CHANGELOG_FILE], version)
-    if not dry_run:
-        for filename, content in changes.items():
-            (root / filename).write_text(content, encoding="utf-8")
-    return list(changes)
 
 
 def check_lock(root: Path, version: ReleaseVersion) -> None:
@@ -194,16 +109,13 @@ def check_release(
     check_lock(root, version)
     if tag is not None and tag != version.tag:
         raise ValueError(f"Tag must be {version.tag} for package {version.package}")
-    if (
-        previous is not None
-        and version.precedence < parse_version(previous, package=True).precedence
-    ):
+    before = None if previous is None else parse_version(previous, package=True)
+    if before is not None and version.precedence < before.precedence:
         raise ValueError("Package version must not move backwards")
-    changelog = (root / CHANGELOG_FILE).read_text(encoding="utf-8")
-    pending = section_span(changelog, r"^## Unreleased[ \t]*\n", r"^## ")
-    if tag is not None and pending is not None and changelog[pending[1] : pending[2]].strip():
-        raise ValueError("Move Unreleased notes into a new version section before tagging")
-    release_notes(changelog, version)
+    # Notes exist once release-please has prepared a release: when tagging, or in
+    # the release PR that moves the version. Between releases there are none.
+    if tag is not None or (before is not None and version.precedence > before.precedence):
+        release_notes((root / CHANGELOG_FILE).read_text(encoding="utf-8"), version)
     return version
 
 
@@ -300,13 +212,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path.cwd())
     commands = parser.add_subparsers(dest="command", required=True)
-    prepare_command = commands.add_parser(
-        "prepare", help="Prepare version, lockfile and changelog for a reviewed PR"
-    )
-    prepare_command.add_argument(
-        "version", help="major, minor, patch, or an explicit SemVer release"
-    )
-    prepare_command.add_argument("--dry-run", action="store_true")
     check_command = commands.add_parser(
         "check", help="Validate metadata, notes and optional tag/distributions"
     )
@@ -318,36 +223,17 @@ def main() -> None:
     check_command.add_argument("--verify-checksums", type=Path)
     args = parser.parse_args()
     try:
-        if args.command == "prepare":
-            current = project_version(args.root)
-            version = (
-                next_version(current, args.version)
-                if args.version in ("major", "minor", "patch")
-                else parse_version(args.version)
+        version = check_release(args.root, args.tag, args.previous_version)
+        validate_artifacts(args, version)
+        print(
+            json.dumps(
+                {
+                    "version": version.package,
+                    "tag": version.tag,
+                    "prerelease": version.phase is not None,
+                }
             )
-            changed = prepare(args.root, version, dry_run=args.dry_run)
-            print(
-                json.dumps(
-                    {
-                        "version": version.package,
-                        "tag": version.tag,
-                        "files": changed,
-                        "dry_run": args.dry_run,
-                    }
-                )
-            )
-        else:
-            version = check_release(args.root, args.tag, args.previous_version)
-            validate_artifacts(args, version)
-            print(
-                json.dumps(
-                    {
-                        "version": version.package,
-                        "tag": version.tag,
-                        "prerelease": version.phase is not None,
-                    }
-                )
-            )
+        )
     except (OSError, KeyError, TypeError, ValueError, tarfile.TarError, BadZipFile) as exc:
         parser.exit(1, f"Release validation failed: {exc}\n")
 

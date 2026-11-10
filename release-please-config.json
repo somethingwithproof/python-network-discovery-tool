@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "dea47d50a4158786eaf1116ad8a5114e8ff404bc",
+  "packages": {
+    ".": {
+      "release-type": "python",
+      "package-name": "netprobe",
+      "changelog-path": "CHANGES.md",
+      "include-v-in-tag": true,
+      "include-component-in-tag": false,
+      "draft": true,
+      "force-tag-creation": true,
+      "release-as": "3.0.0",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "uv.lock",
+          "jsonpath": "$.package[?(@.name==='netprobe')].version"
+        }
+      ]
+    }
+  }
+}

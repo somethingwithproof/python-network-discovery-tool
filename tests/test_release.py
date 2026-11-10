@@ -6,6 +6,7 @@
 import importlib.util
 import io
 import json
+import re
 import sys
 import tarfile
 from pathlib import Path
@@ -33,7 +34,7 @@ def project(tmp_path):
         'version=1\n[[package]]\nname = "other"\nversion = "1.2.3"\n[[package]]\nname = "netprobe"\nversion = "3.0.0"\n'
     )
     (tmp_path / "CHANGES.md").write_text(
-        "# Changelog\n\n## Unreleased\n\n- New inventory features.\n\n## Version 3.0.0 (2026-10-08)\n\n- Initial v3 package.\n"
+        "# Changelog\n\n## Version 3.0.0 (2026-10-08)\n\n- Initial v3 package.\n"
     )
     return tmp_path
 
@@ -81,73 +82,61 @@ def test_prerelease_precedence(release):
     assert len(set(keys)) == len(keys)
 
 
-@pytest.mark.parametrize(
-    "bump,expected", [("major", "4.0.0"), ("minor", "3.5.0"), ("patch", "3.4.6")]
-)
-def test_semantic_bumps(release, bump, expected):
-    assert release.next_version(release.parse_version("3.4.5"), bump).semantic == expected
-
-
-def test_prepare_updates_only_project_version_lock_and_unreleased_notes(release, project):
-    version = release.parse_version("3.1.0-rc.1")
-    files = release.prepare(project, version)
-    assert files == ["pyproject.toml", "uv.lock", "CHANGES.md"]
-    assert release.project_version(project).package == "3.1.0rc1"
-    assert 'version="keep-me"' in (project / "pyproject.toml").read_text()
-    assert 'version = "1.2.3"' in (project / "uv.lock").read_text()
-    assert "New inventory features" in release.release_notes(
-        (project / "CHANGES.md").read_text(), version
-    )
-    assert release.check_release(project, "v3.1.0-rc.1") == version
-
-
-def test_dry_run_does_not_write(release, project):
-    before = {path: path.read_bytes() for path in project.iterdir()}
-    release.prepare(project, release.parse_version("3.1.0"), dry_run=True)
-    assert before == {path: path.read_bytes() for path in project.iterdir()}
-
-
-@pytest.mark.parametrize("value", ["2.9.9", "3.0.0", "3.0.0-rc.1"])
-def test_prepare_refuses_older_or_equal_versions(release, project, value):
-    version = release.parse_version(value)
-    with pytest.raises(ValueError, match="greater"):
-        release.prepare(project, version)
-
-
-@pytest.mark.parametrize(
-    "problem", ["missing_notes", "empty_notes", "duplicate_release", "wrong_lock"]
-)
-def test_invalid_prepare_leaves_all_files_unchanged(release, project, problem):
+def release_please_bump(project, version, notes="### Features\n\n* add a thing\n"):
+    """What a release-please PR changes: both versions and a new changelog entry."""
+    for name in ("pyproject.toml", "uv.lock"):
+        path = project / name
+        path.write_text(path.read_text().replace('version = "3.0.0"', f'version = "{version}"'))
     changelog = project / "CHANGES.md"
-    if problem == "missing_notes":
-        changelog.write_text("# Changelog\n")
-    elif problem == "empty_notes":
-        changelog.write_text(
-            "# Changelog\n\n## Unreleased\n\n## Version 3.0.0 (2026-10-08)\n\n- Old.\n"
-        )
-    elif problem == "duplicate_release":
-        changelog.write_text(
-            changelog.read_text() + "\n## Version 3.1.0 (2026-10-08)\n\n- Duplicate.\n"
-        )
-    else:
-        path = project / "uv.lock"
-        path.write_text(path.read_text().replace('version = "3.0.0"', 'version = "3.0.1"'))
-    before = {path: path.read_bytes() for path in project.iterdir()}
-    version = release.parse_version("3.1.0")
-    with pytest.raises(ValueError):
-        release.prepare(project, version)
-    assert before == {path: path.read_bytes() for path in project.iterdir()}
+    entry = (
+        f"## [{version}](https://github.com/o/r/compare/v3.0.0...v{version}) (2026-11-10)\n\n"
+        + notes
+    )
+    changelog.write_text(
+        changelog.read_text().replace("## Version 3.0.0", entry + "\n## Version 3.0.0")
+    )
 
 
 def test_release_requires_matching_tag_notes_and_lock(release, project):
     with pytest.raises(ValueError, match="Tag must"):
         release.check_release(project, "v9.0.0")
-    with pytest.raises(ValueError, match="Unreleased"):
-        release.check_release(project, "v3.0.0")
     with pytest.raises(ValueError, match="backwards"):
         release.check_release(project, previous="4.0.0")
-    release.prepare(project, release.parse_version("3.1.0"))
+    assert release.check_release(project, "v3.0.0").semantic == "3.0.0"
+    release_please_bump(project, "3.1.0")
     assert release.check_release(project, "v3.1.0", previous="3.0.0").semantic == "3.1.0"
+    lock = project / "uv.lock"
+    lock.write_text(
+        lock.read_text().replace(
+            'name = "netprobe"\nversion = "3.1.0"', 'name = "netprobe"\nversion = "3.0.0"'
+        )
+    )
+    with pytest.raises(ValueError, match=r"uv\.lock disagree"):
+        release.check_release(project, "v3.1.0")
+
+
+def test_release_please_notes_stop_at_the_previous_release(release, project):
+    release_please_bump(project, "3.1.0", "### Bug Fixes\n\n* **scan:** fix it\n")
+    notes = release.release_notes(
+        (project / "CHANGES.md").read_text(), release.parse_version("3.1.0")
+    )
+    assert notes == "### Bug Fixes\n\n* **scan:** fix it\n"
+
+
+@pytest.mark.parametrize(
+    "heading",
+    [
+        "## 3.1.0 (2026-11-10)",
+        "## [3.1.0] (2026-11-10)",
+        "## [3.1.0](https://x) 2026-11-10",
+        "## [3.1.0](https://x) (2026-11-10) trailing",
+        "## [3.1.00](https://x) (2026-11-10)",
+    ],
+)
+def test_unrecognised_headings_are_not_release_notes(release, heading):
+    version = release.parse_version("3.1.0")
+    with pytest.raises(ValueError, match=r"needs a dated 3\.1\.0 section"):
+        release.release_notes(f"{heading}\n\n- notes\n", version)
 
 
 def test_empty_release_notes_rejected(release):
@@ -220,30 +209,6 @@ def test_checksum_manifest_is_scoped_to_distributions(release, distributions, co
         release.verify_checksums(files, path)
 
 
-def test_cli_prepare_dry_run_and_check(release, project, monkeypatch, capsys):
-    monkeypatch.setattr(
-        sys, "argv", ["release.py", "--root", str(project), "prepare", "minor", "--dry-run"]
-    )
-    release.main()
-    assert json.loads(capsys.readouterr().out)["tag"] == "v3.1.0"
-    monkeypatch.setattr(
-        sys, "argv", ["release.py", "--root", str(project), "check", "--tag", "v9.0.0"]
-    )
-    with pytest.raises(SystemExit) as error:
-        release.main()
-    assert error.value.code == 1
-    assert "Release validation failed" in capsys.readouterr().err
-
-
-def test_sections_preserve_following_metadata_without_final_newline(release, project):
-    path = project / "pyproject.toml"
-    path.write_text(path.read_text().rstrip())
-    version = release.parse_version("3.1.0")
-    release.prepare(project, version)
-    assert path.read_text().endswith('version="keep-me"')
-    assert release.project_version(project) == version
-
-
 @pytest.mark.parametrize("kind", ["parent", "absolute", "symlink"])
 def test_artifact_paths_cannot_escape_selected_root(release, tmp_path, kind):
     root = tmp_path / "project"
@@ -275,3 +240,81 @@ def test_notes_relative_to_selected_root(release, project):
     version = release.parse_version("3.0.0")
     release.write_notes(project, Path("release-notes.md"), version)
     assert (project / "release-notes.md").read_text() == "- Initial v3 package.\n"
+
+
+def test_cli_check_reports_failures(release, project, monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["release.py", "--root", str(project), "check"])
+    release.main()
+    assert json.loads(capsys.readouterr().out)["tag"] == "v3.0.0"
+    monkeypatch.setattr(
+        sys, "argv", ["release.py", "--root", str(project), "check", "--tag", "v9.0.0"]
+    )
+    with pytest.raises(SystemExit) as error:
+        release.main()
+    assert error.value.code == 1
+    assert "Release validation failed" in capsys.readouterr().err
+
+
+ROOT = Path(__file__).parents[1]
+
+
+def test_release_please_config_matches_the_release_checks():
+    config = json.loads((ROOT / "release-please-config.json").read_text())
+    manifest = json.loads((ROOT / ".release-please-manifest.json").read_text())
+    package = config["packages"]["."]
+    assert set(manifest) == {"."}
+    assert package["release-type"] == "python"
+    assert package["changelog-path"] == "CHANGES.md"
+    # release.py expects vX.Y.Z tags, and the release build attaches its tested
+    # artifacts to a draft that a maintainer publishes.
+    assert package["include-v-in-tag"] is True
+    assert package["include-component-in-tag"] is False
+    assert package["draft"] is True
+    assert package["force-tag-creation"] is True
+    # The lock records the project's own version; release.py rejects a mismatch.
+    (lock,) = package["extra-files"]
+    assert lock == {
+        "type": "toml",
+        "path": "uv.lock",
+        "jsonpath": "$.package[?(@.name==='netprobe')].version",
+    }
+
+
+# DEFAULT_VERSION_HEADER_REGEX in release-please's changelog updater.
+RELEASE_PLEASE_HEADER = r"\n###? v?[0-9[]"
+
+
+def test_changelog_lets_release_please_insert_above_every_entry():
+    """release-please inserts before the first match of this header pattern
+    (DEFAULT_VERSION_HEADER_REGEX in its changelog updater). With no match it
+    rewrites the file's own headings, so the first section must match."""
+
+    changelog = (ROOT / "CHANGES.md").read_text()
+    first_section = changelog.index("\n## ")
+    assert re.search(RELEASE_PLEASE_HEADER, changelog).start() <= first_section
+
+
+def test_hand_written_notes_are_released_with_3_0_0(release):
+    """The first generated section absorbs the hand-written block, so the notes
+    the draft release is given include the breaking-change migration details."""
+
+    changelog = (ROOT / "CHANGES.md").read_text()
+    insert_at = re.search(RELEASE_PLEASE_HEADER, changelog).start() + 1
+    generated = "## [3.0.0](https://github.com/o/r/compare/v0.3.0...v3.0.0) (2026-11-10)\n\n"
+    generated += "### ⚠ BREAKING CHANGES\n\n* generated entry\n\n"
+    released = changelog[:insert_at] + generated + changelog[insert_at:]
+    notes = release.release_notes(released, release.parse_version("3.0.0"))
+    assert "* generated entry" in notes
+    assert "##### Breaking changes" in notes
+    assert "Version 0.4.0" not in notes
+
+
+def test_notes_are_required_only_when_a_release_is_prepared(release, project):
+    (project / "CHANGES.md").write_text("# Changelog\n\n## Version 2.0.0 (2025-01-01)\n\n- Old.\n")
+    # Between releases: same version as the base branch, no tag.
+    assert release.check_release(project, previous="3.0.0").semantic == "3.0.0"
+    assert release.check_release(project).semantic == "3.0.0"
+    with pytest.raises(ValueError, match="needs a dated"):
+        release.check_release(project, "v3.0.0")
+    with pytest.raises(ValueError, match="needs a dated"):
+        release.check_release(project, previous="2.9.0")
