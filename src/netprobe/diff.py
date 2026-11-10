@@ -114,24 +114,35 @@ def _uncertain(device: Device) -> bool:
 def _host(entry: Any) -> Host:
     if not isinstance(entry, dict) or not isinstance(entry.get("ip"), str):
         raise SnapshotError("device entry without an ip")
-    found: dict[OpenKey, str] = {}
-    unknown: dict[Port, str] = {}
     services = entry.get("services")
-    if isinstance(services, list):
-        for s in services:
-            if not isinstance(s, dict):
-                continue
-            if s.get("state") == "open":
-                found[(int(s["port"]), str(s["protocol"]), str(s["name"]))] = str(
-                    s.get("version", "")
-                )
-            elif s.get("state") == "unknown":
-                unknown[(int(s["port"]), str(s["protocol"]))] = str(s["name"])
-    else:
-        for name, (port, protocol) in LEGACY_PORTS.items():
-            if entry.get(name) is True:
-                found[(port, protocol, name)] = ""
+    if not isinstance(services, list):
+        legacy = {
+            (port, protocol, name): ""
+            for name, (port, protocol) in LEGACY_PORTS.items()
+            if entry.get(name) is True
+        }
+        return Host(entry["ip"], str(entry.get("hostname", "")), legacy)
+    listed = [s for s in services if isinstance(s, dict)]
+    found = {
+        (int(s["port"]), str(s["protocol"]), str(s["name"])): str(s.get("version", ""))
+        for s in listed
+        if s.get("state") == "open"
+    }
+    unknown = {
+        (int(s["port"]), str(s["protocol"])): str(s["name"])
+        for s in listed
+        if s.get("state") == "unknown"
+    }
     return Host(entry["ip"], str(entry.get("hostname", "")), found, unknown)
+
+
+def _partition(devices: list[Any]) -> tuple[list[Any], list[Host], set[str]]:
+    """Split stored devices into alive entries, their hosts, and uncertain IPs."""
+    answered = [not isinstance(d, dict) or bool(d.get("alive", True)) for d in devices]
+    alive = [d for d, up in zip(devices, answered, strict=True) if up]
+    quiet = [d for d, up in zip(devices, answered, strict=True) if not up]
+    uncertain = {h.ip for h in map(_host, quiet) if h.unknown}
+    return alive, [_host(d) for d in alive], uncertain
 
 
 def _recorded_number(document: dict[str, Any], key: str) -> float | None:
@@ -153,6 +164,24 @@ def _recorded_settings(document: dict[str, Any]) -> tuple[float | None, str | No
     return timeout, backend
 
 
+def _snapshot_parts(path: Path, document: dict[str, Any]) -> dict[str, Any]:
+    if document.get("version") != SNAPSHOT_VERSION:
+        raise SnapshotError(
+            f"{path}: snapshot version {document.get('version')!r} is not supported "
+            f"(this netprobe reads version {SNAPSHOT_VERSION})"
+        )
+    timeout, backend = _recorded_settings(document)
+    return {
+        "devices": document["devices"],
+        "probed": {(int(s["port"]), str(s["protocol"])) for s in document["services"]},
+        "created": str(document.get("created", "")),
+        "target": str(document.get("target", "")),
+        "timeout": timeout,
+        "backend": backend,
+        "service_timeouts": effective_timeouts(document),
+    }
+
+
 def load_inventory(path: Path) -> Inventory:
     """Read a snapshot, or a plain `scan -o file.json` report."""
     try:
@@ -161,44 +190,32 @@ def load_inventory(path: Path) -> Inventory:
         raise SnapshotError(f"cannot read {path}: {e}") from e
 
     try:
-        timeout: float | None = None
-        backend: str | None = None
-        service_timeouts: dict[str, float] = {}
         if isinstance(document, list):
-            devices, probed, created, target = document, None, "", ""
+            parts: dict[str, Any] = {
+                "devices": document,
+                "probed": None,
+                "created": "",
+                "target": "",
+            }
         elif isinstance(document, dict) and document.get("format") == SNAPSHOT_FORMAT:
-            if document.get("version") != SNAPSHOT_VERSION:
-                raise SnapshotError(
-                    f"{path}: snapshot version {document.get('version')!r} is not supported "
-                    f"(this netprobe reads version {SNAPSHOT_VERSION})"
-                )
-            devices = document["devices"]
-            probed = {(int(s["port"]), str(s["protocol"])) for s in document["services"]}
-            created, target = str(document.get("created", "")), str(document.get("target", ""))
-            timeout, backend = _recorded_settings(document)
-            service_timeouts = effective_timeouts(document)
+            parts = _snapshot_parts(path, document)
         else:
             raise SnapshotError(f"{path}: not a netprobe snapshot or JSON report")
-        alive: list[Any] = []
-        quiet: list[Any] = []
-        for d in devices:
-            (alive if not isinstance(d, dict) or d.get("alive", True) else quiet).append(d)
-        hosts = [_host(d) for d in alive]
-        uncertain = {h.ip for h in map(_host, quiet) if h.unknown}
+        alive, hosts, uncertain = _partition(parts["devices"])
     except SnapshotError:
         raise
     except (KeyError, TypeError, ValueError) as e:
         raise SnapshotError(f"{path}: malformed snapshot: {e}") from e
     return Inventory(
         str(path),
-        created,
-        target,
-        probed,
+        parts["created"],
+        parts["target"],
+        parts["probed"],
         {h.ip: h for h in hosts},
         alive,
-        timeout=timeout,
-        backend=backend,
-        service_timeouts=service_timeouts,
+        timeout=parts.get("timeout"),
+        backend=parts.get("backend"),
+        service_timeouts=parts.get("service_timeouts", {}),
         uncertain=uncertain,
     )
 
@@ -281,6 +298,18 @@ def _summary(host: Host) -> dict[str, Any]:
     }
 
 
+def _setting_warnings(old: Inventory, new: Inventory) -> list[str]:
+    warnings = []
+    if old.target and new.target and old.target != new.target:
+        warnings.append(f"targets differ: {old.target} vs {new.target}")
+    if old.timeout is not None and new.timeout is not None and old.timeout != new.timeout:
+        warnings.append(f"timeouts differ: {old.timeout} vs {new.timeout}")
+    if old.backend is not None and new.backend is not None and old.backend != new.backend:
+        warnings.append(f"backends differ: {old.backend} vs {new.backend}")
+    warnings.extend(timeout_warnings(old.service_timeouts, new.service_timeouts))
+    return warnings
+
+
 def compare(old: Inventory, new: Inventory) -> Diff:
     """Hosts that appeared or vanished, ports that opened or closed, versions that changed.
 
@@ -291,13 +320,7 @@ def compare(old: Inventory, new: Inventory) -> Diff:
         old={"source": old.label, "created": old.created, "target": old.target},
         new={"source": new.label, "created": new.created, "target": new.target},
     )
-    if old.target and new.target and old.target != new.target:
-        diff.warnings.append(f"targets differ: {old.target} vs {new.target}")
-    if old.timeout is not None and new.timeout is not None and old.timeout != new.timeout:
-        diff.warnings.append(f"timeouts differ: {old.timeout} vs {new.timeout}")
-    if old.backend is not None and new.backend is not None and old.backend != new.backend:
-        diff.warnings.append(f"backends differ: {old.backend} vs {new.backend}")
-    diff.warnings.extend(timeout_warnings(old.service_timeouts, new.service_timeouts))
+    diff.warnings.extend(_setting_warnings(old, new))
     comparable: set[Port] | None = None
     if old.probed is not None and new.probed is not None:
         comparable = old.probed & new.probed
@@ -311,15 +334,22 @@ def compare(old: Inventory, new: Inventory) -> Diff:
     # A host now answering is reported with its open ports even when the
     # earlier scan could not observe it; only the reverse is held back,
     # because failed probes do not show that a host went away.
-    for ip in sorted(new.hosts.keys() - old.hosts.keys(), key=_ip_key):
-        diff.new_hosts.append(_summary(new.hosts[ip]))
-        if ip in old.uncertain:
-            diff.unsettled_hosts.append({"ip": ip, "before": "uncertain", "after": "up"})
+    appeared = sorted(new.hosts.keys() - old.hosts.keys(), key=_ip_key)
+    diff.new_hosts.extend(_summary(new.hosts[ip]) for ip in appeared)
+    diff.unsettled_hosts.extend(
+        {"ip": ip, "before": "uncertain", "after": "up"} for ip in appeared if ip in old.uncertain
+    )
     for ip in sorted(old.hosts.keys() - new.hosts.keys(), key=_ip_key):
         if ip in new.uncertain:
             diff.unsettled_hosts.append({"ip": ip, "before": "up", "after": "uncertain"})
         else:
             diff.vanished_hosts.append(_summary(old.hosts[ip]))
+    # Failed in both scans: nothing was observed either time, which still
+    # needs attention rather than a "no changes" result.
+    diff.unsettled_hosts.extend(
+        {"ip": ip, "before": "uncertain", "after": "uncertain"}
+        for ip in sorted(old.uncertain & new.uncertain, key=_ip_key)
+    )
 
     for ip in sorted(old.hosts.keys() & new.hosts.keys(), key=_ip_key):
         compare_host_ports(diff, ip, old.hosts[ip], new.hosts[ip], comparable)
@@ -392,11 +422,12 @@ def print_diff(diff: Diff, console: Console) -> None:
     console.print(table)
 
 
-def compare_host_ports(
-    diff: Diff, ip: str, old: Host, new: Host, comparable: set[Port] | None
-) -> None:
-    # A label change is not a port transition. Retain name matching only for
-    # older inventories that contain multiple services on the same socket.
+def _relabel(old: Host, new: Host) -> dict[OpenKey, str]:
+    """Old open services keyed by the new label when the socket is unambiguous.
+
+    A label change is not a port transition. Retain name matching only for
+    older inventories that contain multiple services on the same socket.
+    """
     before_counts = Counter((port, protocol) for port, protocol, _ in old.open)
     after_counts = Counter((port, protocol) for port, protocol, _ in new.open)
     unique_after = {
@@ -404,32 +435,37 @@ def compare_host_ports(
         for port, protocol, name in new.open
         if after_counts[(port, protocol)] == 1
     }
-    before = {
+    return {
         unique_after.get((port, protocol), (port, protocol, name))
         if before_counts[(port, protocol)] == 1
         else (port, protocol, name): version
         for (port, protocol, name), version in old.open.items()
     }
+
+
+def _compare_port(diff: Diff, ip: str, key: OpenKey, before: dict[OpenKey, str], new: Host) -> None:
+    port, protocol, name = key
     after = new.open
-
-    def compared(endpoint: Port) -> bool:
-        return comparable is None or endpoint in comparable
-
-    for port, protocol, name in sorted(before.keys() | after.keys()):
-        if not compared((port, protocol)):
-            continue
-        key = (port, protocol, name)
-        if key not in before:
-            # Reported even when the earlier probe failed: an open port is news.
-            diff.opened.append(Change(ip, name, port, protocol, after[key]))
-        elif key not in after:
-            if (port, protocol) in new.unknown:
-                diff.unconfirmed.append(Unconfirmed(ip, name, port, protocol, "open", "unknown"))
-            else:
-                diff.closed.append(Change(ip, name, port, protocol, "", before[key]))
-        elif before[key] != after[key]:
+    if key not in before:
+        # Reported even when the earlier probe failed: an open port is news.
+        diff.opened.append(Change(ip, name, port, protocol, after[key]))
+    elif key in after:
+        if before[key] != after[key]:
             diff.version_changes.append(Change(ip, name, port, protocol, after[key], before[key]))
+    elif (port, protocol) in new.unknown:
+        diff.unconfirmed.append(Unconfirmed(ip, name, port, protocol, "open", "unknown"))
+    else:
+        diff.closed.append(Change(ip, name, port, protocol, "", before[key]))
+
+
+def compare_host_ports(
+    diff: Diff, ip: str, old: Host, new: Host, comparable: set[Port] | None
+) -> None:
+    before = _relabel(old, new)
+    for key in sorted(before.keys() | new.open.keys()):
+        if comparable is None or key[:2] in comparable:
+            _compare_port(diff, ip, key, before, new)
     for port, protocol in sorted(old.unknown.keys() & new.unknown.keys()):
-        if compared((port, protocol)):
+        if comparable is None or (port, protocol) in comparable:
             name = new.unknown[(port, protocol)]
             diff.unconfirmed.append(Unconfirmed(ip, name, port, protocol, "unknown", "unknown"))

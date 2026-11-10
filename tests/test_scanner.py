@@ -432,10 +432,9 @@ async def test_scan_network_checks_the_file_limit_before_probing(monkeypatch):
         return "open"
 
     stub_probes(monkeypatch, never)
+    scanner_ = NetworkScanner(services=[ServiceSpec("ssh", 22)], concurrency=16)
     with pytest.raises(ValueError, match="open files"):
-        await NetworkScanner(services=[ServiceSpec("ssh", 22)], concurrency=16).scan_network(
-            "10.0.0.1"
-        )
+        await scanner_.scan_network("10.0.0.1")
     assert probed == []
 
 

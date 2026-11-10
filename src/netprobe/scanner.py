@@ -331,11 +331,10 @@ class NetworkScanner:
         device.address = address
 
         limit = probes or asyncio.Semaphore(self.concurrency)
+        tasks: list[asyncio.Task[Service]] = []
         async with asyncio.TaskGroup() as tg:
-            tasks = [
-                tg.create_task(self._probe(address, server_name, spec, limit, device))
-                for spec in self.services
-            ]
+            for spec in self.services:
+                tasks.append(tg.create_task(self._probe(address, server_name, spec, limit, device)))
 
         device.services = [t.result() for t in tasks]
         open_names = {s.name for s in device.open_services}
