@@ -393,7 +393,8 @@ the image build on any fixable HIGH or CRITICAL vulnerability that Trivy reports
 runs on main and weekly, publishes its real score, and uploads findings to GitHub
 code scanning. Actions and container bases are pinned by immutable hashes; Python
 dependencies are resolved in `uv.lock`. Bandit failures fail CI, and bounded Atheris
-fuzzing exercises protocol parsers without network access.
+fuzzing exercises the SSH, MySQL, HTTP, certificate and SNMPv3 BER parsers
+without network access.
 
 Scorecard also measures historical review activity, contributor diversity, and
 release provenance. Those scores reflect actual evidence; they are not claims
