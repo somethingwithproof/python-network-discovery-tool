@@ -6,7 +6,7 @@
 LAB = docker compose -f tests/integration/compose.yml --profile tester
 
 install:
-	uv pip install -e ".[dev]"
+	uv sync --locked
 
 test:
 	uv run pytest --cov=netprobe --cov-report=term-missing

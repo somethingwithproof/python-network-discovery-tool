@@ -32,8 +32,8 @@ Required gates cover executable CI and security scans. Optional review services
 can report on human PRs and may skip Dependabot PRs; their absence does not prevent
 dependency maintenance. Review any findings they do report before merging.
 
-The inline lab images in `tests/integration/compose.yml` and runtime tool versions
-embedded in mise configuration need explicit maintainer updates; the root Docker
+The inline lab images in `tests/integration/compose.yml` and the uv and Python versions
+pinned in workflow `setup-uv`/`setup-python` steps need explicit maintainer updates; the root Docker
 entry does not maintain every embedded image or tool version.
 
 See [uv's Dependabot integration](https://docs.astral.sh/uv/guides/integration/dependabot/)
