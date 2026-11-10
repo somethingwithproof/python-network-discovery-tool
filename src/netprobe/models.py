@@ -55,6 +55,8 @@ class Device:
     hostname: str = ""
     errors: list[str] = field(default_factory=list)
     services: list[Service] = field(default_factory=list)
+    # The address every probe used; differs from ip for hostname targets.
+    address: str = ""
 
     @property
     def open_services(self) -> list[Service]:
