@@ -484,6 +484,8 @@ async def test_unresolvable_hostname_is_unknown_not_down(monkeypatch):
     [
         ("host.example.", "host.example"),
         ("_gateway", "_gateway"),
+        ("xn--hst-cna.example", "xn--hst-cna.example"),
+        ("h\u00f4st.example", ""),
         ("evil\x1b[2Jname", ""),
         ("[bold]x[/bold]", ""),
         ("a" * 300, ""),
@@ -497,12 +499,15 @@ async def test_reverse_dns_names_are_plain_hostnames(monkeypatch, ptr, expected)
 
 async def test_reverse_dns_deadline_starts_after_a_lookup_slot_frees(monkeypatch):
     monkeypatch.undo()
-    monkeypatch.setattr(scanner, "HOSTNAME_TIMEOUT", 0.2)
+    # Three serial lookups take 1.2s against a 1.0s deadline: a deadline that
+    # included queueing would expire the third, while each lookup alone
+    # leaves 0.6s of slack for slow CI thread scheduling.
+    monkeypatch.setattr(scanner, "HOSTNAME_TIMEOUT", 1.0)
 
     def slow(ip):
         import time
 
-        time.sleep(0.15)
+        time.sleep(0.4)
         return ("host.example", [], [ip])
 
     monkeypatch.setattr(socket, "gethostbyaddr", slow)

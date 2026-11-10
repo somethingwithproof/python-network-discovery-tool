@@ -61,7 +61,7 @@ FD_HEADROOM = 64
 
 _HOSTNAME_LABEL = re.compile(r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$")
 # Reverse DNS names in the wild also use underscores.
-_PTR_NAME = re.compile(r"[A-Za-z0-9_](?:[A-Za-z0-9_.-]{0,251}[A-Za-z0-9_])?")
+_PTR_NAME = re.compile(r"\w(?:[\w.-]{0,251}\w)?", re.ASCII)
 # Concurrent forward and reverse lookups; each occupies a resolver thread.
 DNS_CONCURRENCY = 16
 
@@ -223,11 +223,10 @@ async def resolve_hostname(ip: str, lookups: asyncio.Semaphore | None = None) ->
     anything but hostname characters is dropped rather than printed.
     """
     try:
-        async with lookups or contextlib.nullcontext():
-            # The deadline starts once a lookup slot is free, so a long queue
-            # does not expire lookups that never ran.
-            async with asyncio.timeout(HOSTNAME_TIMEOUT):
-                name, _, _ = await asyncio.to_thread(socket.gethostbyaddr, ip)
+        # Contexts are entered left to right: the deadline starts once a lookup
+        # slot is free, so a long queue does not expire lookups that never ran.
+        async with lookups or contextlib.nullcontext(), asyncio.timeout(HOSTNAME_TIMEOUT):
+            name, _, _ = await asyncio.to_thread(socket.gethostbyaddr, ip)
     except OSError as e:
         logger.debug(f"Could not resolve hostname for {ip}: {e}")
         return ""
