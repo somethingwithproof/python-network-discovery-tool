@@ -299,12 +299,18 @@ def test_hand_written_notes_are_released_with_3_0_0(release):
     the draft release is given include the breaking-change migration details."""
 
     changelog = (ROOT / "CHANGES.md").read_text()
-    insert_at = re.search(RELEASE_PLEASE_HEADER, changelog).start() + 1
-    generated = "## [3.0.0](https://github.com/o/r/compare/v0.3.0...v3.0.0) (2026-11-10)\n\n"
-    generated += "### ⚠ BREAKING CHANGES\n\n* generated entry\n\n"
-    released = changelog[:insert_at] + generated + changelog[insert_at:]
+    # On the release-please branch the 3.0.0 section is already there; adding
+    # another would shadow it.
+    already_released = re.search(r"^## \[3\.0\.0\]", changelog, re.MULTILINE)
+    released = changelog
+    if not already_released:
+        insert_at = re.search(RELEASE_PLEASE_HEADER, changelog).start() + 1
+        generated = "## [3.0.0](https://github.com/o/r/compare/v0.3.0...v3.0.0) (2026-11-10)\n\n"
+        generated += "### ⚠ BREAKING CHANGES\n\n* generated entry\n\n"
+        released = changelog[:insert_at] + generated + changelog[insert_at:]
     notes = release.release_notes(released, release.parse_version("3.0.0"))
-    assert "* generated entry" in notes
+    if not already_released:
+        assert "* generated entry" in notes
     assert "##### Breaking changes" in notes
     assert "Version 0.4.0" not in notes
 
