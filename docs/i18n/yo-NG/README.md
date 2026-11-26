@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -58,6 +58,8 @@ láti lo àwọn ẹ̀yà àkọsílẹ̀ iṣẹ́ tí a ṣàlàyé níbí.
 Bẹ̀rẹ̀ pẹ̀lú [ìfisórí ẹ̀rọ](#install), lẹ́yìn náà [àwọn profáìlì àti ìtàn](#inventory-profiles-preflight-and-local-history).
 Fún àlàyé ìṣọ̀kan, wo [àwọn ìtẹ̀ka iṣẹ́](#fingerprints),
 [ìfiwéra fáìlì](#inventory-diff), àti [ìkójáde Kadupul](#kadupul-export).
+
+<a name="install"></a>
 
 ## Ìfisórí ẹ̀rọ
 
@@ -189,6 +191,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 Ní àkọ́bẹ̀rẹ̀, a ń yẹ ẹ̀rọ agbàlejò kọ̀ọ̀kan wò fún SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) àti HTTPS (TCP 443). A ń dán àwọn pọ́ọ̀tì TCP wò pẹ̀lú ìsopọ̀ pípé. A ń dán SNMP wò pẹ̀lú ìbéèrè ìwádìí ẹ̀rọ SNMPv3, èyí tí aṣojú SNMPv3 èyíkéyìí gbọ́dọ̀ dáhùn láìsí ẹ̀rí-ìdánimọ̀; àwọn aṣojú tí ń sọ v1/v2c nìkan ni ìwádìí yìí kò ní rí. Pẹ̀lú ètò-ìpìlẹ̀ asyncio, a ka ẹ̀rọ agbàlejò sí alààyè nígbà tí ìwádìí èyíkéyìí bá rí ìdáhùn gbà, títí kan ìsopọ̀ tí a kọ̀, nítorí náà ẹ̀rọ agbàlejò tí ó bá da gbogbo ìwádìí nù ní `alive=false` àti àṣìṣe "Host is down"; èyí kò fi hàn pé ó ti pa ní ti gidi. Pẹ̀lú `--backend nmap`, nmap ló ń pinnu àwọn ẹ̀rọ agbàlejò tí ó wà láàyè (ICMP gẹ́gẹ́ bí root, TCP 80/443 bí kò bá rí bẹ́ẹ̀).
 
+<a name="fingerprints"></a>
+
 ### Àwọn ìtẹ̀ka iṣẹ́
 
 A ń ṣe ìtẹ̀ka iṣẹ́ kọ̀ọ̀kan tí ó ṣí sílẹ̀ láti inú ohun tí ó fi ránṣẹ́ ṣáájú ìwọlé èyíkéyìí. Kò sí ohun tí ń ṣe ìfìdímúlẹ̀ ìdánimọ̀ àfi ìbéèrè SNMP, àti nígbà tí o bá pèsè àwọn ẹ̀rí-ìdánimọ̀ nìkan.
@@ -229,6 +233,8 @@ probe = "https"
 
 Àwọn ìjábọ̀ JSON jẹ́ àwọn àkọsílẹ̀ tí ó ní ẹ̀dà (`"format": "hostcensus-report"`, `"version": 1`) tí ó ń kọ ibi-àfojúsùn, àwọn iṣẹ́ tí a ṣèwádìí àti àwọn ètò sílẹ̀ lẹ́gbẹ̀ẹ́ `devices`; `--format json` láìsí `-o` ń kọ ìjábọ̀ náà sí stdout dípò tábìlì. Gbogbo èsì JSON ní àwòrán (schema) tí a tẹ̀ jáde; wo [Èsì JSON](../../../docs/json-output.md). Àwọn ẹ̀rọ ń pa àwọn ààyè àtijọ́ `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` àti `errors` mọ́ wọ́n sì ń fi àtòjọ `services` kún un pẹ̀lú `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, tàbí `unknown` nígbà tí ìwádìí bá kùnà ní abẹ́lé tàbí dé àkókò-ìparí rẹ̀), `version` àti `details` ti ìwádìí kọ̀ọ̀kan. Èsì CSV ń gba àwọn ọ̀wọ́n ìparí `services` àti `versions` fún àwọn tí ó ṣí sílẹ̀. Àwọn iye òótọ́/irọ́ `ssh`, `snmp` àti `mysql` ń tẹ̀lé àwọn iṣẹ́ tí ó ní àwọn orúkọ wọ̀nyẹn gan-an.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## Àwọn profáìlì àkọsílẹ̀ iṣẹ́, àyẹ̀wò ìṣáájú, àti ìtàn abẹ́lé
 
@@ -316,6 +322,8 @@ Kóòdù ìjáde àyẹ̀wò 0 kò ṣèlérí pé gbogbo ẹ̀rọ agbàlejò l
 Àwọn fáìlì profáìlì àti àwọn ètò tí a tọ́jú kò ní àwọn ẹ̀rí-ìdánimọ̀ SNMP nínú;
 ìtọ́jú ẹ̀rí-ìdánimọ̀ ń bá a lọ nípasẹ̀ àwọn àṣàyàn/àyíká àṣẹ-ìṣiṣẹ́ tí ó wà tẹ́lẹ̀.
 
+<a name="inventory-diff"></a>
+
 ## Ìyàtọ̀ àkọsílẹ̀ iṣẹ́
 
 ```bash
@@ -332,6 +340,8 @@ hostcensus diff monday.json tuesday.json -f json     # JSON on stdout
 Ìjábọ̀ láti inú àyẹ̀wò tí `--deadline` dá dúró (`"complete": false`) ń tò àwọn ẹ̀rọ agbàlejò tí ó dé ọ̀dọ̀ wọn nìkan, nítorí náà `diff` àti `export` ń kọ̀ ọ́ pẹ̀lú kóòdù ìjáde 2. `--allow-partial` ń gbà á pẹ̀lú ìkìlọ̀ kan lórí stderr: `diff` wá ń tò àwọn ẹ̀rọ agbàlejò tí àyẹ̀wò tí kò pé náà kò tò rárá lábẹ́ `unsettled_hosts` gẹ́gẹ́ bí `unscanned` dípò èyí tí ó pòórá (ẹ̀rọ agbàlejò tí ó tò bí èyí tí ó pa ṣì jẹ́ èyí tí ó pòórá), ó ń ṣètò `partial` sí òótọ́ (true) kì í sì í ròyìn pé kò sí ìyípadà láéláé, `export` sì ń kọ ìkìlọ̀ kan sínú àkọlé ìwé-àṣẹ náà.
 
 Àwọn kóòdù ìjáde `diff`: `0` kò sí ìyípadà, `3` a rí ìyípadà, àwọn àkíyèsí tí a kò lè fìdí rẹ̀ múlẹ̀, tàbí ìtẹ̀wọlé tí kò pé (`changed` jẹ́ òótọ́ nígbàkúgbà tí àtòjọ èyíkéyìí, títí kan `unsettled_hosts` àti `unconfirmed`, kò bá ṣófo, tàbí `partial` bá jẹ́ òótọ́), `2` fáìlì kan sọnù, kò ṣeé kà, kì í ṣe àwòrán tí a ṣe àtìlẹ́yìn fún, tàbí kò pé láìsí `--allow-partial`, `1` a kò lè kọ fáìlì `-o`.
+
+<a name="kadupul-export"></a>
 
 ## Ìkójáde Kadupul
 

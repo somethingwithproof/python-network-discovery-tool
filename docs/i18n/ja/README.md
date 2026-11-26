@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · **日本語** · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -38,6 +38,8 @@ hostcensus は、自身が管理するネットワーク上で再現性のある
 CI は Linux および macOS 上の Python 3.12、3.13、3.14 と、制御された Compose 統合ラボを対象としています。コードではこれらのランタイムバージョンへの対応を維持しつつ、モダンな型エイリアス、型付きプリフライト結果、キーワード専用の slotted プロファイル、および構造化された非同期クリーンアップを使用しています。SemVer 互換性の規約と GitHub リリース手順については [バージョニングとリリース](../../../docs/releasing.md) を参照してください。リリースバッジは公開済みアーティファクトを示すものであり、チェックアウトの状態を示すものではありません。現在の最新公開タグは `v0.3.0` ですが、このチェックアウトのパッケージバージョンは `3.0.0` です。ここで説明するインベントリ機能を利用するには、チェックアウトからインストールしてください。
 
 まず [インストール](#install) から始め、次に [プロファイルと履歴](#inventory-profiles-preflight-and-local-history) に進んでください。連携の詳細については、[サービスフィンガープリント](#fingerprints)、[ファイル比較](#inventory-diff)、および [Kadupul エクスポート](#kadupul-export) を参照してください。
+
+<a name="install"></a>
 
 ## インストール
 
@@ -156,6 +158,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 デフォルトでは、各ホストに対して SSH（TCP 22）、SNMP（UDP 161）、MySQL（TCP 3306）、HTTP（TCP 80）、HTTPS（TCP 443）がチェックされます。TCP ポートはフルコネクトでテストされます。SNMP は SNMPv3 エンジンディスカバリリクエストでテストされます。SNMPv3 エージェントは認証情報なしでこのリクエストに応答する必要がありますが、v1/v2c のみに対応するエージェントはこのプローブでは検出されません。asyncio バックエンドでは、接続拒否を含め何らかの応答を返したプローブがあればホストは生存（alive）とみなされるため、すべてのプローブをドロップするホストは `alive=false` となり「Host is down」エラーが記録されますが、これは物理的に停止していることを証明するものではありません。`--backend nmap` を指定した場合、どのホストが生存しているかは nmap が判定します（root 権限時は ICMP、それ以外は TCP 80/443）。
 
+<a name="fingerprints"></a>
+
 ### フィンガープリント
 
 open な各サービスは、ログイン前に送信される内容からフィンガープリントが取得されます。認証を行うのは SNMP クエリのみであり、それも認証情報を指定した場合に限られます。
@@ -196,6 +200,8 @@ probe = "https"
 
 JSON レポートはバージョン付きドキュメント（`"format": "hostcensus-report"`、`"version": 1`）であり、`devices` と並んでターゲット、プローブしたサービス、設定を記録します。`-o` なしで `--format json` を指定すると、テーブルの代わりにレポートが stdout に出力されます。すべての JSON 出力には公開スキーマがあります。詳細は [JSON 出力](../../../docs/json-output.md) を参照してください。デバイスには従来の `ip`、`alive`、`ssh`、`snmp`、`mysql`、`hostname`、`errors` フィールドに加えて、各プローブの `name`、`port`、`protocol`、`state`（`open`、`closed`、`filtered`、またはプローブがローカルで失敗もしくはデッドラインに達した場合は `unknown`）、`version`、`details` を含む `services` リストが追加されます。CSV 出力には、open 状態のサービス向けに末尾の `services` および `versions` 列が追加されます。`ssh`、`snmp`、`mysql` の真偽値は、完全にその名前のサービスに従います。
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## インベントリプロファイル、プリフライト、およびローカル履歴
 
@@ -244,6 +250,8 @@ hostcensus compare 1 2 --history output/inventory.sqlite3 -o output/changes.json
 
 履歴にはインベントリ情報が保存されるため、適切に保護されたローカルディレクトリを選択してください。プロファイルファイルと保存された設定には SNMP 認証情報は含まれません。認証情報の扱いは引き続き既存のランタイムオプションまたは環境変数を通じて行われます。
 
+<a name="inventory-diff"></a>
+
 ## インベントリ差分（diff）
 
 ```bash
@@ -260,6 +268,8 @@ hostcensus diff monday.json tuesday.json -f json     # JSON on stdout
 `--deadline` によって停止されたスキャンのレポート（`"complete": false`）には到達したホストのみが記載されるため、`diff` と `export` は終了コード 2 でこれを拒否します。`--allow-partial` を指定すると stderr に警告を出したうえで受け入れます。その場合、`diff` は不完全なスキャンにまったく記載されていないホストを消失ではなく `unsettled_hosts` に `unscanned` として記載し（down として記載されていたホストは引き続き消失扱いになります）、`partial` を true に設定して「変更なし」とは報告しません。`export` はスクリプトヘッダーに警告を書き込みます。
 
 `diff` の終了コード: `0` は変更なし、`3` は変更の検出・確認できない観測結果・不完全な入力（`unsettled_hosts` や `unconfirmed` を含むいずれかのリストが空でない場合、または `partial` が true の場合は常に `changed` が true になります）、`2` はファイルの欠落・読み込み不可・非対応スナップショット・`--allow-partial` なしの不完全な入力、`1` は `-o` ファイルの書き込み失敗です。
+
+<a name="kadupul-export"></a>
 
 ## Kadupul エクスポート
 

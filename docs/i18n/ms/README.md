@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -38,6 +38,8 @@ Laporan port sekali sahaja tidak menjelaskan sama ada pemerhatian seterusnya tel
 CI merangkumi Python 3.12, 3.13 dan 3.14 pada Linux dan macOS, serta makmal integrasi Compose yang terkawal. Kod ini menggunakan alias jenis moden, keputusan prapenerbangan berjenis, profil berslot kata kunci sahaja dan pembersihan async berstruktur sambil mengekalkan versi masa jalan tersebut. Lihat [Pemversian dan keluaran](../../../docs/releasing.md) untuk kontrak keserasian SemVer dan proses keluaran GitHub. Lencana keluaran menerangkan artifak yang diterbitkan, bukan salinan checkout: tag terkini yang diterbitkan pada masa ini ialah `v0.3.0`, manakala checkout ini menggunakan versi pakej `3.0.0`. Pasang daripada checkout untuk menggunakan ciri inventori yang didokumenkan di sini.
 
 Mulakan dengan [pemasangan](#install), kemudian [profil dan sejarah](#inventory-profiles-preflight-and-local-history). Untuk butiran integrasi, lihat [cap jari perkhidmatan](#fingerprints), [perbandingan fail](#inventory-diff), dan [eksport Kadupul](#kadupul-export).
+
+<a name="install"></a>
 
 ## Pemasangan
 
@@ -155,6 +157,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 Secara lalai setiap hos disemak untuk SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) dan HTTPS (TCP 443). Port TCP diuji dengan sambungan penuh. SNMP diuji dengan permintaan penemuan enjin SNMPv3, yang mesti dijawab oleh mana-mana ejen SNMPv3 tanpa kredensial; ejen yang hanya menggunakan v1/v2c tidak akan dikesan oleh kuar ini. Dengan backend asyncio, hos dikira sebagai hidup apabila mana-mana kuar mendapat jawapan, termasuk sambungan yang ditolak, jadi hos yang menggugurkan setiap kuar mempunyai `alive=false` dan ralat "Host is down"; ini tidak membuktikan ia dimatikan secara fizikal. Dengan `--backend nmap`, nmap menentukan hos yang hidup (ICMP sebagai root, TCP 80/443 sebaliknya).
 
+<a name="fingerprints"></a>
+
 ### Cap jari
 
 Setiap perkhidmatan terbuka dicap jari daripada apa yang dihantarnya sebelum sebarang log masuk. Tiada apa-apa yang mengesahkan kecuali pertanyaan SNMP, dan hanya apabila anda membekalkan kredensial.
@@ -194,6 +198,8 @@ probe = "https"
 `probe` ialah salah satu daripada `tcp`, `ssh`, `mysql`, `http`, `https` atau `snmp` dan lalai kepada nama perkhidmatan apabila nama itu ialah kuar, jika tidak `tcp`. Hanya `snmp` menggunakan UDP. Nama perkhidmatan ialah huruf kecil, digit, `-` dan `_`. Dua perkhidmatan tidak boleh berkongsi port dan protokol yang sama; sejarah merekodkan satu keadaan untuk pasangan tersebut. `timeout` adalah pilihan, dalam saat, dan sekurang-kurangnya 0.05. Kuar gaya sambungan (`tcp`, `ssh`, `mysql`, `http`) lalai kepada 0.3 saat. `snmp` dan `https` menggunakan `--timeout` imbasan apabila perkhidmatan tidak menetapkan `timeout`. `--timeout` tidak menggantikan bajet yang sudah dimiliki oleh perkhidmatan.
 
 Laporan JSON ialah dokumen berversi (`"format": "hostcensus-report"`, `"version": 1`) yang merekodkan sasaran, perkhidmatan yang dikuar dan tetapan di sebelah `devices`; `--format json` tanpa `-o` menulis laporan ke stdout dan bukannya jadual. Setiap output JSON mempunyai skema yang diterbitkan; lihat [Output JSON](../../../docs/json-output.md). Peranti mengekalkan medan asal `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` dan `errors` serta menambah senarai `services` dengan `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, atau `unknown` apabila kuar gagal secara setempat atau mencapai had masanya), `version` dan `details` bagi setiap kuar. Output CSV memperoleh lajur `services` dan `versions` di hujung untuk perkhidmatan yang terbuka. Boolean `ssh`, `snmp` dan `mysql` mengikut perkhidmatan dengan nama tersebut secara tepat.
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## Profil inventori, prapenerbangan, dan sejarah setempat
 
@@ -242,6 +248,8 @@ Gunakan ID daripada `history`; contoh ini mengandaikan pangkalan data baharu. Pe
 
 Sejarah menyimpan maklumat inventori, jadi pilih direktori setempat yang dilindungi dengan sewajarnya. Fail profil dan tetapan yang disimpan tidak mengandungi kredensial SNMP; pengendalian kredensial diteruskan melalui pilihan/persekitaran masa jalan sedia ada.
 
+<a name="inventory-diff"></a>
+
 ## Perbezaan inventori
 
 ```bash
@@ -258,6 +266,8 @@ Petikan ialah JSON dengan `format: "hostcensus-snapshot"`, `version: 1`, versi h
 Laporan daripada imbasan yang dihentikan oleh `--deadline` (`"complete": false`) hanya menyenaraikan hos yang sempat dicapai, jadi `diff` dan `export` menolaknya dengan kod keluar 2. `--allow-partial` menerimanya dengan amaran pada stderr: `diff` kemudian menyenaraikan hos yang langsung tidak disenaraikan oleh imbasan tidak lengkap itu di bawah `unsettled_hosts` sebagai `unscanned` dan bukannya hilang (hos yang disenaraikan sebagai mati masih dianggap hilang), menetapkan `partial` kepada true dan tidak pernah melaporkan tiada perubahan, manakala `export` menulis amaran ke dalam pengepala skrip.
 
 Kod keluar `diff`: `0` tiada perubahan, `3` perubahan ditemui, pemerhatian yang tidak dapat disahkan, atau input tidak lengkap (`changed` adalah true apabila mana-mana senarai, termasuk `unsettled_hosts` dan `unconfirmed`, tidak kosong, atau `partial` adalah true), `2` fail tiada, tidak boleh dibaca, bukan petikan yang disokong, atau tidak lengkap tanpa `--allow-partial`, `1` fail `-o` tidak dapat ditulis.
+
+<a name="kadupul-export"></a>
 
 ## Eksport Kadupul
 

@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · **Deutsch** · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -58,6 +58,8 @@ um die hier dokumentierten Inventarisierungsfunktionen zu nutzen.
 Beginnen Sie mit der [Installation](#install) und anschließend mit [Profilen und Verlauf](#inventory-profiles-preflight-and-local-history).
 Details zur Integration finden Sie unter [Dienst-Fingerprints](#fingerprints),
 [Dateivergleiche](#inventory-diff) und [Kadupul-Export](#kadupul-export).
+
+<a name="install"></a>
 
 ## Installation
 
@@ -230,6 +232,8 @@ probe = "https"
 JSON-Berichte sind versionierte Dokumente (`"format": "hostcensus-report"`, `"version": 1`), die neben `devices` das Ziel, die geprüften Dienste und die Einstellungen festhalten; `--format json` ohne `-o` schreibt den Bericht statt der Tabelle auf stdout. Jede JSON-Ausgabe besitzt ein veröffentlichtes Schema; siehe [JSON-Ausgabe](../../../docs/json-output.md). Geräte behalten die ursprünglichen Felder `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` und `errors` und ergänzen eine `services`-Liste mit `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered` oder `unknown`, wenn der Probe lokal fehlgeschlagen ist oder seine Deadline erreicht hat), `version` und `details` für jeden Probe. Die CSV-Ausgabe erhält am Ende die Spalten `services` und `versions` für die offenen Dienste. Die Booleschen Felder `ssh`, `snmp` und `mysql` folgen den Diensten mit exakt diesen Namen.
 
 
+<a name="inventory-profiles-preflight-and-local-history"></a>
+
 ## Inventarprofile, Preflight und lokaler Verlauf
 
 Benannte Profile teilen sich eine TOML-Datei mit den vorhandenen `[services]`-Definitionen. Kopieren Sie
@@ -320,6 +324,8 @@ unterstützter oder beschädigter Verlauf liefert 1.
 Der Verlauf speichert Inventarinformationen; wählen Sie daher ein entsprechend geschütztes lokales
 Verzeichnis. Profildateien und gespeicherte Einstellungen enthalten keine SNMP-Zugangsdaten;
 die Handhabung von Zugangsdaten erfolgt weiterhin über die bestehenden Laufzeitoptionen bzw. Umgebungsvariablen.
+
+<a name="inventory-diff"></a>
 
 ## Inventar-Diff
 

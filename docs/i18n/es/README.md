@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · **Español** · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -58,6 +58,8 @@ para usar las funciones de inventario aquí documentadas.
 Comienza con la [instalación](#install) y luego revisa [perfiles e historial](#inventory-profiles-preflight-and-local-history).
 Para detalles de integración, consulta [huellas de servicios](#fingerprints),
 [comparación de archivos](#inventory-diff) y [exportación a Kadupul](#kadupul-export).
+
+<a name="install"></a>
 
 ## Instalación
 
@@ -189,6 +191,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 De forma predeterminada, en cada host se comprueban SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) y HTTPS (TCP 443). Los puertos TCP se prueban con una conexión completa. SNMP se prueba con una solicitud de descubrimiento de motor SNMPv3, a la que cualquier agente SNMPv3 debe responder sin credenciales; los agentes que solo hablan v1/v2c no serán detectados por este sondeo. Con el backend asyncio, un host se considera activo cuando cualquier sondeo obtiene respuesta, incluida una conexión rechazada, de modo que un host que descarta todos los sondeos tiene `alive=false` y el error "Host is down"; esto no demuestra que esté apagado físicamente. Con `--backend nmap`, nmap decide qué hosts están activos (ICMP como root, TCP 80/443 en caso contrario).
 
+<a name="fingerprints"></a>
+
 ### Huellas de servicios
 
 Cada servicio abierto se identifica a partir de lo que envía antes de cualquier inicio de sesión. Nada se autentica excepto la consulta SNMP, y solo cuando proporcionas credenciales.
@@ -229,6 +233,8 @@ probe = "https"
 
 Los informes JSON son documentos versionados (`"format": "hostcensus-report"`, `"version": 1`) que registran el destino, los servicios sondeados y la configuración junto a `devices`; `--format json` sin `-o` escribe el informe en stdout en lugar de la tabla. Cada salida JSON tiene un esquema publicado; consulta [Salida JSON](../../../docs/json-output.md). Los dispositivos conservan los campos originales `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` y `errors` y añaden una lista `services` con `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, o `unknown` cuando el sondeo falló localmente o alcanzó su plazo límite), `version` y `details` de cada sondeo. La salida CSV añade las columnas finales `services` y `versions` para los que están abiertos. Los booleanos `ssh`, `snmp` y `mysql` corresponden a los servicios con exactamente esos nombres.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## Perfiles de inventario, verificación previa e historial local
 
@@ -316,6 +322,8 @@ El historial almacena información de inventario, por lo que debes elegir un dir
 adecuadamente protegido. Los archivos de perfil y la configuración almacenada no contienen credenciales SNMP;
 el manejo de credenciales continúa realizándose mediante las opciones de ejecución o el entorno existentes.
 
+<a name="inventory-diff"></a>
+
 ## Diferencias de inventario
 
 ```bash
@@ -332,6 +340,8 @@ Una instantánea es un JSON con `format: "hostcensus-snapshot"`, `version: 1`, l
 Un informe de un escaneo detenido por `--deadline` (`"complete": false`) solo enumera los hosts que alcanzó, por lo que `diff` y `export` lo rechazan con código de salida 2. `--allow-partial` lo acepta con una advertencia en stderr: `diff` lista entonces los hosts que el escaneo incompleto no incluyó en absoluto bajo `unsettled_hosts` como `unscanned` en lugar de desaparecidos (un host listado como inactivo sigue constando como desaparecido), establece `partial` en verdadero y nunca informa ausencia de cambios, y `export` escribe una advertencia en la cabecera del script.
 
 Códigos de salida de `diff`: `0` sin cambios, `3` cambios encontrados, observaciones que no pudieron confirmarse o una entrada incompleta (`changed` es verdadero siempre que cualquier lista, incluidas `unsettled_hosts` y `unconfirmed`, no esté vacía, o `partial` sea verdadero), `2` falta un archivo, es ilegible, no es una instantánea compatible o está incompleto sin `--allow-partial`, `1` no se pudo escribir el archivo `-o`.
+
+<a name="kadupul-export"></a>
 
 ## Exportación a Kadupul
 

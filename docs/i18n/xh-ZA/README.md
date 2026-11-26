@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -41,6 +41,8 @@ I-CI igubungela iPython 3.12, 3.13 kunye ne-3.14 kwiLinux nakwi-macOS, kunye nel
 Qala [ngokufaka](#install), uze uye [kwiiprofayile nembali](#inventory-profiles-preflight-and-local-history).
 Ngeenkcukacha zodibaniso, jonga [iminwe yenkonzo](#fingerprints),
 [uthelekiso lweefayile](#inventory-diff), kunye [nokuthumela ngaphandle kwi-Kadupul](#kadupul-export).
+
+<a name="install"></a>
 
 ## Ukufaka
 
@@ -160,6 +162,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 Ngokumiselweyo i-host nganye ihlolwa i-SSH (TCP 22), i-SNMP (UDP 161), i-MySQL (TCP 3306), i-HTTP (TCP 80) kunye ne-HTTPS (TCP 443). Ii-ports ze-TCP zivavanywa ngoqhagamshelo olupheleleyo. I-SNMP ivavanywa ngesicelo sokufumanisa i-engine ye-SNMPv3, apho naliphi na i-agent le-SNMPv3 kufuneka liphendule ngaphandle kweziqinisekiso; ii-agents ezithetha i-v1/v2c kuphela aziyi kufunyanwa yile probe. Nge-backend ye-asyncio i-host ibalwa njengephilayo xa nayiphi na i-probe ifumana impendulo, kuquka uqhagamshelo olwaliweyo, ngoko ke i-host elahla zonke ii-probes ine-`alive=false` kunye nempazamo ethi "Host is down"; oku akubonisi ukuba icinyiwe ngokwenyama. Nge-`--backend nmap`, i-nmap igqiba ukuba zeziphi ii-hosts eziphilayo (i-ICMP njenge-root, i-TCP 80/443 ngenye indlela).
 
+<a name="fingerprints"></a>
+
 ### Iminwe yenkonzo (Fingerprints)
 
 Inkonzo nganye evulekileyo ifunyanwa uphawu lwayo (fingerprint) kwinto eyithumelayo phambi kwalo naluphi na ungeno. Akukho nto iqinisekisayo ngaphandle kombuzo we-SNMP, kwaye kuphela xa unikezela ngeziqinisekiso.
@@ -200,6 +204,8 @@ I-`probe` yenye yezi: `tcp`, `ssh`, `mysql`, `http`, `https` okanye `snmp` kwaye
 
 Iingxelo ze-JSON ngamaxwebhu anenguqulelo (`"format": "hostcensus-report"`, `"version": 1`) arekhoda ithagethi, iinkonzo ezihloliweyo kunye neesetingi ecaleni kwe-`devices`; i-`--format json` ngaphandle kwe-`-o` ibhala ingxelo kwi-stdout endaweni yetheyibhile. Zonke iziphumo ze-JSON zineskima esipapashiweyo; jonga [Iziphumo ze-JSON](../../../docs/json-output.md). Izixhobo zigcina imihlaba yasekuqaleni ye-`ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` kunye ne-`errors` kwaye zongeza uluhlu lwe-`services` olune-`name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, okanye `unknown` xa i-probe isilele ekhaya okanye ifikelele kumda wayo wexesha), `version` kunye ne-`details` ye-probe nganye. Iziphumo ze-CSV zifumana iikholamu zokugqibela ze-`services` kunye ne-`versions` zezivulekileyo. Ii-booleans ze-`ssh`, `snmp` kunye ne-`mysql` zilandela iinkonzo ezinamagama afanayo ncam.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## Iiprofayile zoluhlu, i-preflight, kunye nembali yasekhaya
 
@@ -248,6 +254,8 @@ I-`history` idwelisa izishwankathelo ze-JSON ngaphandle kokufunda zonke ii-paylo
 
 Imbali igcina ulwazi loluhlu, ngoko khetha uvimba weefayile wasekhaya okhuseleke ngokufanelekileyo. Iifayile zeeprofayile kunye neesetingi ezigciniweyo aziqulethe ziqinisekiso ze-SNMP; ukuphathwa kweziqinisekiso kuqhubeka ngeenketho ze-runtime/imo engqongileyo ezikhoyo.
 
+<a name="inventory-diff"></a>
+
 ## Uthelekiso loluhlu (Inventory diff)
 
 ```bash
@@ -264,6 +272,8 @@ I-`diff` ixela ii-hosts ezintsha nezinyamaleleyo, ii-ports ezivulekileyo okanye 
 Ingxelo evela kuskeno olumisiweyo yi-`--deadline` (`"complete": false`) idwelisa kuphela ii-hosts olufikelele kuzo, ngoko i-`diff` kunye ne-`export` ziyayala ngekhowudi yokuphuma 2. I-`--allow-partial` iyayamkela ngesilumkiso kwi-stderr: i-`diff` ke idwelisa ii-hosts ezingadweliswanga kwaphela luskeno olungagqitywanga phantsi kwe-`unsettled_hosts` njenge-`unscanned` endaweni yokunyamalala (i-host eyidwelise njengecimileyo isanyamalele), isete `partial` ibe yinyani (true) kwaye ingaze ixele ukuba akukho tshintsho, kwaye i-`export` ibhala isilumkiso kwintloko yesikripthi.
 
 Iikhowudi zokuphuma ze-`diff`: `0` akukho tshintsho, `3` utshintsho lufunyenwe, uqwalaselo olungaqinisekiswanga, okanye igalelo elingagqitywanga (`changed` iyinyani nanini na naluphi na uluhlu, kuquka `unsettled_hosts` kunye ne-`unconfirmed`, lunento ngaphakathi, okanye i-`partial` iyinyani), `2` ifayile ilahlekile, ayifundeki, ayiyiyo i-snapshot exhaswayo, okanye ayigqitywanga ngaphandle kwe-`--allow-partial`, `1` ifayile ye-`-o` ayikwazanga ukubhalwa.
+
+<a name="kadupul-export"></a>
 
 ## Ukuthumela ngaphandle kwi-Kadupul
 

@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · **Polski** · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -58,6 +58,8 @@ aby korzystać z opisanych tutaj funkcji inwentaryzacji.
 Zacznij od [instalacji](#install), a następnie przejdź do [profili i historii](#inventory-profiles-preflight-and-local-history).
 Szczegóły integracji opisano w sekcjach [odciski usług](#fingerprints),
 [porównywanie plików](#inventory-diff) oraz [eksport do Kadupul](#kadupul-export).
+
+<a name="install"></a>
 
 ## Instalacja
 
@@ -189,6 +191,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 Domyślnie każdy host jest sprawdzany pod kątem usług SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) i HTTPS (TCP 443). Porty TCP są testowane pełnym połączeniem (connect). SNMP jest testowane żądaniem wykrywania silnika SNMPv3 (engine-discovery), na które każdy agent SNMPv3 musi odpowiedzieć bez poświadczeń; agenty obsługujące wyłącznie v1/v2c nie zostaną wykryte przez tę sondę. W przypadku backendu asyncio host jest uznawany za aktywny (alive), gdy jakakolwiek sonda otrzyma odpowiedź, w tym odrzucenie połączenia, więc host ignorujący każdą sondę otrzymuje `alive=false` oraz błąd "Host is down"; nie dowodzi to, że jest fizycznie wyłączony. Przy `--backend nmap` to nmap decyduje, które hosty są aktywne (ICMP z uprawnieniami root, w przeciwnym razie TCP 80/443).
 
+<a name="fingerprints"></a>
+
 ### Odciski usług
 
 Każda otwarta usługa jest identyfikowana na podstawie tego, co wysyła przed jakimkolwiek logowaniem. Żadna sonda nie uwierzytelnia się poza zapytaniem SNMP i tylko wtedy, gdy dostarczysz poświadczenia.
@@ -229,6 +233,8 @@ probe = "https"
 
 Raporty JSON są wersjonowanymi dokumentami (`"format": "hostcensus-report"`, `"version": 1`), które zapisują cel, sondowane usługi i ustawienia obok `devices`; `--format json` bez `-o` wypisuje raport na stdout zamiast tabeli. Każdy format wyjściowy JSON ma opublikowany schemat; zobacz [Wyjście JSON](../../../docs/json-output.md). Obiekty urządzeń zachowują oryginalne pola `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` oraz `errors` i dodają listę `services` zawierającą `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered` albo `unknown`, gdy sonda zawiodła lokalnie lub przekroczyła limit czasu), `version` i `details` każdej sondy. Wyjście CSV zyskuje końcowe kolumny `services` i `versions` dla otwartych usług. Wartości logiczne `ssh`, `snmp` i `mysql` odpowiadają usługom o dokładnie tych nazwach.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## Profile inwentaryzacji, preflight i lokalna historia
 
@@ -317,6 +323,8 @@ Historia przechowuje informacje inwentaryzacyjne, więc wybierz odpowiednio zabe
 katalog. Pliki profili i zapisane ustawienia nie zawierają poświadczeń SNMP;
 obsługa poświadczeń nadal odbywa się za pomocą dotychczasowych opcji uruchomieniowych i zmiennych środowiskowych.
 
+<a name="inventory-diff"></a>
+
 ## Porównanie inwentaryzacji (diff)
 
 ```bash
@@ -333,6 +341,8 @@ Migawka to plik JSON z polami `format: "hostcensus-snapshot"`, `version: 1`, wer
 Raport ze skanowania zatrzymanego przez `--deadline` (`"complete": false`) zawiera tylko hosty, do których dotarto, dlatego `diff` i `export` odrzucają go z kodem wyjścia 2. `--allow-partial` akceptuje taki raport z ostrzeżeniem na stderr: `diff` wymienia wówczas hosty całkowicie pominięte przez niekompletne skanowanie w `unsettled_hosts` jako `unscanned` zamiast utraconych (host wymieniony jako wyłączony nadal jest uznawany za utracony), ustawia `partial` na true i nigdy nie raportuje braku zmian, a `export` zapisuje ostrzeżenie w nagłówku skryptu.
 
 Kody wyjścia `diff`: `0` brak zmian, `3` wykryto zmiany, obserwacje niemożliwe do potwierdzenia albo niekompletne dane wejściowe (`changed` ma wartość true zawsze, gdy jakakolwiek lista, w tym `unsettled_hosts` i `unconfirmed`, jest niepusta lub `partial` ma wartość true), `2` brakujący plik, nieczytelny plik, nieobsługiwana migawka albo niekompletny plik bez `--allow-partial`, `1` nie udało się zapisać pliku `-o`.
+
+<a name="kadupul-export"></a>
 
 ## Eksport do Kadupul
 

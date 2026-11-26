@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -41,6 +41,8 @@ Ny CI dia mandrakotra ny Python 3.12, 3.13 ary 3.14 amin'ny Linux sy macOS, miam
 Atombohy amin'ny [fametrahana](#install), avy eo ny [mombamomba sy tantara](#inventory-profiles-preflight-and-local-history).
 Ho an'ny antsipirian'ny fampidirana, jereo ny [famantarana ny tolotra](#fingerprints),
 [fampitahana rakitra](#inventory-diff), ary [fanondranana Kadupul](#kadupul-export).
+
+<a name="install"></a>
 
 ## Fametrahana
 
@@ -160,6 +162,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 Amin'ny fomba mahazatra, ny mpampiantrano tsirairay dia hamarinina amin'ny SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) ary HTTPS (TCP 443). Ny seranana TCP dia tsapaina amin'ny fifandraisana feno. Ny SNMP dia tsapaina amin'ny fangatahana fitadiavana motera SNMPv3, izay tsy maintsy valian'ny mpandraharaha SNMPv3 rehetra tsy mila mari-pamantarana; ny mpandraharaha tsy mampiasa afa-tsy v1/v2c dia tsy ho hitan'ity fitsapana ity. Amin'ny rafitra ao ambadika asyncio, ny mpampiantrano dia heverina ho velona rehefa mahazo valiny ny fitsapana iray, anisan'izany ny fifandraisana nolavina, ka ny mpampiantrano mandà mangina ny fitsapana rehetra dia manana `alive=false` sy ny hadisoana "Host is down"; tsy manaporofo izany fa maty ara-batana izy. Miaraka amin'ny `--backend nmap`, ny nmap no manapa-kevitra hoe iza amin'ny mpampiantrano no velona (ICMP raha root, TCP 80/443 raha tsy izany).
 
+<a name="fingerprints"></a>
+
 ### Famantarana ny tolotra
 
 Ny tolotra misokatra tsirairay dia fantarina avy amin'izay alefany mialoha ny fidirana. Tsy misy manao fanamarinana maha-izy azy afa-tsy ny fanontaniana SNMP, ary rehefa manome mari-pamantarana ianao ihany.
@@ -200,6 +204,8 @@ Ny `probe` dia iray amin'ny `tcp`, `ssh`, `mysql`, `http`, `https` na `snmp` ary
 
 Ny tatitra JSON dia antontan-taratasy misy kinova (`"format": "hostcensus-report"`, `"version": 1`) izay mirakitra ny lasibatra, ny tolotra notsapaina ary ny fandrindrana eo akaikin'ny `devices`; ny `--format json` tsy misy `-o` dia manoratra ny tatitra ao amin'ny stdout fa tsy ny tabilao. Ny vokatra JSON rehetra dia manana rafitra navoaka; jereo ny [Vokatra JSON](../../../docs/json-output.md). Ny fitaovana dia mitazona ny saha tany am-boalohany `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` ary `errors` ary manampy lisitra `services` miaraka amin'ny `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, na `unknown` rehefa tsy nahomby eo an-toerana na nahatratra ny fe-potoany ny fitsapana), `version` ary `details` an'ny fitsapana tsirairay. Ny vokatra CSV dia mahazo tsanganana farany `services` sy `versions` ho an'ireo misokatra. Ny sanda marina/diso `ssh`, `snmp` ary `mysql` dia manaraka ireo tolotra mitondra ireo anarana ireo indrindra.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## Mombamomba ny lisitra, fanamarinana mialoha, ary tantara eo an-toerana
 
@@ -249,6 +255,8 @@ Ny `compare` dia mamaky fitarafana roa voatahiry, mitaky lasibatra sy seranana v
 
 Ny tantara dia mitahiry fampahalalana momba ny lisitry ny tambajotra, ka misafidiana lahatahiry eo an-toerana voaaro araka ny tokony ho izy. Ny rakitra mombamomba sy ny fandrindrana voatahiry dia tsy ahitana mari-pamantarana SNMP; ny fitantanana mari-pamantarana dia mitohy amin'ny alalan'ny safidy fampandehanana/fari-tontolo iainana efa misy.
 
+<a name="inventory-diff"></a>
+
 ## Fampitahana lisitra
 
 ```bash
@@ -265,6 +273,8 @@ Ny `diff` dia mitatitra mpampiantrano vaovao sy nanjavona, seranana nisokatra na
 Ny tatitra avy amin'ny fitarafana najanon'ny `--deadline` (`"complete": false`) dia tsy mitanisa afa-tsy ny mpampiantrano tratrany, ka mandà azy ny `diff` sy `export` miaraka amin'ny kaody fivoahana 2. Manaiky azy ny `--allow-partial` miaraka amin'ny fampitandremana ao amin'ny stderr: ny `diff` avy eo dia mitanisa ireo mpampiantrano tsy voatanisa mihitsy tamin'ny fitarafana tsy feno eo ambanin'ny `unsettled_hosts` ho `unscanned` fa tsy nanjavona (ny mpampiantrano notanisainy ho maty dia mbola nanjavona ihany), mametraka `partial` ho marina ary tsy mitatitra velively hoe tsy misy fiovana, ary ny `export` dia manoratra fampitandremana ao amin'ny lohatenin'ny soratra baiko.
 
 Kaody fivoahan'ny `diff`: `0` tsy misy fiovana, `3` hita ny fiovana, fandinihana tsy voamarina, na fampidirana tsy feno (marina ny `changed` isaky ny misy lisitra tsy banga, anisan'izany ny `unsettled_hosts` sy `unconfirmed`, na marina ny `partial`), `2` misy rakitra tsy hita, tsy azo vakiana, tsy tahiry raikitra tohanana, na tsy feno tsy misy `--allow-partial`, `1` tsy azo nosoratana ny rakitra `-o`.
+
+<a name="kadupul-export"></a>
 
 ## Fanondranana Kadupul
 

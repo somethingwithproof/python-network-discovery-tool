@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -58,6 +58,8 @@ don amfani da fasalullukan lissafi da aka rubuta a nan.
 Fara da [shigarwa](#install), sannan [tsarin bincike da tarihi](#inventory-profiles-preflight-and-local-history).
 Don cikakkun bayanai na haɗin gwiwa, duba [alamun gane sabis](#fingerprints),
 [kwatanta fayiloli](#inventory-diff), da [fitarwa zuwa Kadupul](#kadupul-export).
+
+<a name="install"></a>
 
 ## Shigarwa
 
@@ -189,6 +191,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 Ta tsoho ana bincika kowace na'ura don SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) da HTTPS (TCP 443). Ana gwada tashoshin TCP da cikakken haɗi. Ana gwada SNMP da buƙatar gano injin SNMPv3, wanda kowane wakilin SNMPv3 dole ne ya amsa ba tare da shaidar shiga ba; wannan gwajin ba zai gano wakilan da ke magana v1/v2c kawai ba. Tare da tsarin baya na asyncio ana ƙidaya na'ura a matsayin mai aiki idan kowane gwaji ya sami amsa, har da haɗin da aka ƙi, don haka na'urar da ta zubar da kowane gwaji tana da `alive=false` da kuskuren "Host is down"; wannan ba ya tabbatar da cewa tana kashe a zahiri ba. Tare da `--backend nmap`, nmap yana yanke shawarar waɗanne na'urori ne ke aiki (ICMP a matsayin root, TCP 80/443 in ba haka ba).
 
+<a name="fingerprints"></a>
+
 ### Alamun gane sabis
 
 Ana gane kowane buɗaɗɗen sabis daga abin da yake aikawa kafin kowane shiga. Babu abin da ke tantance shiga sai tambayar SNMP, kuma sai idan kun bayar da shaidar shiga.
@@ -229,6 +233,8 @@ probe = "https"
 
 Rahotannin JSON takardu ne masu siga (`"format": "hostcensus-report"`, `"version": 1`) waɗanda ke rikodin manufa, sabis ɗin da aka gwada da saituna kusa da `devices`; `--format json` ba tare da `-o` ba yana rubuta rahoton zuwa stdout maimakon tebur. Kowace fitowar JSON tana da tsarin da aka buga; duba [Fitowar JSON](../../../docs/json-output.md). Na'urori suna riƙe asalin filayen `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` da `errors` kuma suna ƙara jerin `services` tare da kowane gwajin `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, ko `unknown` lokacin da gwajin ya gaza a gida ko ya kai wa'adinsa), `version` da `details`. Fitowar CSV tana samun ginshiƙan ƙarshe na `services` da `versions` don buɗaɗɗun. Booleans na `ssh`, `snmp` da `mysql` suna bin sabis ɗin da ke da ainihin waɗannan sunayen.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## Tsarin binciken lissafi, gwajin kafin farawa, da tarihi na gida
 
@@ -317,6 +323,8 @@ Tarihi yana adana bayanan lissafi, don haka zaɓi kundin adireshi na gida mai ka
 Fayilolin tsarin bincike da saitunan da aka adana ba su ƙunshi shaidar shiga ta SNMP ba;
 sarrafa shaidar shiga yana ci gaba ta hanyar zaɓuɓɓukan aiki/muhalli da ke akwai.
 
+<a name="inventory-diff"></a>
+
 ## Kwatanta lissafi
 
 ```bash
@@ -333,6 +341,8 @@ Hoton lokaci JSON ne mai `format: "hostcensus-snapshot"`, `version: 1`, sigar ho
 Rahoto daga binciken da `--deadline` ya dakatar (`"complete": false`) yana jera na'urorin da ya kai gare su ne kawai, don haka `diff` da `export` suna ƙin shi da lambar fita 2. `--allow-partial` yana karɓar shi tare da gargaɗi a stderr: sannan `diff` yana jera na'urorin da binciken da bai cika ba bai jera su kwata-kwata ba a ƙarƙashin `unsettled_hosts` a matsayin `unscanned` maimakon vanished (na'urar da ya jera a matsayin ta mutu har yanzu vanished ce), yana saita `partial` zuwa true kuma ba ya taɓa ba da rahoton babu canji ba, kuma `export` yana rubuta gargaɗi a cikin kanun rubutun.
 
 Lambobin fita na `diff`: `0` babu canje-canje, `3` an sami canje-canje, lura da ba za a iya tabbatarwa ba, ko shigarwa da bai cika ba (`changed` gaskiya ne duk lokacin da kowane jeri, har da `unsettled_hosts` da `unconfirmed`, ba fanko ba ne, ko `partial` gaskiya ne), `2` fayil ya ɓace, ba ya karantuwa, ba hoton lokaci da aka tallafa ba ne, ko bai cika ba ba tare da `--allow-partial` ba, `1` ba za a iya rubuta fayil ɗin `-o` ba.
+
+<a name="kadupul-export"></a>
 
 ## Fitarwa zuwa Kadupul
 

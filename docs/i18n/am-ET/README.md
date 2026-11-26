@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -39,6 +39,8 @@ hostcensus እርስዎ በሚያስተዳድሯቸው አውታረ መረቦች
 CI በLinux እና macOS ላይ Python 3.12፣ 3.13 እና 3.14ን፣ እንዲሁም ቁጥጥር የሚደረግበት የCompose ውህደት ላብራቶሪን ይሸፍናል። ኮዱ እነዚያን የአሂድ ጊዜ ስሪቶች እየጠበቀ ዘመናዊ type aliases፣ ዓይነት የተሰጣቸው የpreflight ውጤቶችን፣ ቁልፍ-ቃል ብቻ የሚቀበሉ slotted መገለጫዎችን እና የተዋቀረ async ጽዳትን ይጠቀማል። ለSemVer ተኳኋኝነት ውል እና ለGitHub ልቀት ሂደት [ስሪት አሰጣጥ እና ልቀቶች](../../../docs/releasing.md)ን ይመልከቱ። የልቀት ባጁ የሚገልጸው የታተሙ ቅርሶችን እንጂ ይህን ቅጂ አይደለም፦ በአሁኑ ጊዜ የቅርብ ጊዜው የታተመ መለያ `v0.3.0` ሲሆን፣ ይህ ቅጂ ግን የጥቅል ስሪት `3.0.0`ን ይጠቀማል። እዚህ የተዘገቡትን የቆጠራ ባህሪያት ለመጠቀም ከዚህ ቅጂ ይጫኑ።
 
 በ[መጫን](#install) ይጀምሩ፣ ከዚያ ወደ [መገለጫዎች እና ታሪክ](#inventory-profiles-preflight-and-local-history) ይቀጥሉ። ለውህደት ዝርዝሮች [የአገልግሎት አሻራዎች](#fingerprints)፣ [የፋይል ንጽጽሮች](#inventory-diff) እና [የKadupul ወደ ውጭ መላክ](#kadupul-export)ን ይመልከቱ።
+
+<a name="install"></a>
 
 ## መጫን
 
@@ -158,6 +160,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 በነባሪ እያንዳንዱ አስተናጋጅ ለSSH (TCP 22)፣ SNMP (UDP 161)፣ MySQL (TCP 3306)፣ HTTP (TCP 80) እና HTTPS (TCP 443) ይፈተሻል። የTCP ወደቦች በሙሉ ግንኙነት ይፈተሻሉ። SNMP የሚፈተሸው ማንኛውም የSNMPv3 ወኪል ያለ ማረጋገጫ መመለስ ባለበት የSNMPv3 engine-discovery ጥያቄ ነው፤ v1/v2c ብቻ የሚናገሩ ወኪሎች በዚህ ፍተሻ አይታወቁም። በasyncio backend ማንኛውም ፍተሻ ምላሽ ሲያገኝ (የተከለከለ ግንኙነትን ጨምሮ) አስተናጋጁ ሕያው እንደሆነ ይቆጠራል፣ ስለዚህ እያንዳንዱን ፍተሻ የሚጥል አስተናጋጅ `alive=false` እና "Host is down" የሚል ስህተት ይኖረዋል፤ ይህ በአካል መጥፋቱን አያረጋግጥም። በ`--backend nmap` የትኞቹ አስተናጋጆች ሕያው እንደሆኑ nmap ይወስናል (እንደ root ICMP፣ ካልሆነ TCP 80/443)።
 
+<a name="fingerprints"></a>
+
 ### የአገልግሎት አሻራዎች
 
 እያንዳንዱ ክፍት አገልግሎት ከማንኛውም መግቢያ በፊት ከሚልከው መረጃ አሻራው ይወሰዳል። ከSNMP መጠይቅ በስተቀር ምንም ነገር ማረጋገጫ አያደርግም፣ እሱም ማረጋገጫዎችን ሲያቀርቡ ብቻ ነው።
@@ -198,6 +202,8 @@ probe = "https"
 
 የJSON ሪፖርቶች ከ`devices` ጎን ለጎን ዒላማውን፣ የተፈተሹ አገልግሎቶችን እና ቅንብሮችን የሚመዘግቡ ስሪት የተሰጣቸው ሰነዶች (`"format": "hostcensus-report"`፣ `"version": 1`) ናቸው፤ ያለ `-o` የሚሰጥ `--format json` ከሰንጠረዡ ይልቅ ሪፖርቱን ወደ stdout ይጽፋል። እያንዳንዱ የJSON ውጤት የታተመ schema አለው፤ [የJSON ውጤት](../../../docs/json-output.md)ን ይመልከቱ። መሣሪያዎች ዋናዎቹን `ip`፣ `alive`፣ `ssh`፣ `snmp`፣ `mysql`፣ `hostname` እና `errors` መስኮች ይይዛሉ እና የእያንዳንዱን ፍተሻ `name`፣ `port`፣ `protocol`፣ `state` (`open`፣ `closed`፣ `filtered` ወይም ፍተሻው በአካባቢ ሲወድቅ ወይም የጊዜ ገደቡ ሲደርስ `unknown`)፣ `version` እና `details` የያዘ `services` ዝርዝር ያክላሉ። የCSV ውጤት ለክፍት አገልግሎቶች የመጨረሻ `services` እና `versions` አምዶችን ያገኛል። የ`ssh`፣ `snmp` እና `mysql` ቡሊያኖች በትክክል እነዚያን ስሞች የያዙ አገልግሎቶችን ይከተላሉ።
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## የቆጠራ መገለጫዎች፣ preflight እና የአካባቢ ታሪክ
 
@@ -249,6 +255,8 @@ hostcensus compare 1 2 --history output/inventory.sqlite3 -o output/changes.json
 
 ታሪክ የቆጠራ መረጃን ስለሚያከማች፣ በተገቢው መንገድ የተጠበቀ የአካባቢ ማውጫ ይምረጡ። የመገለጫ ፋይሎች እና የተቀመጡ ቅንብሮች የSNMP ማረጋገጫዎችን አይይዙም፤ የማረጋገጫ አያያዝ በነባሩ የአሂድ ጊዜ አማራጮች/አካባቢ በኩል ይቀጥላል።
 
+<a name="inventory-diff"></a>
+
 ## የቆጠራ diff
 
 ```bash
@@ -265,6 +273,8 @@ hostcensus diff monday.json tuesday.json -f json     # JSON on stdout
 በ`--deadline` ከቆመ ፍተሻ የወጣ ሪፖርት (`"complete": false`) የደረሰባቸውን አስተናጋጆች ብቻ ስለሚዘረዝር፣ `diff` እና `export` በመውጫ ኮድ 2 ውድቅ ያደርጉታል። `--allow-partial` በstderr ላይ ማስጠንቀቂያ በመስጠት ይቀበለዋል፦ ከዚያ `diff` ያልተጠናቀቀው ፍተሻ ጨርሶ ያልዘረዘራቸውን አስተናጋጆች ከጠፉ ይልቅ በ`unsettled_hosts` ስር እንደ `unscanned` ይዘረዝራል (እንደ ጠፋ የዘረዘረው አስተናጋጅ አሁንም የጠፋ ነው)፣ `partial`ን true ያደርጋል እና በፍጹም ምንም ለውጥ የለም ብሎ ሪፖርት አያደርግም፣ `export` ደግሞ በስክሪፕቱ ራስጌ ላይ ማስጠንቀቂያ ይጽፋል።
 
 የ`diff` መውጫ ኮዶች፦ `0` ምንም ለውጥ የለም፣ `3` ለውጦች ተገኝተዋል፣ ሊረጋገጡ ያልቻሉ ምልከታዎች ወይም ያልተጠናቀቀ ግብዓት (`unsettled_hosts` እና `unconfirmed`ን ጨምሮ ማንኛውም ዝርዝር ባዶ ካልሆነ ወይም `partial` true ከሆነ `changed` true ይሆናል)፣ `2` ፋይል ጠፍቷል፣ አይነበብም፣ የሚደገፍ ቅጽበታዊ ገጽ እይታ አይደለም ወይም ያለ `--allow-partial` ያልተጠናቀቀ ነው፣ `1` የ`-o` ፋይል ሊጻፍ አልቻለም።
+
+<a name="kadupul-export"></a>
 
 ## የKadupul export
 

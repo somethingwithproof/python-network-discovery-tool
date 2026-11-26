@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · **한국어** · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -57,6 +57,8 @@ CI는 Linux 및 macOS 환경의 Python 3.12, 3.13, 3.14와 격리된 Compose
 먼저 [설치](#install)를 진행한 다음 [프로파일 및 기록](#inventory-profiles-preflight-and-local-history)을 확인하세요.
 연동 세부 정보는 [서비스 핑거프린트](#fingerprints),
 [파일 비교](#inventory-diff), [Kadupul 내보내기](#kadupul-export)를 참조하세요.
+
+<a name="install"></a>
 
 ## 설치
 
@@ -187,6 +189,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 기본적으로 각 호스트에 대해 SSH(TCP 22), SNMP(UDP 161), MySQL(TCP 3306), HTTP(TCP 80), HTTPS(TCP 443)를 점검합니다. TCP 포트는 완전 연결(full connect)로 테스트합니다. SNMP는 SNMPv3 엔진 검색(engine-discovery) 요청으로 테스트하며, 모든 SNMPv3 에이전트는 자격 증명 없이도 이에 응답해야 합니다. v1/v2c만 지원하는 에이전트는 이 프로브로 탐지되지 않습니다. asyncio 백엔드에서는 연결 거부를 포함해 어떤 프로브라도 응답을 받으면 해당 호스트를 활성(alive) 상태로 간주하므로, 모든 프로브를 드롭하는 호스트는 `alive=false`와 `"Host is down"` 오류로 기록됩니다. 다만 이것이 호스트가 물리적으로 꺼져 있음을 증명하지는 않습니다. `--backend nmap`을 사용하면 nmap이 호스트 활성 여부를 결정합니다(root 권한이면 ICMP, 아니면 TCP 80/443).
 
+<a name="fingerprints"></a>
+
 ### 핑거프린트
 
 열려 있는 각 서비스는 로그인 전에 전송하는 데이터를 기반으로 핑거프린팅됩니다. SNMP 쿼리를 제외하면 어떤 프로브도 인증을 시도하지 않으며, SNMP 역시 사용자가 자격 증명을 제공한 경우에만 인증을 수행합니다.
@@ -227,6 +231,8 @@ probe = "https"
 
 JSON 보고서는 버전이 지정된 문서(`"format": "hostcensus-report"`, `"version": 1`)로, `devices`와 함께 대상, 프로브된 서비스 및 설정을 기록합니다. `-o` 없이 `--format json`을 지정하면 표 대신 stdout에 보고서를 출력합니다. 모든 JSON 출력에는 게시된 스키마가 있으며, 자세한 내용은 [JSON 출력](../../../docs/json-output.md)을 참조하세요. 각 장치 객체는 기존의 `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname`, `errors` 필드를 유지하면서, 각 프로브의 `name`, `port`, `protocol`, `state`(`open`, `closed`, `filtered`, 또는 프로브가 로컬에서 실패했거나 제한 시간에 도달한 경우 `unknown`), `version`, `details`를 담은 `services` 목록을 추가합니다. CSV 출력에서는 끝에 열려 있는 서비스에 대한 `services` 및 `versions` 열이 추가됩니다. `ssh`, `snmp`, `mysql` 불리언 필드는 정확히 해당 이름의 서비스 결과를 따릅니다.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## 인벤토리 프로파일, 사전 점검 및 로컬 기록
 
@@ -315,6 +321,8 @@ unknown인 경우 포함)은 이후 스캔에서 포트가 열려 있는 경우(
 프로파일 파일과 저장된 설정에는 SNMP 자격 증명이 포함되지 않으며,
 자격 증명 처리는 기존의 런타임 옵션/환경 변수를 통해 계속 이루어집니다.
 
+<a name="inventory-diff"></a>
+
 ## 인벤토리 diff
 
 ```bash
@@ -331,6 +339,8 @@ hostcensus diff monday.json tuesday.json -f json     # JSON on stdout
 `--deadline`으로 중단된 스캔의 보고서(`"complete": false`)는 도달한 호스트만 나열하므로, `diff`와 `export`는 이를 종료 코드 2로 거부합니다. `--allow-partial`을 사용하면 stderr 경고를 출력하고 이를 허용합니다. 이때 `diff`는 불완전한 스캔에 전혀 포함되지 않은 호스트를 사라진 호스트가 아닌 `unsettled_hosts` 아래에 `unscanned`로 표시하고(다운으로 기록된 호스트는 여전히 사라짐으로 처리), `partial`을 true로 설정하며 변경 없음으로 보고하지 않습니다. `export`는 스크립트 헤더에 경고를 기록합니다.
 
 `diff` 종료 코드: `0` 변경 사항 없음, `3` 변경 사항 발견, 확인할 수 없는 관측 결과 존재, 또는 불완전한 입력(`unsettled_hosts`와 `unconfirmed`를 포함한 목록 중 하나라도 비어 있지 않거나 `partial`이 true이면 `changed`는 true가 됨), `2` 파일이 없거나 읽을 수 없거나 지원되는 스냅샷이 아니거나 `--allow-partial` 없이 불완전한 스캔을 전달함, `1` `-o` 파일을 쓸 수 없음.
+
+<a name="kadupul-export"></a>
 
 ## Kadupul 내보내기
 

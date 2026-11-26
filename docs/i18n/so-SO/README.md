@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -38,6 +38,8 @@ Warbixin hal mar ah oo dekedaha ku saabsan ma sharraxdo haddii baaritaanka xiga 
 CI wuxuu daboolaa Python 3.12, 3.13 iyo 3.14 ee Linux iyo macOS, iyadoo ay weheliso shaybaar isku-dhafan oo Compose ah oo la xakameeyo. Koodhku wuxuu adeegsadaa magacyada noocyada casriga ah, natiijooyinka hubinta hordhaca ah ee noocaysan, borofayllo keyword-only oo slotted ah, iyo nadiifin async ah oo habaysan iyadoo la ilaalinayo noocyadaas runtime-ka. Eeg [Noocaynta iyo sii-daynta](../../../docs/releasing.md) si aad u aragto heshiiska is-waafajinta SemVer iyo habka sii-daynta GitHub. Calaamaddu (release badge) waxay sharraxdaa agabka la daabacay, ma aha nuqulka kaydka: sumadda ugu dambeysay ee la daabacay hadda waa `v0.3.0`, halka nuqulkan kaydku uu adeegsado nooca xirmada `3.0.0`. Ka rakib nuqulka kaydka si aad u isticmaasho astaamaha tira-koobka ee halkan lagu sharraxay.
 
 Ka bilow [rakibaadda](#install), ka dibna [borofayllada iyo taariikhda](#inventory-profiles-preflight-and-local-history). Faahfaahinta isku-xirka, eeg [aqoonsiga adeegyada](#fingerprints), [isbarbardhigga faylasha](#inventory-diff), iyo [dhoofinta Kadupul](#kadupul-export).
+
+<a name="install"></a>
 
 ## Rakibaadda
 
@@ -156,6 +158,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 Si caadi ah, martigeliye kasta waxaa laga hubiyaa SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) iyo HTTPS (TCP 443). Dekedaha TCP waxaa lagu tijaabiyaa isku-xir dhammaystiran. SNMP waxaa lagu tijaabiyaa codsiga ogaanshaha matoorka SNMPv3, kaas oo wakiil kasta oo SNMPv3 ah ay waajib ku tahay inuu ka jawaabo iyada oo aan loo baahnayn aqoonsi sir ah; wakiillada ku hadla oo keliya v1/v2c laguma ogaan doono tijaabadan. Marka la adeegsanayo habka dambe ee asyncio, martigeliyuhu wuxuu noqdaa mid nool marka tijaabo kasta ay hesho jawaab, oo ay ku jirto isku-xir la diiday, sidaas darteed martigeliye tuura tijaabo kasta wuxuu yeeshaa `alive=false` iyo qaladka "Host is down"; tani ma caddaynayso inuu jir ahaan u damisan yahay. Marka la adeegsanayo `--backend nmap`, nmap ayaa go'aamisa martigeliyeyaasha nool (ICMP marka la haysto awoodda root, ama TCP 80/443 xaaladaha kale).
 
+<a name="fingerprints"></a>
+
 ### Aqoonsiga adeegyada
 
 Adeeg kasta oo furan waxaa laga sameeyaa aqoonsi iyadoo lagu saleynayo waxa uu soo diro ka hor inta aan wax galitaan (login) ah la samayn. Waxba ma sameeyaan xaqiijin aqoonsi marka laga reebo weydiinta SNMP, taasna waa oo keliya marka aad bixiso aqoonsiyada sirta ah.
@@ -196,6 +200,8 @@ probe = "https"
 
 Warbixinnada JSON waa dukumentiyo noocaysan (`"format": "hostcensus-report"`, `"version": 1`) oo diwaangeliya bartilmaameedka, adeegyada la tijaabiyay iyo habaynta iyagoo garab yaalla `devices`; `--format json` iyada oo aan la isticmaalin `-o` waxay warbixinta ku qortaa stdout halkii ay ka soo bandhigi lahayd jadwalka. Natiijo kasta oo JSON ah waxay leedahay qaab-dhismeed (schema) la daabacay; eeg [Natiijada JSON](../../../docs/json-output.md). Qalabyadu waxay ilaashadaan goobaha asalka ah ee `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` iyo `errors` waxayna ku daraan liiska `services` oo leh tijaabo kasta `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, ama `unknown` marka tijaabadu si maxalli ah u fashilanto ama gaarto xadka waqtiga), `version` iyo `details`. Natiijada CSV waxaa dhammaadka loogu daraa tiirarka `services` iyo `versions` ee kuwa furan. Qiimayaasha run/been (booleans) ee `ssh`, `snmp` iyo `mysql` waxay raacaan adeegyada leh isla magacyadaas.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## Borofayllada tira-koobka, hubinta hordhaca ah, iyo taariikhda maxalliga ah
 
@@ -244,6 +250,8 @@ Adeegso aqoonsiyada (IDs) ka yimid `history`; tusaaluhu wuxuu u qaadanayaa kayd 
 
 Taariikhdu waxay kaydisaa macluumaadka tira-koobka, markaa dooro gal maxalli ah oo si habboon u ilaalsan. Faylasha borofaylka iyo habaynta la kaydiyay kuma jiraan aqoonsiyada sirta ah ee SNMP; maaraynta aqoonsiyada sirta ah waxay ku sii socotaa ikhtiyaarrada/deegaanka runtime-ka ee hore u jiray.
 
+<a name="inventory-diff"></a>
+
 ## Isbarbardhigga tira-koobka
 
 ```bash
@@ -260,6 +268,8 @@ Nuqul-xilliyeedku waa JSON leh `format: "hostcensus-snapshot"`, `version: 1`, no
 Warbixin ka timid baaris uu joojiyay `--deadline` (`"complete": false`) waxay taxdaa oo keliya martigeliyeyaashii ay gaartay, sidaas darteed `diff` iyo `export` way diidaan iyagoo ku baxaya koodhka 2. `--allow-partial` wuu aqbalaa iyadoo digniin lagu qorayo stderr: `diff` wuxuu markaa martigeliyeyaasha aysan baarista aan dhammaystirnayn haba yaraatee taxin ku qoraa `unsettled_hosts` iyagoo ah `unscanned` halkii ay ka noqon lahaayeen kuwo lumay (martigeliye ay u taxday mid damisan weli wuxuu yahay mid lumay), wuxuu `partial` ka dhigaa run (true) waligiisna ma soo sheego in uusan jirin isbeddel, `export` wuxuuna qoraa digniin madaxa qoraalka (script header).
 
 Koodhadhka bixitaanka ee `diff`: `0` isbeddel ma jiro, `3` isbeddello ayaa la helay, natiijooyin aan la xaqiijin karin, ama gelin aan dhammaystirnayn (`changed` waa run mar kasta oo liis kasta, oo ay ku jiraan `unsettled_hosts` iyo `unconfirmed`, uusan marneyn, ama `partial` uu run yahay), `2` fayl ayaa maqan, aan la akhrin karin, aan ahayn nuqul-xilliyeed la taageero, ama aan dhammaystirnayn iyada oo aan la isticmaalin `--allow-partial`, `1` faylka `-o` lama qori karin.
+
+<a name="kadupul-export"></a>
 
 ## Dhoofinta Kadupul
 

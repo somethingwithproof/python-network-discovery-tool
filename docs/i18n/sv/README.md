@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · **Svenska** · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -38,6 +38,8 @@ En enstaka portrapport förklarar inte om nästa observation ändrades eller hel
 CI täcker Python 3.12, 3.13 och 3.14 på Linux och macOS, samt ett kontrollerat Compose-integrationslabb. Koden använder moderna typalias, typade förkontrollsresultat, keyword-only slotted-profiler och strukturerad asynkron rensning samtidigt som dessa körtidsversioner stöds. Se [Versionshantering och utgåvor](../../../docs/releasing.md) för SemVer-kompatibilitetskontraktet och GitHub-utgivningsprocessen. Utgåveemblemet beskriver publicerade artefakter, inte utcheckningen: den senaste publicerade taggen är för närvarande `v0.3.0`, medan den här utcheckningen använder paketversion `3.0.0`. Installera från utcheckningen för att använda de inventeringsfunktioner som dokumenteras här.
 
 Börja med [installation](#install), därefter [profiler och historik](#inventory-profiles-preflight-and-local-history). För integrationsdetaljer, se [tjänstefingeravtryck](#fingerprints), [filjämförelser](#inventory-diff) och [Kadupul-export](#kadupul-export).
+
+<a name="install"></a>
 
 ## Installation
 
@@ -156,6 +158,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 Som standard kontrolleras varje värd för SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) och HTTPS (TCP 443). TCP-portar testas med en fullständig anslutning. SNMP testas med en SNMPv3-begäran för motorupptäckt, som varje SNMPv3-agent måste besvara utan autentiseringsuppgifter; agenter som bara talar v1/v2c upptäcks inte av denna prob. Med asyncio-backend räknas en värd som aktiv när någon prob får ett svar, inklusive en nekad anslutning, så en värd som tyst släpper varje prob får `alive=false` och felet "Host is down"; detta bevisar inte att den är fysiskt nere. Med `--backend nmap` avgör nmap vilka värdar som är aktiva (ICMP som root, annars TCP 80/443).
 
+<a name="fingerprints"></a>
+
 ### Tjänstefingeravtryck
 
 Varje öppen tjänst fingeravtrycksbestäms utifrån vad den skickar före eventuell inloggning. Ingenting autentiserar utom SNMP-frågan, och endast när du anger autentiseringsuppgifter.
@@ -196,6 +200,8 @@ probe = "https"
 
 JSON-rapporter är versionshanterade dokument (`"format": "hostcensus-report"`, `"version": 1`) som registrerar målet, probade tjänster och inställningar bredvid `devices`; `--format json` utan `-o` skriver rapporten till stdout i stället för tabellen. Varje JSON-utdata har ett publicerat schema; se [JSON-utdata](../../../docs/json-output.md). Enheter behåller de ursprungliga fälten `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` och `errors` och lägger till en `services`-lista med varje probs `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered` eller `unknown` när proben misslyckades lokalt eller nådde sin tidsgräns), `version` och `details`. CSV-utdata får avslutande kolumner `services` och `versions` för de öppna tjänsterna. De booleska värdena `ssh`, `snmp` och `mysql` följer tjänsterna med exakt de namnen.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## Inventeringsprofiler, förkontroll och lokal historik
 
@@ -243,6 +249,8 @@ Använd ID:n från `history`; exemplet förutsätter en ny databas. Ögonblicksb
 `history` listar JSON-sammanfattningar utan att läsa in alla historiska enhetsdata. `compare` läser två sparade skanningar, kräver identiska målidentiteter och valda portar, och rapporterar förändringar i svarsbenägenhet, status och porttillstånd. Det tidigare skannings-ID:t måste föregå det senare ID:t. När båda skanningarna registrerade `timeout` eller `backend` och dessa värden skiljer sig åt, listar rapporten en varning och jämför ändå observationerna. En annan väntetid kan få en filtrerad port att se öppen ut. Skannerfel och okända portobservationer flaggas som osäkra i stället för att behandlas som bekräftat försvinnande eller stängning: värdar med fel visas i `uncertain_hosts`, och varje portövergång som involverar `unknown` (inklusive okänd i båda skanningarna) listas i `unconfirmed_ports` i stället för `port_changes`, utom en port som är öppen i den senare skanningen, vilket är en portförändring. `compare` och `diff` klassificerar portar med samma regel. `no_longer_responding` betyder uteblivet svar, inte bevis på att enheten tagits bort. Avslutningskod 0 för skanning garanterar inte att varje värd svarade: granska felen per värd. En lyckad jämförelse returnerar 0 oavsett om förändringar finns eller inte; befintlig fil-`diff` behåller sitt kontrakt med avslutningskod 3. Ej stödd eller skadad historik returnerar 1.
 
 Historiken lagrar inventeringsinformation, så välj en lämpligt skyddad lokal katalog. Profilfiler och lagrade inställningar innehåller inte SNMP-autentiseringsuppgifter; hanteringen av autentiseringsuppgifter fortsätter via de befintliga körtidsflaggorna/miljövariablerna.
+
+<a name="inventory-diff"></a>
 
 ## Inventeringsdiff
 

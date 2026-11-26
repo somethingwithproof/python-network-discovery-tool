@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -38,6 +38,8 @@ hostcensus అనేది మీరు నిర్వహించే నెట
 CI అనేది Linux మరియు macOS లపై Python 3.12, 3.13 మరియు 3.14 లతో పాటు నియంత్రిత Compose ఇంటిగ్రేషన్ ల్యాబ్‌ను కూడా కవర్ చేస్తుంది. ఆ రన్‌టైమ్ వెర్షన్‌లను కొనసాగిస్తూనే, కోడ్ ఆధునిక టైప్ అలియాస్‌లు, టైప్ చేసిన preflight ఫలితాలు, కీవర్డ్-మాత్రమే slotted ప్రొఫైల్‌లు మరియు నిర్మాణాత్మక async శుభ్రతను ఉపయోగిస్తుంది. SemVer అనుకూలత ఒప్పందం మరియు GitHub విడుదల ప్రక్రియ కోసం [వెర్షనింగ్ మరియు విడుదలలు](../../../docs/releasing.md) చూడండి. విడుదల బ్యాడ్జ్ చెక్‌అవుట్‌ను కాకుండా ప్రచురించబడిన ఆర్టిఫ్యాక్ట్‌లను వివరిస్తుంది: ప్రస్తుతం తాజాగా ప్రచురించిన ట్యాగ్ `v0.3.0`, కాగా ఈ చెక్‌అవుట్ ప్యాకేజీ వెర్షన్ `3.0.0` ను ఉపయోగిస్తుంది. ఇక్కడ డాక్యుమెంట్ చేసిన ఇన్వెంటరీ ఫీచర్లను ఉపయోగించడానికి చెక్‌అవుట్ నుండి ఇన్‌స్టాల్ చేయండి.
 
 [ఇన్‌స్టాలేషన్](#install) తో ప్రారంభించండి, ఆపై [ప్రొఫైల్‌లు మరియు చరిత్ర](#inventory-profiles-preflight-and-local-history) చూడండి. ఇంటిగ్రేషన్ వివరాల కోసం, [సర్వీస్ ఫింగర్‌ప్రింట్లు](#fingerprints), [ఫైల్ పోలికలు](#inventory-diff), మరియు [Kadupul ఎగుమతి](#kadupul-export) చూడండి.
+
+<a name="install"></a>
 
 ## ఇన్‌స్టాల్
 
@@ -156,6 +158,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 డిఫాల్ట్‌గా ప్రతి హోస్ట్ SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) మరియు HTTPS (TCP 443) కోసం తనిఖీ చేయబడుతుంది. TCP పోర్ట్‌లు పూర్తి connect ద్వారా పరీక్షించబడతాయి. SNMP ఒక SNMPv3 engine-discovery అభ్యర్థనతో పరీక్షించబడుతుంది, దీనికి ఏ SNMPv3 ఏజెంట్ అయినా క్రెడెన్షియల్స్ లేకుండా సమాధానం ఇవ్వాలి; కేవలం v1/v2c మాత్రమే మాట్లాడే ఏజెంట్లు ఈ ప్రోబ్ ద్వారా గుర్తించబడవు. asyncio బ్యాకెండ్‌తో, తిరస్కరించబడిన కనెక్షన్‌తో సహా ఏ ప్రోబ్‌కైనా సమాధానం వస్తే ఆ హోస్ట్ సజీవంగా ఉన్నట్లు లెక్కించబడుతుంది, కాబట్టి ప్రతి ప్రోబ్‌ను డ్రాప్ చేసే హోస్ట్‌కు `alive=false` మరియు `"Host is down"` లోపం ఉంటుంది; ఇది భౌతికంగా ఆఫ్‌లో ఉందని రుజువు కాదు. `--backend nmap` తో, ఏ హోస్ట్‌లు సజీవంగా ఉన్నాయో nmap నిర్ణయిస్తుంది (root గా ICMP, లేకుంటే TCP 80/443).
 
+<a name="fingerprints"></a>
+
 ### ఫింగర్‌ప్రింట్లు
 
 తెరిచి ఉన్న ప్రతి సర్వీస్ ఏదైనా లాగిన్ కంటే ముందు అది పంపే సమాచారం నుండి ఫింగర్‌ప్రింట్ చేయబడుతుంది. SNMP ప్రశ్న తప్ప మరేదీ ప్రామాణీకరించదు, అది కూడా మీరు క్రెడెన్షియల్స్ అందించినప్పుడు మాత్రమే.
@@ -196,6 +200,8 @@ probe = "https"
 
 JSON నివేదికలు వెర్షన్ చేయబడిన పత్రాలు (`"format": "hostcensus-report"`, `"version": 1`), ఇవి `devices` పక్కన లక్ష్యం, ప్రోబ్ చేసిన సర్వీసులు మరియు సెట్టింగ్‌లను నమోదు చేస్తాయి; `-o` లేకుండా `--format json` టేబుల్‌కు బదులుగా stdout కు నివేదికను వ్రాస్తుంది. ప్రతి JSON అవుట్‌పుట్‌కు ప్రచురించబడిన స్కీమా ఉంటుంది; [JSON అవుట్‌పుట్](../../../docs/json-output.md) చూడండి. పరికరాలు అసలైన `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` మరియు `errors` ఫీల్డ్‌లను ఉంచుతాయి మరియు ప్రతి ప్రోబ్ యొక్క `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, లేదా ప్రోబ్ స్థానికంగా విఫలమైనప్పుడు లేదా గడువును తాకినప్పుడు `unknown`), `version` మరియు `details` లతో ఒక `services` జాబితాను జోడిస్తాయి. CSV అవుట్‌పుట్ తెరిచి ఉన్న వాటి కోసం చివరిలో `services` మరియు `versions` నిలువు వరుసలను పొందుతుంది. `ssh`, `snmp` మరియు `mysql` బూలియన్‌లు ఖచ్చితంగా ఆ పేర్లతో ఉన్న సర్వీసులను అనుసరిస్తాయి.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## ఇన్వెంటరీ ప్రొఫైల్‌లు, preflight, మరియు స్థానిక చరిత్ర
 
@@ -244,6 +250,8 @@ hostcensus compare 1 2 --history output/inventory.sqlite3 -o output/changes.json
 
 చరిత్ర ఇన్వెంటరీ సమాచారాన్ని నిల్వ చేస్తుంది, కాబట్టి తగిన రక్షణ ఉన్న స్థానిక డైరెక్టరీని ఎంచుకోండి. ప్రొఫైల్ ఫైళ్లు మరియు నిల్వ చేసిన సెట్టింగ్‌లలో SNMP క్రెడెన్షియల్స్ ఉండవు; క్రెడెన్షియల్ నిర్వహణ ప్రస్తుత రన్‌టైమ్ ఎంపికలు/ఎన్విరాన్‌మెంట్ ద్వారా కొనసాగుతుంది.
 
+<a name="inventory-diff"></a>
+
 ## ఇన్వెంటరీ diff
 
 ```bash
@@ -260,6 +268,8 @@ hostcensus diff monday.json tuesday.json -f json     # JSON on stdout
 `--deadline` (`"complete": false`) ద్వారా ఆపబడిన స్కాన్ నుండి వచ్చిన నివేదిక అది చేరుకున్న హోస్ట్‌లను మాత్రమే జాబితా చేస్తుంది, కాబట్టి `diff` మరియు `export` దానిని నిష్క్రమణ కోడ్ 2 తో తిరస్కరిస్తాయి. `--allow-partial` stderr పై హెచ్చరికతో దానిని అంగీకరిస్తుంది: అప్పుడు `diff` అసంపూర్ణ స్కాన్ అస్సలు జాబితా చేయని హోస్ట్‌లను vanished కు బదులుగా `unsettled_hosts` క్రింద `unscanned` గా జాబితా చేస్తుంది (అది డౌన్ అని జాబితా చేసిన హోస్ట్ ఇప్పటికీ vanished గానే ఉంటుంది), `partial` ను true గా సెట్ చేస్తుంది మరియు ఎప్పుడూ మార్పు లేదని నివేదించదు, మరియు `export` స్క్రిప్ట్ హెడర్‌లో ఒక హెచ్చరికను వ్రాస్తుంది.
 
 `diff` నిష్క్రమణ కోడ్‌లు: `0` మార్పులు లేవు, `3` మార్పులు కనుగొనబడ్డాయి, నిర్ధారించలేని పరిశీలనలు, లేదా అసంపూర్ణ ఇన్‌పుట్ (`unsettled_hosts` మరియు `unconfirmed` తో సహా ఏ జాబితా అయినా ఖాళీగా లేనప్పుడు, లేదా `partial` true అయినప్పుడు `changed` true అవుతుంది), `2` ఒక ఫైల్ లేదు, చదవలేనిది, మద్దతు ఉన్న స్నాప్‌షాట్ కాదు, లేదా `--allow-partial` లేకుండా అసంపూర్ణంగా ఉంది, `1` `-o` ఫైల్ వ్రాయబడలేదు.
+
+<a name="kadupul-export"></a>
 
 ## Kadupul ఎగుమతి
 

@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · **简体中文** · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -38,6 +38,8 @@ hostcensus 是一个 Python 命令行工具，用于对你所管理的网络执�
 CI 在 Linux 和 macOS 上覆盖了 Python 3.12、3.13 和 3.14，并包含一个受控的 Compose 集成测试环境。代码在保持兼容这些运行时版本的同时，采用了现代类型别名、强类型预检结果、仅限关键字参数且使用 slots 的配置类，以及结构化异步清理机制。有关 SemVer 兼容性契约和 GitHub 发布流程，请参阅[版本控制与发布](../../../docs/releasing.md)。发布徽章展示的是已发布的构建产物，而非当前检出代码：目前最新发布标签为 `v0.3.0`，而当前检出代码使用的包版本为 `3.0.0`。请直接从当前检出目录安装，以使用本文档介绍的资产盘点功能。
 
 请先阅读[安装](#install)，然后查看[配置方案与历史记录](#inventory-profiles-preflight-and-local-history)。如需了解集成细节，请参阅[服务指纹识别](#fingerprints)、[文件差异对比](#inventory-diff)和[Kadupul 导出](#kadupul-export)。
+
+<a name="install"></a>
 
 ## 安装
 
@@ -156,6 +158,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 默认情况下，每台主机会检查 SSH（TCP 22）、SNMP（UDP 161）、MySQL（TCP 3306）、HTTP（TCP 80）和 HTTPS（TCP 443）。TCP 端口采用完整连接方式检测。SNMP 通过发送 SNMPv3 引擎发现请求进行检测，任何支持 SNMPv3 的代理都必须在无凭据状态下响应此请求；仅支持 v1/v2c 的代理不会被此探测识别。使用 asyncio 后端时，只要任意探测收到响应（包括连接被拒绝），主机即视为存活；因此丢弃所有探测包的主机状态为 `alive=false`，且错误信息为“Host is down”，但这并不证明设备在物理上已关机。使用 `--backend nmap` 时，由 nmap 判定主机是否存活（root 权限下使用 ICMP，否则探测 TCP 80/443）。
 
+<a name="fingerprints"></a>
+
 ### 指纹识别
 
 每个开放服务都会根据其在登录前返回的响应内容进行指纹识别。除 SNMP 查询外，所有探测均不进行身份认证；且 SNMP 认证仅在你提供了凭据时才会触发。
@@ -196,6 +200,8 @@ probe = "https"
 
 JSON 报告是带版本号的文档（`"format": "hostcensus-report"`、`"version": 1`），除了 `devices` 字段外，还会记录扫描目标、探测的服务列表及配置参数；未指定 `-o` 时使用 `--format json` 会将报告输出到 stdout 而非终端表格。所有 JSON 输出均有公开的模式定义，请参阅 [JSON 输出规范](../../../docs/json-output.md)。每个设备对象保留原有的 `ip`、`alive`、`ssh`、`snmp`、`mysql`、`hostname` 和 `errors` 字段，并新增 `services` 列表，包含每个探测器的 `name`、`port`、`protocol`、`state`（`open`、`closed`、`filtered`，或在本地失败及超时时为 `unknown`）、`version` 和 `details`。CSV 输出在末尾增加了用于记录开放服务的 `services` 和 `versions` 两列。`ssh`、`snmp` 和 `mysql` 这三个布尔字段与同名服务的状态保持一致。
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## 盘点配置方案、预检与本地历史记录
 
@@ -244,6 +250,8 @@ hostcensus compare 1 2 --history output/inventory.sqlite3 -o output/changes.json
 
 历史数据库保存着网络资产盘点信息，因此请选择具有适当权限保护的本地目录。配置文件和已存储的设置均不包含 SNMP 凭据；凭据处理继续沿用现有的运行时选项或环境变量机制。
 
+<a name="inventory-diff"></a>
+
 ## 盘点差异对比（diff）
 
 ```bash
@@ -260,6 +268,8 @@ hostcensus diff monday.json tuesday.json -f json     # JSON on stdout
 因触发 `--deadline` 而提前终止的扫描报告（`"complete": false`）仅包含已扫描到的主机，因此 `diff` 和 `export` 默认会拒绝处理并以退出码 2 退出。传入 `--allow-partial` 可允许处理此类报告，同时在 stderr 输出警告：此时 `diff` 会将不完整扫描完全未列出的主机归入 `unsettled_hosts` 并标记为 `unscanned`，而不是视为消失（报告中已明确列为离线的主机仍视为消失），将 `partial` 设为 true，且绝不会报告“无变化”；`export` 则会在生成的脚本头部写入一条警告。
 
 `diff` 退出码说明：`0` 表示无变化；`3` 表示发现变更、存在无法确认的观测结果或输入不完整（只要包含 `unsettled_hosts` 和 `unconfirmed` 在内的任一列表非空，或 `partial` 为 true，`changed` 即为 true）；`2` 表示文件缺失、不可读、不是受支持的快照格式，或未加 `--allow-partial` 的不完整报告；`1` 表示无法写入 `-o` 指定的文件。
+
+<a name="kadupul-export"></a>
 
 ## Kadupul 导出
 
