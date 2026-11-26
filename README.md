@@ -166,7 +166,7 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 | --- | --- |
 | `NETWORK` | CIDR, IP, or hostname; optional with `--profile`. IPv6 scope identifiers are rejected. |
 | `-o, --output PATH` | Write a report. The format follows the extension (`.json`, `.csv`); other extensions fall back to JSON. |
-| `-f, --format json\|csv\|kadupul\|auto` | Force the report format. Without `--output`, `json` writes to stdout; other formats are ignored with a warning. `.sh` selects `kadupul`. |
+| `-f, --format json\|csv\|kadupul\|auto` | Force the report format. Without `--output`, `json` writes to stdout, `auto` prints the default table, and `csv` and `kadupul` are ignored with a warning. `.sh` selects `kadupul`. |
 | `-v, --verbose` | Debug logging. |
 | `-q, --quiet` | Suppress results, progress and informational logs; warnings and errors still appear on stderr. |
 | `--backend asyncio\|nmap` | Host discovery. `asyncio` (default) probes the service ports directly; `nmap` runs an nmap ping sweep first and needs the `nmap` executable on `PATH`. |

@@ -132,7 +132,7 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 | --- | --- |
 | `NETWORK` | CIDR, IP ili naziv hosta; opciono uz `--profile`. Identifikatori IPv6 opsega se odbijaju. |
 | `-o, --output PATH` | Zapisuje izvještaj u datoteku. Format prati ekstenziju (`.json`, `.csv`); ostale ekstenzije se vraćaju na JSON. |
-| `-f, --format json\|csv\|kadupul\|auto` | Forsira format izvještaja. Bez `--output`, `json` ispisuje na stdout; ostali formati se ignorišu uz upozorenje. `.sh` bira `kadupul`. |
+| `-f, --format json\|csv\|kadupul\|auto` | Forsira format izvještaja. Bez `--output`, `json` ispisuje na stdout, `auto` prikazuje podrazumijevanu tabelu, a `csv` i `kadupul` se ignorišu uz upozorenje. `.sh` bira `kadupul`. |
 | `-v, --verbose` | Detaljno zapisivanje za otklanjanje grešaka. |
 | `-q, --quiet` | Potiskuje rezultate, napredak i informativne zapise; upozorenja i greške se i dalje prikazuju na stderr. |
 | `--backend asyncio\|nmap` | Otkrivanje hostova. `asyncio` (podrazumijevano) direktno provjerava portove servisa; `nmap` najprije pokreće nmap ping pretragu i zahtijeva izvršnu datoteku `nmap` u `PATH`. |
