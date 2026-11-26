@@ -22,6 +22,7 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
+from hostcensus.i18n import t
 from hostcensus.models import LEGACY_FLAGS, Device, ServiceSpec
 from hostcensus.scan_settings import HOSTCENSUS_VERSION
 
@@ -208,23 +209,28 @@ def print_results(devices: list[Device]) -> None:
     alive_devices = [d for d in devices if d.alive]
 
     if not alive_devices:
-        console.print("[yellow]No alive hosts found[/yellow]")
+        console.print(f"[yellow]{t('output.no_alive_hosts')}[/yellow]")
         return
 
-    table = Table(title=f"🔍 Network Scan Results ({len(alive_devices)} alive hosts)")
+    table = Table(title=f"🔍 {t('output.scan_results_title', count=len(alive_devices))}")
 
-    table.add_column("IP Address", style="cyan", no_wrap=True)
-    table.add_column("Hostname", style="blue")
+    table.add_column(t("output.col_ip"), style="cyan", no_wrap=True)
+    table.add_column(t("output.col_hostname"), style="blue")
     table.add_column("SSH", justify="center")
     table.add_column("SNMP", justify="center")
     table.add_column("MySQL", justify="center")
-    table.add_column("Open services")
-    table.add_column("Status")
+    table.add_column(t("output.col_open_services"))
+    table.add_column(t("output.col_status"))
 
     for device in alive_devices:
         # Hostnames and banners come from the network; escape them so Rich
         # does not interpret "[...]" in them as markup.
         notes = [f"{s.name}:{s.port} {s.version}".rstrip() for s in device.open_services]
+        status_label = (
+            f"[green]{t('output.status_up')}[/green]"
+            if device.alive
+            else f"[red]{t('output.status_down')}[/red]"
+        )
         table.add_row(
             device.ip,
             escape(device.hostname) or "-",
@@ -232,7 +238,7 @@ def print_results(devices: list[Device]) -> None:
             "✅" if device.snmp else "❌",
             "✅" if device.mysql else "❌",
             escape("\n".join(notes)) or "-",
-            "[green]UP[/green]" if device.alive else "[red]DOWN[/red]",
+            status_label,
         )
 
     console.print(table)
@@ -243,10 +249,10 @@ def print_results(devices: list[Device]) -> None:
     mysql_count = sum(1 for d in alive_devices if d.mysql)
 
     console.print()
-    console.print("[bold]Summary:[/bold]")
-    console.print(f"  • SSH servers: {ssh_count}")
-    console.print(f"  • SNMP devices: {snmp_count}")
-    console.print(f"  • MySQL servers: {mysql_count}")
+    console.print(f"[bold]{t('output.summary_heading')}[/bold]")
+    console.print(f"  • {t('output.summary_ssh', count=ssh_count)}")
+    console.print(f"  • {t('output.summary_snmp', count=snmp_count)}")
+    console.print(f"  • {t('output.summary_mysql', count=mysql_count)}")
     other_counts = Counter(
         s.name for d in alive_devices for s in d.open_services if s.name not in LEGACY_FLAGS
     )

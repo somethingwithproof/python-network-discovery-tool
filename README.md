@@ -424,6 +424,15 @@ release provenance. Those scores reflect actual evidence; they are not claims
 that every governance or historical-release check is satisfied. See
 [SECURITY.md](SECURITY.md) and [release provenance](docs/releasing.md).
 
+## Localization
+
+CLI messages and terminal summary/diff tables support 20 locales (`en`, `de`, `es`, `fr`, `it`, `pt-BR`, `nl`, `ru`, `uk`, `ja`, `ko`, `zh-CN`, `zh-TW`, `ar`, `hi`, `pl`, `tr`, `sv`, `vi`, `id`) with zero additional runtime dependencies. Resolution honors `--lang`, then `LC_ALL`, `LC_MESSAGES`, and `LANG`, falling back to `en`. JSON schemas, CSV columns, and export scripts remain unchanged across all locales.
+
+```bash
+hostcensus --lang de version
+LANG=ja_JP.UTF-8 hostcensus scan 192.0.2.0/28
+```
+
 ## Contributing
 
 Contributions should include a reproducible case, preserve the documented CLI and
