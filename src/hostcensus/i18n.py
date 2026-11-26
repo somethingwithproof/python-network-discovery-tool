@@ -33,9 +33,50 @@ SUPPORTED_LOCALES: tuple[str, ...] = (
     "sv",
     "vi",
     "id",
+    "af-ZA",
+    "am-ET",
+    "ar-EG",
+    "ar-MA",
+    "fr-MA",
+    "fr-SN",
+    "ha-NG",
+    "ig-NG",
+    "mg-MG",
+    "rw-RW",
+    "so-SO",
+    "sw-KE",
+    "xh-ZA",
+    "yo-NG",
+    "zu-ZA",
+    "bn",
+    "fa",
+    "he",
+    "mr",
+    "ta",
+    "te",
+    "th",
+    "ur",
+    "ms",
+    "fil",
 )
 
 _LOCALE_BY_LOWER: dict[str, str] = {loc.lower(): loc for loc in SUPPORTED_LOCALES}
+_PRIMARY_ALIASES: dict[str, str] = {
+    "af": "af-ZA",
+    "am": "am-ET",
+    "ha": "ha-NG",
+    "ig": "ig-NG",
+    "iw": "he",
+    "mg": "mg-MG",
+    "pt": "pt-BR",
+    "rw": "rw-RW",
+    "so": "so-SO",
+    "sw": "sw-KE",
+    "tl": "fil",
+    "xh": "xh-ZA",
+    "yo": "yo-NG",
+    "zu": "zu-ZA",
+}
 _ZH_TRADITIONAL_REGIONS = frozenset({"tw", "hk", "mo"})
 _active_locale: str | None = None
 
@@ -65,8 +106,12 @@ def normalize_locale(raw: str | None) -> str:
         if "hant" in subtags or subtags & _ZH_TRADITIONAL_REGIONS:
             return "zh-TW"
         return "zh-CN"
-    if primary == "pt":
-        return "pt-BR"
+    if len(base_parts) >= 3:
+        lang_region = f"{primary}-{base_parts[2]}"
+        if lang_region in _LOCALE_BY_LOWER:
+            return _LOCALE_BY_LOWER[lang_region]
+    if primary in _PRIMARY_ALIASES:
+        return _PRIMARY_ALIASES[primary]
     return _LOCALE_BY_LOWER.get(primary, DEFAULT_LOCALE)
 
 
