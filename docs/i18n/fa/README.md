@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -38,6 +38,8 @@ hostcensus یک ابزار خط فرمان (CLI) پایتون برای فهرس�
 CI نسخه‌های 3.12، 3.13 و 3.14 پایتون را روی Linux و macOS به همراه یک آزمایشگاه یکپارچه‌سازی کنترل‌شده با Compose پوشش می‌دهد. کد از type aliasهای مدرن، نتایج پیش‌بررسی دارای نوع، پروفایل‌های slotشده با آرگومان‌های کلیدواژه‌ای اجباری و پاک‌سازی ساختاریافته async استفاده می‌کند و در عین حال پشتیبانی از همان نسخه‌های زمان اجرا را حفظ می‌کند. برای قرارداد سازگاری SemVer و فرآیند انتشار GitHub به [Versioning and releases](../../../docs/releasing.md) مراجعه کنید. نشان انتشار به مصنوعات منتشرشده اشاره دارد، نه به این نسخه checkout: جدیدترین تگ منتشرشده در حال حاضر `v0.3.0` است، در حالی که این checkout از نسخه بسته `3.0.0` استفاده می‌کند. برای استفاده از ویژگی‌های فهرست‌برداری مستندشده در اینجا، از روی checkout نصب کنید.
 
 با [نصب](#install) شروع کنید و سپس بخش [پروفایل‌ها و تاریخچه](#inventory-profiles-preflight-and-local-history) را بخوانید. برای جزئیات یکپارچه‌سازی، به بخش‌های [اثرانگشت سرویس‌ها](#fingerprints)، [مقایسه فایل‌ها](#inventory-diff) و [خروجی Kadupul](#kadupul-export) مراجعه کنید.
+
+<a name="install"></a>
 
 ## نصب
 
@@ -156,6 +158,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 به‌طور پیش‌فرض هر میزبان از نظر SSH (TCP 22)، SNMP (UDP 161)، MySQL (TCP 3306)، HTTP (TCP 80) و HTTPS (TCP 443) بررسی می‌شود. پورت‌های TCP با یک اتصال کامل آزمایش می‌شوند. SNMP با یک درخواست کشف موتور SNMPv3 آزمایش می‌شود که هر عامل SNMPv3 موظف است بدون احرازهویت به آن پاسخ دهد؛ عامل‌هایی که فقط با v1/v2c صحبت می‌کنند توسط این کاوش شناسایی نمی‌شوند. با بک‌اند asyncio، میزبانی زنده محسوب می‌شود که هر کاوشی پاسخی دریافت کند، از جمله رد اتصال (refused connection)؛ بنابراین میزبانی که تمام کاوش‌ها را دور می‌اندازد دارای `alive=false` و خطای "Host is down" خواهد بود که این امر خاموش بودن فیزیکی آن را اثبات نمی‌کند. با `--backend nmap`، خود nmap تصمیم می‌گیرد کدام میزبان‌ها زنده هستند (با دسترسی root از طریق ICMP و در غیر این صورت TCP 80/443).
 
+<a name="fingerprints"></a>
+
 ### اثرانگشت سرویس‌ها
 
 هر سرویس باز بر اساس داده‌ای که پیش از هرگونه ورود (login) ارسال می‌کند، اثرانگشت‌برداری می‌شود. هیچ چیز احراز هویت انجام نمی‌دهد به جز پرس‌وجوی SNMP، آن هم فقط زمانی که اطلاعات احراز هویت را ارائه دهید.
@@ -196,6 +200,8 @@ probe = "https"
 
 گزارش‌های JSON اسناد نسخه‌داری هستند (`"format": "hostcensus-report"`، `"version": 1`) که هدف، سرویس‌های کاوش‌شده و تنظیمات را در کنار `devices` ثبت می‌کنند؛ `--format json` بدون `-o` گزارش را به جای جدول در stdout می‌نویسد. هر خروجی JSON دارای یک شمای منتشرشده است؛ به [JSON output](../../../docs/json-output.md) مراجعه کنید. دستگاه‌ها فیلدهای اصلی `ip`، `alive`، `ssh`، `snmp`، `mysql`، `hostname` و `errors` را نگه می‌دارند و یک فهرست `services` شامل `name`، `port`، `protocol`، `state` (`open`، `closed`، `filtered` یا `unknown` در صورت شکست محلی کاوش یا رسیدن به مهلت)، `version` و `details` هر کاوش را اضافه می‌کنند. خروجی CSV ستون‌های انتهایی `services` و `versions` را برای سرویس‌های باز دریافت می‌کند. مقادیر بولی `ssh`، `snmp` و `mysql` از سرویس‌هایی با دقیقاً همین نام‌ها پیروی می‌کنند.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## پروفایل‌های فهرست‌برداری، پیش‌بررسی و تاریخچه محلی
 
@@ -244,6 +250,8 @@ hostcensus compare 1 2 --history output/inventory.sqlite3 -o output/changes.json
 
 تاریخچه اطلاعات فهرست موجودی را ذخیره می‌کند، بنابراین یک پوشه محلی با حفاظت مناسب انتخاب کنید. فایل‌های پروفایل و تنظیمات ذخیره‌شده حاوی اطلاعات احراز هویت SNMP نیستند؛ مدیریت اطلاعات احراز هویت همچنان از طریق گزینه‌ها و متغیرهای محیطی زمان اجرای موجود انجام می‌شود.
 
+<a name="inventory-diff"></a>
+
 ## مقایسه فهرست موجودی (diff)
 
 ```bash
@@ -260,6 +268,8 @@ hostcensus diff monday.json tuesday.json -f json     # JSON on stdout
 گزارش یک اسکن که با `--deadline` متوقف شده (`"complete": false`) فقط میزبان‌هایی را که به آن‌ها رسیده فهرست می‌کند، بنابراین `diff` و `export` آن را با کد خروج 2 رد می‌کنند. `--allow-partial` آن را با یک هشدار در stderr می‌پذیرد: سپس `diff` میزبان‌هایی را که اسکن ناقص اصلاً فهرست نکرده به جای ناپدیدشده، در `unsettled_hosts` به عنوان `unscanned` فهرست می‌کند (میزبانی که به عنوان خاموش فهرست کرده باشد همچنان ناپدیدشده است)، `partial` را روی true قرار می‌دهد و هرگز عدم تغییر را گزارش نمی‌دهد، و `export` هشداری در سرآیند اسکریپت می‌نویسد.
 
 کدهای خروج `diff`: `0` بدون تغییر، `3` تغییرات یافت شد، مشاهداتی که قابل تایید نبودند یا ورودی ناقص (`changed` هرگاه هر فهرستی، از جمله `unsettled_hosts` و `unconfirmed`، غیرخالی باشد یا `partial` true باشد، مقدار true دارد)، `2` فایلی مفقود است، غیرقابل خواندن است، اسنپ‌شات پشتیبانی‌شده نیست یا بدون `--allow-partial` ناقص است، `1` فایل `-o` قابل نوشتن نبود.
+
+<a name="kadupul-export"></a>
 
 ## خروجی برای Kadupul
 

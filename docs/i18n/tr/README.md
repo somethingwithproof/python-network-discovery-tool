@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · **Türkçe** · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -58,6 +58,8 @@ kopyasından kurulum yapın.
 [Kurulum](#install) ile başlayın, ardından [profiller ve geçmiş](#inventory-profiles-preflight-and-local-history) bölümüne geçin.
 Entegrasyon ayrıntıları için [servis parmak izleri](#fingerprints),
 [dosya karşılaştırmaları](#inventory-diff) ve [Kadupul dışa aktarma](#kadupul-export) bölümlerine bakın.
+
+<a name="install"></a>
 
 ## Kurulum
 
@@ -189,6 +191,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 Varsayılan olarak her ana bilgisayar SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) ve HTTPS (TCP 443) için kontrol edilir. TCP portları tam bağlantı ile test edilir. SNMP, herhangi bir SNMPv3 aracısının kimlik bilgisi olmadan yanıtlaması gereken bir SNMPv3 motor keşif isteğiyle test edilir; yalnızca v1/v2c konuşan aracılar bu yoklama tarafından algılanmaz. asyncio arka ucunda, reddedilen bir bağlantı dahil olmak üzere herhangi bir yoklama yanıt aldığında ana bilgisayar canlı sayılır; bu nedenle her yoklamayı düşüren bir ana bilgisayarda `alive=false` ve "Host is down" hatası görünür; bu, fiziksel olarak kapalı olduğunu kanıtlamaz. `--backend nmap` ile hangi ana bilgisayarların canlı olduğuna nmap karar verir (root olarak ICMP, aksi halde TCP 80/443).
 
+<a name="fingerprints"></a>
+
 ### Parmak izleri
 
 Açık olan her servis, oturum açmadan önce gönderdiği verilerden parmak izi çıkarılarak tanımlanır. Yalnızca siz kimlik bilgisi sağladığınızda çalışan SNMP sorgusu dışında hiçbir şey kimlik doğrulaması yapmaz.
@@ -229,6 +233,8 @@ probe = "https"
 
 JSON raporları, hedefi, yoklanan servisleri ve ayarları `devices` yanında kaydeden sürümlenmiş belgelerdir (`"format": "hostcensus-report"`, `"version": 1`); `-o` olmadan `--format json`, tablo yerine raporu stdout'a yazar. Her JSON çıktısının yayımlanmış bir şeması vardır; bkz. [JSON çıktısı](../../../docs/json-output.md). Cihazlar özgün `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` ve `errors` alanlarını korur ve her yoklamanın `name`, `port`, `protocol`, `state` (yoklama yerel olarak başarısız olduğunda veya zaman sınırına ulaştığında `open`, `closed`, `filtered` veya `unknown`), `version` ve `details` bilgilerini içeren bir `services` listesi ekler. CSV çıktısı açık olanlar için sonda `services` ve `versions` sütunları kazanır. `ssh`, `snmp` ve `mysql` mantıksal değerleri tam olarak bu adlara sahip servisleri izler.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## Envanter profilleri, ön kontrol ve yerel geçmiş
 
@@ -317,6 +323,8 @@ Geçmiş envanter bilgilerini saklar, bu nedenle uygun biçimde korunan yerel bi
 dizin seçin. Profil dosyaları ve saklanan ayarlar SNMP kimlik bilgilerini içermez;
 kimlik bilgisi yönetimi mevcut çalışma zamanı seçenekleri/ortam değişkenleri aracılığıyla devam eder.
 
+<a name="inventory-diff"></a>
+
 ## Envanter karşılaştırması (diff)
 
 ```bash
@@ -333,6 +341,8 @@ Anlık görüntü; `format: "hostcensus-snapshot"`, `version: 1`, hostcensus sü
 `--deadline` nedeniyle durdurulan bir taramadan (`"complete": false`) gelen rapor yalnızca ulaşabildiği ana bilgisayarları listeler, bu nedenle `diff` ve `export` bu raporu 2 çıkış koduyla reddeder. `--allow-partial` bunu stderr üzerinde bir uyarıyla kabul eder: `diff` bu durumda tamamlanmamış taramanın hiç listelemediği ana bilgisayarları kaybolmuş yerine `unsettled_hosts` altında `unscanned` olarak listeler (kapalı olarak listelediği bir ana bilgisayar yine kaybolmuş sayılır), `partial` değerini true olarak ayarlar ve asla değişiklik yok raporlamaz; `export` ise betik başlığına bir uyarı yazar.
 
 `diff` çıkış kodları: `0` değişiklik yok, `3` değişiklik bulundu, doğrulanamayan gözlemler veya tamamlanmamış girdi (`unsettled_hosts` ve `unconfirmed` dahil herhangi bir liste boş olmadığında ya da `partial` true olduğunda `changed` true olur), `2` bir dosya eksik, okunamıyor, desteklenen bir anlık görüntü değil veya `--allow-partial` olmadan tamamlanmamış, `1` `-o` dosyası yazılamadı.
+
+<a name="kadupul-export"></a>
 
 ## Kadupul dışa aktarma
 

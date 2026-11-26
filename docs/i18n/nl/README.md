@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · **Nederlands** · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -58,6 +58,8 @@ om de hier gedocumenteerde inventarisatiefuncties te gebruiken.
 Begin met [installatie](#install) en daarna [profielen en geschiedenis](#inventory-profiles-preflight-and-local-history).
 Zie voor integratiedetails [service-fingerprints](#fingerprints),
 [bestandsvergelijkingen](#inventory-diff) en [Kadupul-export](#kadupul-export).
+
+<a name="install"></a>
 
 ## Installatie
 
@@ -230,6 +232,8 @@ probe = "https"
 JSON-rapporten zijn geversioneerde documenten (`"format": "hostcensus-report"`, `"version": 1`) die naast `devices` het doel, de geprobete services en de instellingen vastleggen; `--format json` zonder `-o` schrijft het rapport naar stdout in plaats van de tabel. Elke JSON-uitvoer heeft een gepubliceerd schema; zie [JSON-uitvoer](../../../docs/json-output.md). Apparaten behouden de oorspronkelijke velden `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` en `errors` en voegen een lijst `services` toe met van elke probe `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, of `unknown` wanneer de probe lokaal faalde of de deadline bereikte), `version` en `details`. CSV-uitvoer krijgt afsluitende kolommen `services` en `versions` voor de open services. De booleans `ssh`, `snmp` en `mysql` volgen de services met exact die namen.
 
 
+<a name="inventory-profiles-preflight-and-local-history"></a>
+
 ## Inventarisatieprofielen, preflight en lokale geschiedenis
 
 Benoemde profielen delen een TOML-bestand met de bestaande `[services]`-definities. Kopieer
@@ -316,6 +320,8 @@ behoudt zijn exitcode 3-contract. Niet-ondersteunde of beschadigde geschiedenis 
 Geschiedenis slaat inventarisatiegegevens op, kies dus een passend beschermde lokale
 map. Profielbestanden en opgeslagen instellingen bevatten geen SNMP-inloggegevens;
 de afhandeling van inloggegevens blijft lopen via de bestaande runtime-opties en omgevingsvariabelen.
+
+<a name="inventory-diff"></a>
 
 ## Inventarisatie-diff
 

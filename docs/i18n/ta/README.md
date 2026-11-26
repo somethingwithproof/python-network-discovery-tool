@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -38,6 +38,8 @@ SPDX-License-Identifier: MIT
 CI சோதனையானது Linux மற்றும் macOS-இல் Python 3.12, 3.13 மற்றும் 3.14 ஆகியவற்றையும், கட்டுப்படுத்தப்பட்ட Compose ஒருங்கிணைப்பு ஆய்வகத்தையும் உள்ளடக்கியது. இந்த இயக்க நேரப் பதிப்புகளைத் தக்கவைத்துக் கொண்டே, நவீன வகை மாற்றுப் பெயர்கள், வகைப்படுத்தப்பட்ட முன்-சரிபார்ப்பு முடிவுகள், திறவுச்சொல்-மட்டும் கொண்ட ஸ்லாட் சுயவிவரங்கள் மற்றும் கட்டமைக்கப்பட்ட async சுத்திகரிப்பு ஆகியவற்றை இக்குறியீடு பயன்படுத்துகிறது. SemVer இணக்க ஒப்பந்தம் மற்றும் GitHub வெளியீட்டு செயல்முறைக்கு [பதிப்பிடல் மற்றும் வெளியீடுகள்](../../../docs/releasing.md) என்பதைப் பார்க்கவும். வெளியீட்டுப் பேட்ஜ் வெளியிடப்பட்ட கலைப்பொருட்களை விவரிக்கிறது, தற்போதைய செக்அவுட்டை அல்ல: தற்போது சமீபத்திய வெளியிடப்பட்ட குறிச்சொல் `v0.3.0` ஆகும், அதே சமயம் இந்த செக்அவுட் `3.0.0` என்ற தொகுப்புப் பதிப்பைப் பயன்படுத்துகிறது. இங்கே ஆவணப்படுத்தப்பட்டுள்ள பட்டியலிடல் அம்சங்களைப் பயன்படுத்த செக்அவுட்டிலிருந்து நிறுவவும்.
 
 [நிறுவல்](#install) உடன் தொடங்கவும், பின்னர் [சுயவிவரங்கள் மற்றும் வரலாறு](#inventory-profiles-preflight-and-local-history) பகுதியைப் பார்க்கவும். ஒருங்கிணைப்பு விவரங்களுக்கு, [சேவை கைரேகைகள்](#fingerprints), [கோப்பு ஒப்பீடுகள்](#inventory-diff) மற்றும் [Kadupul ஏற்றுமதி](#kadupul-export) ஆகியவற்றைப் பார்க்கவும்.
+
+<a name="install"></a>
 
 ## நிறுவல்
 
@@ -156,6 +158,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 இயல்புநிலையாக ஒவ்வொரு ஹோஸ்டும் SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) மற்றும் HTTPS (TCP 443) ஆகியவற்றிற்காகச் சரிபார்க்கப்படுகிறது. TCP போர்ட்டுகள் முழு connect மூலம் சோதிக்கப்படுகின்றன. SNMP ஆனது SNMPv3 engine-discovery கோரிக்கையுடன் சோதிக்கப்படுகிறது, இதற்கு எந்தவொரு SNMPv3 முகவராலும் சான்றுகள் இல்லாமல் பதிலளிக்க வேண்டும்; v1/v2c மட்டும் பேசும் முகவர்கள் இந்த ஆய்வால் கண்டறியப்படமாட்டார்கள். asyncio பின்புலத்துடன், மறுக்கப்பட்ட இணைப்பு உட்பட எந்தவொரு ஆய்வும் பதில் பெற்றால் ஒரு ஹோஸ்ட் உயிருடன் இருப்பதாகக் கணக்கிடப்படும்; எனவே ஒவ்வொரு ஆய்வையும் கைவிடும் ஒரு ஹோஸ்ட் `alive=false` மற்றும் "Host is down" என்ற பிழையைப் பெறும்; இது அது இயற்பியல் ரீதியாக முடங்கியுள்ளது என்பதை நிரூபிக்காது. `--backend nmap` உடன், எந்த ஹோஸ்ட்கள் உயிருடன் உள்ளன என்பதை nmap தீர்மானிக்கிறது (root ஆக ICMP, இல்லையெனில் TCP 80/443).
 
+<a name="fingerprints"></a>
+
 ### கைரேகைகள்
 
 திறந்திருக்கும் ஒவ்வொரு சேவையும் உள்நுழைவதற்கு முன்பு அது அனுப்புவதிலிருந்து கைரேகை எடுக்கப்படுகிறது. SNMP வினவலைத் தவிர வேறு எதுவும் அங்கீகாரம் செய்வதில்லை, அதுவும் நீங்கள் சான்றுகளை வழங்கும்போது மட்டுமே.
@@ -196,6 +200,8 @@ probe = "https"
 
 JSON அறிக்கைகள் என்பவை `devices`-க்கு அடுத்து இலக்கு, ஆய்வு செய்யப்பட்ட சேவைகள் மற்றும் அமைப்புகளைப் பதிவு செய்யும் பதிப்பிடப்பட்ட ஆவணங்கள் (`"format": "hostcensus-report"`, `"version": 1`) ஆகும்; `-o` இல்லாத `--format json` அட்டவணைக்குப் பதிலாக stdout-இல் அறிக்கையை எழுதுகிறது. ஒவ்வொரு JSON வெளியீட்டிற்கும் வெளியிடப்பட்ட திட்டம் உள்ளது; [JSON வெளியீடு](../../../docs/json-output.md) என்பதைப் பார்க்கவும். சாதனங்கள் அசல் `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` மற்றும் `errors` புலங்களைத் தக்கவைத்து, ஒவ்வொரு ஆய்வின் `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, அல்லது ஆய்வு உள்ளூரில் தோல்வியடைந்தாலோ அதன் காலக்கெடுவை எட்டினாலோ `unknown`), `version` மற்றும் `details` ஆகியவற்றைக் கொண்ட `services` பட்டியலைச் சேர்க்கின்றன. CSV வெளியீடு திறந்தவற்றிற்கான பின் இணைப்பு `services` மற்றும் `versions` நெடுவரிசைகளைப் பெறுகிறது. `ssh`, `snmp` மற்றும் `mysql` பூலியன்கள் அதே பெயர்களைக் கொண்ட சேவைகளைப் பின்பற்றுகின்றன.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## பட்டியல் சுயவிவரங்கள், முன்-சரிபார்ப்பு மற்றும் உள்ளூர் வரலாறு
 
@@ -244,6 +250,8 @@ hostcensus compare 1 2 --history output/inventory.sqlite3 -o output/changes.json
 
 வரலாறு பட்டியல் தகவலைச் சேமிக்கிறது, எனவே சரியான முறையில் பாதுகாக்கப்பட்ட உள்ளூர் கோப்பகத்தைத் தேர்ந்தெடுக்கவும். சுயவிவரக் கோப்புகள் மற்றும் சேமிக்கப்பட்ட அமைப்புகளில் SNMP சான்றுகள் இல்லை; சான்று கையாளுதல் தற்போதுள்ள இயக்க நேர விருப்பத்தேர்வுகள்/சூழல் வழியாகத் தொடர்கிறது.
 
+<a name="inventory-diff"></a>
+
 ## பட்டியல் வேறுபாடு
 
 ```bash
@@ -260,6 +268,8 @@ hostcensus diff monday.json tuesday.json -f json     # JSON on stdout
 `--deadline` மூலம் நிறுத்தப்பட்ட ஸ்கேனிலிருந்து (`"complete": false`) பெறப்பட்ட அறிக்கை அது அடைந்த ஹோஸ்ட்களை மட்டுமே பட்டியலிடுகிறது, எனவே `diff` மற்றும் `export` அதை வெளியேறு குறியீடு 2 உடன் நிராகரிக்கின்றன. `--allow-partial` அதை stderr-இல் ஒரு எச்சரிக்கையுடன் ஏற்கிறது: `diff` அப்போது முழுமையற்ற ஸ்கேன் பட்டியலிடாத ஹோஸ்ட்களை vanished என்பதற்குப் பதிலாக `unsettled_hosts`-இன் கீழ் `unscanned` எனப் பட்டியலிடுகிறது (அது முடங்கியதாகப் பட்டியலிட்டுள்ள ஹோஸ்ட் இன்னும் vanished ஆகவே இருக்கும்), `partial` என்பதை true என அமைக்கிறது மற்றும் ஒருபோதும் மாற்றம் இல்லை எனப் புகாரளிக்காது, மேலும் `export` ஸ்கிரிப்ட் தலைப்பில் ஒரு எச்சரிக்கையை எழுதுகிறது.
 
 `diff` வெளியேறு குறியீடுகள்: `0` மாற்றங்கள் இல்லை, `3` மாற்றங்கள் கண்டறியப்பட்டன, உறுதிப்படுத்த முடியாத ஆய்வுகள், அல்லது முழுமையற்ற உள்ளீடு (`unsettled_hosts` மற்றும் `unconfirmed` உட்பட எந்தப் பட்டியலும் வெறுமையாக இல்லாமல் இருந்தால் அல்லது `partial` true ஆக இருந்தால் `changed` true ஆகும்), `2` ஒரு கோப்பு காணவில்லை, படிக்க முடியவில்லை, ஆதரிக்கப்படும் ஸ்னாப்ஷாட் அல்ல, அல்லது `--allow-partial` இல்லாமல் முழுமையற்றது, `1` `-o` கோப்பை எழுத முடியவில்லை.
+
+<a name="kadupul-export"></a>
 
 ## Kadupul ஏற்றுமதி
 

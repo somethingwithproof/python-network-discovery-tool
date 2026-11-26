@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -58,6 +58,8 @@ om die inventarisfunksies wat hier gedokumenteer word, te gebruik.
 Begin met [installasie](#install), dan [profiele en geskiedenis](#inventory-profiles-preflight-and-local-history).
 Vir integrasiebesonderhede, sien [diensvingerafdrukke](#fingerprints),
 [lêervergelykings](#inventory-diff) en [Kadupul-uitvoer](#kadupul-export).
+
+<a name="install"></a>
 
 ## Installasie
 
@@ -189,6 +191,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 By verstek word elke gasheer getoets vir SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) en HTTPS (TCP 443). TCP-poorte word met 'n volle verbinding getoets. SNMP word getoets met 'n SNMPv3-enjinontdekkingsversoek, waarop enige SNMPv3-agent sonder aanmeldbesonderhede moet antwoord; agente wat slegs v1/v2c praat, sal nie deur hierdie sonde opgespoor word nie. Met die asyncio-agterkant tel 'n gasheer as lewendig wanneer enige sonde 'n antwoord kry, insluitend 'n geweierde verbinding, dus het 'n gasheer wat elke sonde laat val `alive=false` en die fout "Host is down"; dit bewys nie dat dit fisies af is nie. Met `--backend nmap` besluit nmap watter gashere lewendig is (ICMP as root, TCP 80/443 andersins).
 
+<a name="fingerprints"></a>
+
 ### Vingerafdrukke
 
 Elke oop diens word gevingerafdruk uit wat dit stuur voor enige aanmelding. Niks verifieer nie behalwe die SNMP-navraag, en slegs wanneer jy aanmeldbesonderhede verskaf.
@@ -229,6 +233,8 @@ probe = "https"
 
 JSON-verslae is weergawebeheerde dokumente (`"format": "hostcensus-report"`, `"version": 1`) wat die teiken, gesondeerde dienste en instellings langs `devices` aanteken; `--format json` sonder `-o` skryf die verslag na stdout in plaas van die tabel. Elke JSON-uitvoer het 'n gepubliseerde skema; sien [JSON-uitvoer](../../../docs/json-output.md). Toestelle behou die oorspronklike `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` en `errors`-velde en voeg 'n `services`-lys by met elke sonde se `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, of `unknown` wanneer die sonde plaaslik misluk het of sy sperdatum getref het), `version` en `details`. CSV-uitvoer kry agtervolgende `services`- en `versions`-kolomme vir die oop dienste. Die `ssh`-, `snmp`- en `mysql`-booleans volg die dienste met presies daardie name.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## Inventarisprofiele, voorvlugkontrole en plaaslike geskiedenis
 
@@ -317,6 +323,8 @@ Geskiedenis stoor inventarisinligting, so kies 'n toepaslik beskermde plaaslike
 gids. Profiellêers en gestoorde instellings bevat nie SNMP-aanmeldbesonderhede nie;
 aanmeldbesonderhede-hantering gaan voort deur die bestaande looptydopsies/omgewing.
 
+<a name="inventory-diff"></a>
+
 ## Inventaris-diff
 
 ```bash
@@ -333,6 +341,8 @@ hostcensus diff monday.json tuesday.json -f json     # JSON on stdout
 'n Verslag van 'n skandering wat deur `--deadline` gestop is (`"complete": false`) lys slegs die gashere wat dit bereik het, so `diff` en `export` weier dit met afsluitkode 2. `--allow-partial` aanvaar dit met 'n waarskuwing op stderr: `diff` lys dan gashere wat die onvolledige skandering glad nie gelys het nie onder `unsettled_hosts` as `unscanned` in plaas van verdwene ('n gasheer wat dit as af gelys het, is steeds verdwene), stel `partial` op true en rapporteer nooit geen verandering nie, en `export` skryf 'n waarskuwing in die skripkopskrif.
 
 `diff`-afsluitkodes: `0` geen veranderinge, `3` veranderinge gevind, waarnemings wat nie bevestig kon word nie, of 'n onvolledige toevoer (`changed` is true wanneer enige lys, insluitend `unsettled_hosts` en `unconfirmed`, nie-leeg is, of `partial` true is), `2` 'n lêer ontbreek, is onleesbaar, nie 'n ondersteunde kiekie nie, of onvolledig sonder `--allow-partial`, `1` die `-o`-lêer kon nie geskryf word nie.
+
+<a name="kadupul-export"></a>
 
 ## Kadupul-uitvoer
 

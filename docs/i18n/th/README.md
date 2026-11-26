@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -38,6 +38,8 @@ hostcensus เป็น Python CLI สำหรับการจัดทำร
 CI ครอบคลุม Python 3.12, 3.13 และ 3.14 บน Linux และ macOS รวมถึงแล็บทดสอบการรวมระบบแบบควบคุมด้วย Compose โค้ดใช้ type alias สมัยใหม่ ผลลัพธ์ preflight แบบกำหนดชนิด โปรไฟล์แบบสล็อตที่รับเฉพาะอาร์กิวเมนต์แบบคีย์เวิร์ด และการคืนทรัพยากรแบบอะซิงโครนัสที่มีโครงสร้าง โดยยังคงรองรับรันไทม์เวอร์ชันเหล่านั้น ดู [การกำหนดเวอร์ชันและการเผยแพร่](../../../docs/releasing.md) สำหรับข้อตกลงความเข้ากันได้แบบ SemVer และกระบวนการเผยแพร่บน GitHub ป้ายแสดงเวอร์ชันที่เผยแพร่นั้นอธิบายถึงอาร์ติแฟกต์ที่เผยแพร่แล้ว ไม่ใช่โค้ดชุดที่ checkout มา โดยแท็กล่าสุดที่เผยแพร่ในปัจจุบันคือ `v0.3.0` ขณะที่โค้ดชุดนี้ใช้เวอร์ชันแพ็กเกจ `3.0.0` ให้ติดตั้งจากโค้ดชุดที่ checkout นี้เพื่อใช้งานฟีเจอร์รายการบริการที่อธิบายไว้ในเอกสารนี้
 
 เริ่มต้นที่ [การติดตั้ง](#install) จากนั้นดูที่ [โปรไฟล์และประวัติ](#inventory-profiles-preflight-and-local-history) สำหรับรายละเอียดการผสานรวม ดูที่ [ลายนิ้วมือบริการ](#fingerprints), [การเปรียบเทียบไฟล์](#inventory-diff) และ [การส่งออกไปยัง Kadupul](#kadupul-export)
+
+<a name="install"></a>
 
 ## การติดตั้ง
 
@@ -155,6 +157,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 โดยค่าเริ่มต้นแต่ละโฮสต์จะถูกตรวจสอบสำหรับ SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) และ HTTPS (TCP 443) พอร์ต TCP จะถูกทดสอบด้วยการเชื่อมต่อแบบเต็มรูปแบบ ส่วน SNMP จะทดสอบด้วยคำขอค้นหาเอนจิน SNMPv3 (engine-discovery) ซึ่งเอเจนต์ SNMPv3 ทุกตัวต้องตอบกลับโดยไม่ต้องใช้ข้อมูลรับรอง เอเจนต์ที่รองรับเฉพาะ v1/v2c จะไม่ถูกตรวจพบด้วยวิธีการนี้ เมื่อใช้แบ็กเอนด์ asyncio โฮสต์จะนับว่าทำงานอยู่เมื่อมีการตอบกลับจากการตรวจสอบใด ๆ รวมถึงการปฏิเสธการเชื่อมต่อ ดังนั้นโฮสต์ที่ทิ้งแพ็กเก็ตการตรวจสอบทั้งหมดจะมีค่า `alive=false` และข้อผิดพลาด "Host is down" ซึ่งไม่ได้พิสูจน์ว่าเครื่องปิดอยู่จริง เมื่อใช้ `--backend nmap` ตัว nmap จะเป็นผู้ตัดสินว่าโฮสต์ใดทำงานอยู่ (ใช้ ICMP เมื่อรันด้วยสิทธิ์ root และใช้ TCP 80/443 ในกรณีอื่น)
 
+<a name="fingerprints"></a>
+
 ### ลายนิ้วมือบริการ (Fingerprints)
 
 บริการที่เปิดอยู่แต่ละรายการจะถูกเก็บลายนิ้วมือจากข้อมูลที่ส่งมาก่อนมีการเข้าสู่ระบบ ไม่มีการยืนยันตัวตนใด ๆ ยกเว้นการคิวรี SNMP และจะทำเฉพาะเมื่อคุณระบุข้อมูลรับรองเท่านั้น
@@ -194,6 +198,8 @@ probe = "https"
 `probe` มีค่าเป็น `tcp`, `ssh`, `mysql`, `http`, `https` หรือ `snmp` และจะใช้ชื่อบริการเป็นค่าเริ่มต้นหากชื่อนั้นเป็นชนิดของตัวตรวจสอบ มิฉะนั้นจะใช้ `tcp` มีเพียง `snmp` เท่านั้นที่ใช้ UDP ชื่อบริการต้องเป็นตัวอักษรพิมพ์เล็ก ตัวเลข `-` และ `_` บริการสองรายการไม่สามารถใช้พอร์ตและโปรโตคอลร่วมกันได้ เนื่องจากประวัติจะบันทึกเพียงหนึ่งสถานะสำหรับคู่นั้น `timeout` เป็นตัวเลือกเสริม มีหน่วยเป็นวินาที และต้องมีค่าอย่างน้อย 0.05 ตัวตรวจสอบแบบเชื่อมต่อ (`tcp`, `ssh`, `mysql`, `http`) มีค่าเริ่มต้นที่ 0.3 วินาที ส่วน `snmp` และ `https` จะใช้ `--timeout` ของการสแกนเมื่อบริการไม่ได้ตั้งค่า `timeout` ไว้ ทั้งนี้ `--timeout` จะไม่แทนที่งบประมาณเวลาที่บริการกำหนดไว้แล้ว
 
 รายงาน JSON เป็นเอกสารที่มีการระบุเวอร์ชัน (`"format": "hostcensus-report"`, `"version": 1`) ซึ่งบันทึกเป้าหมาย บริการที่ตรวจสอบ และการตั้งค่าไว้คู่กับ `devices`; การใช้ `--format json` โดยไม่ระบุ `-o` จะเขียนรายงานไปยัง stdout แทนตาราง เอาต์พุต JSON ทุกแบบมีสคีมาที่เผยแพร่อยู่ ดู [เอาต์พุต JSON](../../../docs/json-output.md) รายการอุปกรณ์ยังคงฟิลด์ `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` และ `errors` เดิมไว้ และเพิ่มรายการ `services` ที่ระบุ `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered` หรือ `unknown` เมื่อตัวตรวจสอบล้มเหลวในเครื่องหรือเกินกำหนดเวลา), `version` และ `details` ของแต่ละการตรวจสอบ เอาต์พุต CSV จะเพิ่มคอลัมน์ `services` และ `versions` ต่อท้ายสำหรับบริการที่เปิดอยู่ ค่าบูลีน `ssh`, `snmp` และ `mysql` จะอ้างอิงตามบริการที่มีชื่อตรงกันทุกประการ
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## โปรไฟล์รายการบริการ การตรวจสอบเบื้องต้น และประวัติในเครื่อง
 
@@ -242,6 +248,8 @@ hostcensus compare 1 2 --history output/inventory.sqlite3 -o output/changes.json
 
 ประวัติจะจัดเก็บข้อมูลรายการบริการ ดังนั้นควรเลือกไดเรกทอรีในเครื่องที่มีการป้องกันอย่างเหมาะสม ไฟล์โปรไฟล์และการตั้งค่าที่จัดเก็บไว้จะไม่มีข้อมูลรับรอง SNMP การจัดการข้อมูลรับรองยังคงทำผ่านตัวเลือกขณะรันและตัวแปรสภาพแวดล้อมที่มีอยู่
 
+<a name="inventory-diff"></a>
+
 ## การเปรียบเทียบรายการบริการ (Inventory diff)
 
 ```bash
@@ -258,6 +266,8 @@ hostcensus diff monday.json tuesday.json -f json     # JSON on stdout
 รายงานจากการสแกนที่ถูกหยุดโดย `--deadline` (`"complete": false`) จะแสดงเฉพาะโฮสต์ที่สแกนไปถึงเท่านั้น ดังนั้น `diff` และ `export` จึงปฏิเสธรายงานดังกล่าวด้วยรหัสออก 2 ตัวเลือก `--allow-partial` จะยอมรับรายงานนี้พร้อมแสดงคำเตือนทาง stderr: จากนั้น `diff` จะจัดโฮสต์ที่การสแกนไม่สมบูรณ์ไม่ได้ระบุไว้เลยให้อยู่ภายใต้ `unsettled_hosts` ในสถานะ `unscanned` แทนที่จะเป็นโฮสต์ที่หายไป (โฮสต์ที่ระบุว่าปิดอยู่จะยังคงเป็นโฮสต์ที่หายไป) ตั้งค่า `partial` เป็น true และจะไม่รายงานว่าไม่มีการเปลี่ยนแปลง ส่วน `export` จะเขียนคำเตือนไว้ในส่วนหัวของสคริปต์
 
 รหัสออกของ `diff`: `0` ไม่มีการเปลี่ยนแปลง, `3` พบการเปลี่ยนแปลง ผลสังเกตการณ์ที่ไม่สามารถยืนยันได้ หรืออินพุตไม่สมบูรณ์ (`changed` จะเป็น true เมื่อใดก็ตามที่รายการใด ๆ รวมถึง `unsettled_hosts` และ `unconfirmed` ไม่ว่างเปล่า หรือ `partial` เป็น true), `2` ไฟล์ขาดหาย อ่านไม่ได้ ไม่ใช่สแนปช็อตที่รองรับ หรือไม่สมบูรณ์โดยไม่มี `--allow-partial`, `1` ไม่สามารถเขียนไฟล์ `-o` ได้
+
+<a name="kadupul-export"></a>
 
 ## การส่งออกไปยัง Kadupul
 

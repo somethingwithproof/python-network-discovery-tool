@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -40,6 +40,8 @@ L'intégration continue (CI) couvre Python 3.12, 3.13 et 3.14 sur Linux et macOS
 
 Commencez par l'[installation](#install), puis consultez [profils et historique](#inventory-profiles-preflight-and-local-history).
 Pour les détails d'intégration, voir [empreintes des services](#fingerprints), [comparaisons de fichiers](#inventory-diff) et [export Kadupul](#kadupul-export).
+
+<a name="install"></a>
 
 ## Installation
 
@@ -159,6 +161,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 Par défaut, chaque hôte est vérifié pour SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) et HTTPS (TCP 443). Les ports TCP sont testés par une connexion complète. SNMP est testé par une requête de découverte de moteur SNMPv3, à laquelle tout agent SNMPv3 doit répondre sans identifiants ; les agents qui ne parlent que v1/v2c ne seront pas détectés par cette sonde. Avec le moteur asyncio, un hôte est considéré comme actif dès qu'une sonde obtient une réponse, y compris une connexion refusée ; un hôte qui ignore toutes les sondes obtient donc `alive=false` et l'erreur "Host is down", ce qui ne prouve pas qu'il soit physiquement éteint. Avec `--backend nmap`, c'est nmap qui détermine quels hôtes sont actifs (ICMP en root, TCP 80/443 sinon).
 
+<a name="fingerprints"></a>
+
 ### Empreintes des services
 
 Chaque service ouvert est identifié à partir de ce qu'il envoie avant toute authentification. Aucune sonde ne s'authentifie, à l'exception de la requête SNMP, et uniquement lorsque vous fournissez des identifiants.
@@ -199,6 +203,8 @@ probe = "https"
 
 Les rapports JSON sont des documents versionnés (`"format": "hostcensus-report"`, `"version": 1`) qui enregistrent la cible, les services sondés et les paramètres aux côtés de `devices` ; `--format json` sans `-o` écrit le rapport sur stdout à la place du tableau. Chaque sortie JSON dispose d'un schéma publié ; voir [Sortie JSON](../../../docs/json-output.md). Les équipements conservent les champs d'origine `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` et `errors`, et ajoutent une liste `services` contenant pour chaque sonde `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, ou `unknown` lorsque la sonde a échoué localement ou dépassé son échéance), `version` et `details`. La sortie CSV ajoute en fin de ligne les colonnes `services` et `versions` pour les services ouverts. Les booléens `ssh`, `snmp` et `mysql` suivent les services portant exactement ces noms.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## Profils d'inventaire, contrôle préalable et historique local
 
@@ -247,6 +253,8 @@ Utilisez les identifiants fournis par `history` ; l'exemple suppose une base neu
 
 L'historique stocke des informations d'inventaire ; choisissez donc un répertoire local convenablement protégé. Les fichiers de profils et les paramètres stockés ne contiennent pas d'identifiants SNMP ; la gestion des identifiants passe toujours par les options d'exécution et les variables d'environnement existantes.
 
+<a name="inventory-diff"></a>
+
 ## Comparaison d'inventaire (diff)
 
 ```bash
@@ -263,6 +271,8 @@ Un instantané est un fichier JSON contenant `format: "hostcensus-snapshot"`, `v
 Un rapport issu d'une analyse interrompue par `--deadline` (`"complete": false`) ne liste que les hôtes atteints avant l'arrêt ; `diff` et `export` le refusent donc avec le code de retour 2. `--allow-partial` l'accepte avec un avertissement sur stderr : `diff` place alors les hôtes totalement absents de l'analyse incomplète dans `unsettled_hosts` avec l'état `unscanned` au lieu de les déclarer disparus (un hôte indiqué comme hors ligne reste considéré disparu), positionne `partial` à true et ne renvoie jamais « aucun changement », tandis que `export` ajoute un avertissement dans l'en-tête du script.
 
 Codes de retour de `diff` : `0` aucun changement, `3` changements détectés, observations impossibles à confirmer ou entrée incomplète (`changed` vaut true dès qu'une liste quelconque, y compris `unsettled_hosts` et `unconfirmed`, est non vide, ou lorsque `partial` vaut true), `2` fichier manquant, illisible, instantané non pris en charge ou incomplet sans `--allow-partial`, `1` impossible d'écrire le fichier `-o`.
+
+<a name="kadupul-export"></a>
 
 ## Export vers Kadupul
 

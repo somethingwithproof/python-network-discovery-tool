@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -58,6 +58,8 @@ ka i wee jiri atụmatụ ndepụta a kọwara ebe a.
 Malite na [nwụnye](#install), mesịa [profaịlụ na akụkọ ihe mere eme](#inventory-profiles-preflight-and-local-history).
 Maka nkọwa njikọta, hụ [akara mkpịsị aka ọrụ](#fingerprints),
 [ntụnyere faịlụ](#inventory-diff), na [mbupụ Kadupul](#kadupul-export).
+
+<a name="install"></a>
 
 ## Nwụnye
 
@@ -189,6 +191,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 Site na ndabere, a na-elele ngwaọrụ ọ bụla maka SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) na HTTPS (TCP 443). A na-anwale pọtụ TCP site na njikọ zuru oke. A na-anwale SNMP site na arịrịọ nchọpụta injin SNMPv3, nke onye ọrụ SNMPv3 ọ bụla ga-aza n'enweghị nzere; nnyocha a agaghị achọpụta ndị ọrụ na-asụ naanị v1/v2c. Site na nkwado azụ asyncio, a na-agụ ngwaọrụ dị ka nke dị ndụ mgbe nnyocha ọ bụla nwetara azịza, gụnyere njikọ a jụrụ ajụ, ya mere ngwaọrụ na-atụfu nnyocha ọ bụla nwere `alive=false` na mmejọ "Host is down"; nke a egosighị na ọ gbanyụrụ n'ezie. Site na `--backend nmap`, nmap na-ekpebi ngwaọrụ ndị dị ndụ (ICMP dị ka root, TCP 80/443 ma ọ bụghị ya).
 
+<a name="fingerprints"></a>
+
 ### Akara mkpịsị aka ọrụ
 
 A na-ewepụta akara mkpịsị aka nke ọrụ ọ bụla mepere emepe site n'ihe o zigara tupu nbanye ọ bụla. Ọ dịghị ihe na-akwado njirimara belụsọ ajụjụ SNMP, ma ọ bụ naanị mgbe i nyere nzere.
@@ -229,6 +233,8 @@ probe = "https"
 
 Akụkọ JSON bụ akwụkwọ nwere ụdị (`"format": "hostcensus-report"`, `"version": 1`) nke na-edekọ ebe a na-achọ, ọrụ a nyochara na ntọala n'akụkụ `devices`; `--format json` n'enweghị `-o` na-ede akụkọ ahụ na stdout kama tebụl. Mpụta JSON ọ bụla nwere schema e bipụtara; hụ [Mpụta JSON](../../../docs/json-output.md). Ngwaọrụ na-edobe ubi mbụ `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` na `errors` ma tinye ndepụta `services` nwere `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, ma ọ bụ `unknown` mgbe nnyocha dara na mpaghara ma ọ bụ ruo oge njedebe ya), `version` na `details` nke nnyocha ọ bụla. Mpụta CSV na-enweta kọlụm `services` na `versions` n'azụ maka ndị mepere emepe. Boolean `ssh`, `snmp` na `mysql` na-agbaso ọrụ nwere kpọmkwem aha ndị ahụ.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## Profaịlụ ndepụta, nlele mbido, na akụkọ ihe mere eme mpaghara
 
@@ -317,6 +323,8 @@ Akụkọ ihe mere eme na-echekwa ozi ndepụta, ya mere họrọ folda mpaghara
 nke ọma. Faịlụ profaịlụ na ntọala e chekwara enweghị nzuzo SNMP;
 njikwa nzere na-aga n'ihu site na nhọrọ oge ọrụ/gburugburu dị adị.
 
+<a name="inventory-diff"></a>
+
 ## Ntụnyere ndepụta (diff)
 
 ```bash
@@ -333,6 +341,8 @@ Foto bụ JSON nwere `format: "hostcensus-snapshot"`, `version: 1`, ụdị host
 Akụkọ sitere na nnyocha nke `--deadline` kwụsịrị (`"complete": false`) na-edepụta naanị ngwaọrụ o ruru, ya mere `diff` na `export` na-ajụ ya na koodu ọpụpụ 2. `--allow-partial` na-anabata ya nwere ịdọ aka na ntị na stderr: `diff` na-edepụta ngwaọrụ ndị nnyocha na-ezughị ezu ahụ edepụtaghị ma ọlị n'okpuru `unsettled_hosts` dị ka `unscanned` kama nke furu efu (ngwaọrụ o depụtara dị ka nke gbanyụrụ ka bụ nke furu efu), na-atọ `partial` ka ọ bụrụ eziokwu ma ọ dịghị mgbe ọ na-akọ enweghị mgbanwe, ma `export` na-ede ịdọ aka na ntị n'isiokwu skripti ahụ.
 
 Koodu ọpụpụ `diff`: `0` enweghị mgbanwe, `3` a hụrụ mgbanwe, nchọpụta a na-apụghị ikwenye, ma ọ bụ ntinye na-ezughị ezu (`changed` bụ eziokwu mgbe ọ bụla ndepụta ọ bụla, gụnyere `unsettled_hosts` na `unconfirmed`, na-abụghị efu, ma ọ bụ `partial` bụ eziokwu), `2` faịlụ na-efu, a na-apụghị ịgụ, abụghị foto a kwadoro, ma ọ bụ ezughị ezu n'enweghị `--allow-partial`, `1` a pụghị ide faịlụ `-o`.
+
+<a name="kadupul-export"></a>
 
 ## Mbupụ Kadupul
 

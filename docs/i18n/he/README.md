@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -38,6 +38,8 @@ hostcensus הוא כלי CLI ב-Python לביצוע סקירת מלאי שירו
 CI מכסה את Python 3.12, 3.13 ו-3.14 ב-Linux וב-macOS, בנוסף למעבדת אינטגרציה מבוקרת ב-Compose. הקוד משתמש בכינויי טיפוסים מודרניים (type aliases), תוצאות preflight מוקלדות (typed), פרופילים עם keyword-only ו-slots, וניקוי אסינכרוני מובנה תוך שמירה על תמיכה בגרסאות זמן ריצה אלו. ראו [ניהול גרסאות ושחרורים](../../../docs/releasing.md) עבור חוזה התאימות של SemVer ותהליך השחרור ב-GitHub. תגית השחרור מתארת ארטיפקטים שפורסמו, ולא את העותק המקומי הנוכחי: התגית המפורסמת האחרונה היא כרגע `v0.3.0`, בעוד שענף זה משתמש בגרסת חבילה `3.0.0`. התקינו מתוך העותק המקומי כדי להשתמש בתכונות המלאי המתועדות כאן.
 
 התחילו ב[התקנה](#install), ולאחר מכן עברו אל [פרופילים והיסטוריה](#inventory-profiles-preflight-and-local-history). לפרטי אינטגרציה, ראו [טביעות אצבע של שירותים](#fingerprints), [השוואת קבצים](#inventory-diff) ו[ייצוא ל-Kadupul](#kadupul-export).
+
+<a name="install"></a>
 
 ## התקנה
 
@@ -156,6 +158,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 כברירת מחדל, כל מארח נבדק עבור SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) ו-HTTPS (TCP 443). פורטי TCP נבדקים באמצעות חיבור מלא (full connect). SNMP נבדק באמצעות בקשת SNMPv3 engine-discovery, שכל סוכן SNMPv3 חייב לענות עליה ללא פרטי אימות; סוכנים המדברים v1/v2c בלבד לא יזוהו בבדיקה זו. עם מנוע asyncio, מארח נחשב חי (alive) כאשר בדיקה כלשהי מקבלת מענה, כולל חיבור שנדחה, כך שלמארח שמשמיט (drops) כל בדיקה יש `alive=false` והשגיאה `"Host is down"`; אין בכך הוכחה שהוא כבוי פיזית. עם `--backend nmap`, nmap קובע אילו מארחים חיים (ICMP כ-root, ו-TCP 80/443 אחרת).
 
+<a name="fingerprints"></a>
+
 ### טביעות אצבע של שירותים
 
 כל שירות פתוח מזוהה לפי טביעת אצבע מתוך מה שהוא שולח לפני כל התחברות. דבר אינו מאמת זהות מלבד שאילתת SNMP, וזאת רק כאשר אתם מספקים פרטי אימות.
@@ -196,6 +200,8 @@ probe = "https"
 
 דוחות JSON הם מסמכים מנוהלי גרסאות (`"format": "hostcensus-report"`, `"version": 1`) המתעדים את היעד, השירותים שנבדקו וההגדרות לצד `devices`; `--format json` ללא `-o` כותב את הדוח ל-stdout במקום הטבלה. לכל פלט JSON יש סכמה מפורסמת; ראו [פלט JSON](../../../docs/json-output.md). מכשירים שומרים על השדות המקוריים `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` ו-`errors` ומוסיפים רשימת `services` עם `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, או `unknown` כאשר הבדיקה נכשלה מקומית או הגיעה למגבלת הזמן שלה), `version` ו-`details` של כל בדיקה. פלט CSV מקבל עמודות נגררות `services` ו-`versions` עבור השירותים הפתוחים. השדות הבוליאניים `ssh`, `snmp` ו-`mysql` עוקבים אחר השירותים בעלי שמות אלה בדיוק.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## פרופילי מלאי, בדיקת מוכנות והיסטוריה מקומית
 
@@ -244,6 +250,8 @@ hostcensus compare 1 2 --history output/inventory.sqlite3 -o output/changes.json
 
 ההיסטוריה שומרת מידע מלאי, לכן בחרו תיקייה מקומית מוגנת כראוי. קובצי פרופיל והגדרות שמורות אינם מכילים פרטי אימות של SNMP; הטיפול בפרטי אימות ממשיך דרך אפשרויות זמן הריצה/משתני הסביבה הקיימים.
 
+<a name="inventory-diff"></a>
+
 ## השוואת מלאי (Inventory diff)
 
 ```bash
@@ -260,6 +268,8 @@ hostcensus diff monday.json tuesday.json -f json     # JSON on stdout
 דוח מסריקה שנעצרה על ידי `--deadline` (`"complete": false`) מפרט רק את המארחים שאליהם הגיעה, ולכן `diff` ו-`export` דוחים אותו עם קוד יציאה 2. `--allow-partial` מקבל אותו עם אזהרה ל-stderr: במקרה זה `diff` מפרט מארחים שהסריקה החלקית כלל לא ציינה תחת `unsettled_hosts` בתור `unscanned` במקום נעלמים (מארח שהיא רשמה ככבוי עדיין נחשב נעלם), מגדיר את `partial` ל-true ולעולם אינו מדווח על היעדר שינוי, ו-`export` כותב אזהרה לתוך כותרת הסקריפט.
 
 קודי היציאה של `diff`: `0` ללא שינויים, `3` נמצאו שינויים, תצפיות שלא ניתן היה לאמת, או קלט חלקי (`changed` הוא true בכל פעם שרשימה כלשהי, כולל `unsettled_hosts` ו-`unconfirmed`, אינה ריקה, או ש-`partial` הוא true), `2` קובץ חסר, לא קריא, אינו תמונת מצב נתמכת, או חלקי ללא `--allow-partial`, `1` לא ניתן היה לכתוב את קובץ `-o`.
+
+<a name="kadupul-export"></a>
 
 ## ייצוא ל-Kadupul
 

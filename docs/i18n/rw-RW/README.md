@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -41,6 +41,8 @@ CI ikorera kuri Python 3.12, 3.13 na 3.14 kuri Linux na macOS, wongeyeho laborat
 Tangirira ku [gushyiramo](#install), hanyuma [imyirondoro n'amateka](#inventory-profiles-preflight-and-local-history).
 Ku bisobanuro byo guhuza n'ibindi, reba [ibimenyetso biranga serivisi](#fingerprints),
 [igereranya ry'amadosiye](#inventory-diff), na [kohereza muri Kadupul](#kadupul-export).
+
+<a name="install"></a>
 
 ## Gushyiramo
 
@@ -165,6 +167,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 Mu buryo bw'ibanze, buri mashini igenzurwaho SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) na HTTPS (TCP 443). Port za TCP zisuzumwa hakoreshejwe ihuza ryuzuye (full connect). SNMP isuzumwa hakoreshejwe icyifuzo cyo gushakisha engine ya SNMPv3, buri agent ya SNMPv3 igomba gusubiza nta makuru yo kwinjira; agent zikoresha v1/v2c gusa ntizimenyekana muri iri suzuma. Hakoreshejwe backend ya asyncio, imashini ibarwa nk'izima iyo isuzuma iryo ari ryo ryose ribonye igisubizo, harimo n'ihuza ryanzwe, bityo imashini yanga buri suzuma ntigire icyo isubiza iba ifite `alive=false` n'ikosa "Host is down"; ibi ntibyemeza ko izimije mu by'ukuri. Hakoreshejwe `--backend nmap`, nmap ni yo yemeza imashini zizima (ICMP nk'umukoresha root, cyangwa TCP 80/443 ubundi).
 
+<a name="fingerprints"></a>
+
 ### Ibimenyetso biranga serivisi
 
 Buri serivisi ifunguye isuzumirwa ibimenyetso bihereye ku byo yohereza mbere yo kwinjira (login). Nta kintu gikora ubugenzuzi bwo kwinjira keretse ikibazo cya SNMP, kandi gusa iyo utanze amakuru yo kwinjira.
@@ -205,6 +209,8 @@ probe = "https"
 
 Raporo za JSON ni inyandiko zifite verisiyo (`"format": "hostcensus-report"`, `"version": 1`) zibika intego, serivisi zasuzumwe n'amagenamiterere iruhande rwa `devices`; `--format json` idafite `-o` yandika raporo kuri stdout aho kwerekana imbonerahamwe. Buri gisubizo cya JSON gifite schema yatangajwe; reba [Ibisubizo bya JSON](../../../docs/json-output.md). Ibikoresho bigumana ibice by'ibanze bya `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` na `errors` bikongeraho urutonde rwa `services` rurimo `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, cyangwa `unknown` iyo isuzuma ryananiwe ku mashini ukorera ho cyangwa ryageze ku gihe ntarengwa), `version` na `details` za buri suzuma. Ibisubizo bya CSV byongerwaho inkingi z'impera za `services` na `versions` kuri serivisi zifunguye. Agaciro ka boolean ka `ssh`, `snmp` na `mysql` gakurikiza serivisi zifite ayo mazina neza.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## Imyirondoro y'ibarura, isuzuma rya mbere n'amateka yo ku mashini
 
@@ -292,6 +298,8 @@ igumana amasezerano yayo ya kode 3 yo gusohoka. Amateka adashyigikiwe cyangwa ya
 Amateka abika amakuru y'ibarura, bityo hitamo ububiko bwo ku mashini burinzwe bikwiye. Amadosiye y'imyirondoro n'amagenamiterere abitswe ntabamo amakuru yo kwinjira ya SNMP;
 imicungire y'amakuru yo kwinjira ikomeza kunyura mu mahitamo n'impinduragaciro z'ibidukikije bya runtime bisanzweho.
 
+<a name="inventory-diff"></a>
+
 ## Itandukaniro ry'ibarura
 
 ```bash
@@ -308,6 +316,8 @@ Snapshot ni JSON ifite `format: "hostcensus-snapshot"`, `version: 1`, verisiyo y
 Raporo y'igenzura ryahagaritswe na `--deadline` (`"complete": false`) igaragaza gusa imashini yagezeho, bityo `diff` na `export` ziyanga zisohoka zifite kode 2. `--allow-partial` irayemera hamwe n'umuburo kuri stderr: `diff` ihita ishyira imashini igenzura rituzuye ritagaragaje na gato muri `unsettled_hosts` nka `unscanned` aho kuba izazimiye (imashini yagaragajwe nk'izimije ikomeza kubarwa nk'iyazimiye), ishyira `partial` kuri true kandi ntizigera itangaza ko nta mpinduka zabaye, naho `export` yandika umuburo mu mutwe wa script.
 
 Kode zo gusohoka za `diff`: `0` nta mpinduka, `3` impinduka zabonetse, ibyabonetse bitashoboye kwemezwa, cyangwa idosiye ituzuye (`changed` iba true igihe cyose urutonde urwo ari rwo rwose, harimo `unsettled_hosts` na `unconfirmed`, rutari ubusa, cyangwa `partial` iri true), `2` idosiye irabura, ntishobora gusomwa, si snapshot ishyigikiwe, cyangwa ntiyuzuye kandi nta `--allow-partial`, `1` idosiye ya `-o` ntishoboye kwandikwa.
+
+<a name="kadupul-export"></a>
 
 ## Kohereza muri Kadupul
 

@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -58,6 +58,8 @@ ili kutumia vipengele vya orodha vilivyoandikwa hapa.
 Anza na [usakinishaji](#install), kisha [wasifu na historia](#inventory-profiles-preflight-and-local-history).
 Kwa maelezo ya ujumuishaji, tazama [alama za vidole za huduma](#fingerprints),
 [ulinganisho wa faili](#inventory-diff), na [uhamishaji wa Kadupul](#kadupul-export).
+
+<a name="install"></a>
 
 ## Usakinishaji
 
@@ -189,6 +191,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 Kwa chaguomsingi kila hosti hukaguliwa kwa SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) na HTTPS (TCP 443). Bandari za TCP hukaguliwa kwa muunganisho kamili. SNMP hukaguliwa kwa ombi la ugunduzi wa injini ya SNMPv3, ambalo wakala yeyote wa SNMPv3 lazima ajibu bila vitambulisho; mawakala wanaozungumza v1/v2c pekee hawatagunduliwa na uchunguzi huu. Kwa sehemu ya nyuma ya asyncio hosti huhesabiwa kuwa hai wakati uchunguzi wowote unapopata jibu, ikiwa ni pamoja na muunganisho uliokataliwa, kwa hivyo hosti inayotupa kila uchunguzi ina `alive=false` na hitilafu "Host is down"; hii haithibitishi kuwa imezimwa kimwili. Kwa `--backend nmap`, nmap huamua ni hosti zipi ziko hai (ICMP kama root, TCP 80/443 vinginevyo).
 
+<a name="fingerprints"></a>
+
 ### Alama za vidole
 
 Kila huduma iliyo wazi huchukuliwa alama ya kidole kutokana na kile inachotuma kabla ya kuingia. Hakuna kinachothibitisha utambulisho isipokuwa ulizo la SNMP, na tu unapotoa vitambulisho.
@@ -229,6 +233,8 @@ probe = "https"
 
 Ripoti za JSON ni nyaraka zenye matoleo (`"format": "hostcensus-report"`, `"version": 1`) zinazorekodi shabaha, huduma zilizochunguzwa na mipangilio karibu na `devices`; `--format json` bila `-o` huandika ripoti kwenye stdout badala ya jedwali. Kila toleo la JSON lina muundo uliochapishwa; tazama [Toleo la JSON](../../../docs/json-output.md). Vifaa huhifadhi sehemu za awali za `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` na `errors` na kuongeza orodha ya `services` yenye `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, au `unknown` wakati uchunguzi ulishindwa ndani au ulifikia muda wake wa mwisho), `version` na `details` za kila uchunguzi. Toleo la CSV hupata safuwima za mwisho za `services` na `versions` kwa zile zilizo wazi. Thamani za boolean za `ssh`, `snmp` na `mysql` hufuata huduma zenye majina hayo hasa.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## Wasifu wa orodha, ukaguzi wa awali, na historia ya ndani
 
@@ -317,6 +323,8 @@ Historia huhifadhi taarifa za orodha, kwa hivyo chagua saraka ya ndani iliyolind
 Faili za wasifu na mipangilio iliyohifadhiwa haina vitambulisho vya SNMP;
 ushughulikiaji wa vitambulisho huendelea kupitia chaguo/mazingira yaliyopo ya wakati wa utekelezaji.
 
+<a name="inventory-diff"></a>
+
 ## Tofauti ya orodha
 
 ```bash
@@ -333,6 +341,8 @@ Picha ya haraka ni JSON yenye `format: "hostcensus-snapshot"`, `version: 1`, tol
 Ripoti kutoka kwa uchanganuzi uliosimamishwa na `--deadline` (`"complete": false`) huorodhesha tu hosti ilizofikia, kwa hivyo `diff` na `export` huikataa kwa msimbo wa kutoka 2. `--allow-partial` huikubali ikiwa na onyo kwenye stderr: `diff` kisha huorodhesha hosti ambazo uchanganuzi usio kamili haukuorodhesha kabisa chini ya `unsettled_hosts` kama `unscanned` badala ya kutoweka (hosti iliyoorodheshwa kama iliyozimwa bado imetoweka), huweka `partial` kuwa true na kamwe hairipoti hakuna mabadiliko, na `export` huandika onyo kwenye kichwa cha hati.
 
 Misimbo ya kutoka ya `diff`: `0` hakuna mabadiliko, `3` mabadiliko yamepatikana, uchunguzi ambao haukuweza kuthibitishwa, au ingizo lisilo kamili (`changed` ni true wakati wowote orodha yoyote, ikiwa ni pamoja na `unsettled_hosts` na `unconfirmed`, si tupu, au `partial` ni true), `2` faili haipo, haisomeki, si picha ya haraka inayotumika, au si kamili bila `--allow-partial`, `1` faili ya `-o` haikuweza kuandikwa.
+
+<a name="kadupul-export"></a>
 
 ## Uhamishaji wa Kadupul
 

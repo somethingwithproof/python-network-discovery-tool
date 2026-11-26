@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -58,6 +58,8 @@ upang magamit ang mga feature ng imbentaryo na nakadokumento rito.
 Magsimula sa [pag-install](#install), pagkatapos ay [mga profile at history](#inventory-profiles-preflight-and-local-history).
 Para sa mga detalye ng integrasyon, tingnan ang [mga service fingerprint](#fingerprints),
 [mga paghahambing ng file](#inventory-diff), at [pag-export sa Kadupul](#kadupul-export).
+
+<a name="install"></a>
 
 ## Pag-install
 
@@ -189,6 +191,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 Bilang default, sinusuri ang bawat host para sa SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) at HTTPS (TCP 443). Sinusubok ang mga TCP port sa pamamagitan ng ganap na koneksyon. Sinusubok ang SNMP sa pamamagitan ng isang SNMPv3 engine-discovery request, na dapat sagutin ng sinumang SNMPv3 agent nang walang kredensyal; hindi matutukoy ng probe na ito ang mga agent na v1/v2c lamang ang sinasalita. Gamit ang asyncio backend, itinuturing na buhay ang isang host kapag nakatanggap ng sagot ang anumang probe, kabilang ang isang tinanggihang koneksyon, kaya ang isang host na nagda-drop ng lahat ng probe ay may `alive=false` at ang error na "Host is down"; hindi nito pinapatunayan na pisikal itong nakapatay. Gamit ang `--backend nmap`, ang nmap ang nagpapasya kung aling mga host ang buhay (ICMP bilang root, TCP 80/443 kung hindi).
 
+<a name="fingerprints"></a>
+
 ### Mga fingerprint
 
 Ang bawat bukas na serbisyo ay kinukuhanan ng fingerprint mula sa ipinapadala nito bago ang anumang pag-login. Walang nag-a-authenticate maliban sa SNMP query, at kapag nagbigay ka lamang ng mga kredensyal.
@@ -229,6 +233,8 @@ Ang `probe` ay isa sa `tcp`, `ssh`, `mysql`, `http`, `https` o `snmp` at nagde-d
 
 Ang mga JSON report ay mga naka-bersyong dokumento (`"format": "hostcensus-report"`, `"version": 1`) na nagtatala ng target, mga na-probe na serbisyo at mga setting sa tabi ng `devices`; ang `--format json` nang walang `-o` ay nagsusulat ng report sa stdout sa halip na sa talahanayan. Ang bawat JSON output ay may nai-publish na schema; tingnan ang [JSON output](../../../docs/json-output.md). Pinapanatili ng mga device ang orihinal na mga field na `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` at `errors` at nagdaragdag ng listahan ng `services` na may `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, o `unknown` kapag lokal na nabigo ang probe o naabot ang deadline nito), `version` at `details` ng bawat probe. Nagkakaroon ang CSV output ng mga trailing column na `services` at `versions` para sa mga bukas. Sinusundan ng mga boolean na `ssh`, `snmp` at `mysql` ang mga serbisyong may eksaktong ganoong mga pangalan.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## Mga inventory profile, preflight, at lokal na history
 
@@ -317,6 +323,8 @@ Nag-iimbak ang history ng impormasyon sa imbentaryo, kaya pumili ng lokal na dir
 Hindi naglalaman ng mga kredensyal ng SNMP ang mga profile file at mga naka-store na setting;
 patuloy na pinapangasiwaan ang mga kredensyal sa pamamagitan ng mga umiiral na runtime option/environment.
 
+<a name="inventory-diff"></a>
+
 ## Diff ng imbentaryo
 
 ```bash
@@ -333,6 +341,8 @@ Nag-uulat ang `diff` ng mga bago at nawalang host, mga port na nagbukas o nagsar
 Ang isang report mula sa isang scan na inihinto ng `--deadline` (`"complete": false`) ay naglilista lamang ng mga host na naabot nito, kaya tinatanggihan ito ng `diff` at `export` nang may exit code 2. Tinatanggap ito ng `--allow-partial` kasama ang isang babala sa stderr: pagkatapos ay inililista ng `diff` ang mga host na hindi talaga inilista ng hindi kumpletong scan sa ilalim ng `unsettled_hosts` bilang `unscanned` sa halip na vanished (ang isang host na inilista nito bilang down ay vanished pa rin), itinatakda ang `partial` sa true at hindi kailanman nag-uulat ng walang pagbabago, at nagsusulat ang `export` ng isang babala sa script header.
 
 Mga exit code ng `diff`: `0` walang pagbabago, `3` may nakitang mga pagbabago, mga obserbasyong hindi nakumpirma, o isang hindi kumpletong input (ang `changed` ay true tuwing may anumang listahan, kabilang ang `unsettled_hosts` at `unconfirmed`, na hindi walang laman, o true ang `partial`), `2` nawawala ang isang file, hindi mabasa, hindi suportadong snapshot, o hindi kumpleto nang walang `--allow-partial`, `1` hindi maisulat ang `-o` file.
+
+<a name="kadupul-export"></a>
 
 ## Pag-export sa Kadupul
 

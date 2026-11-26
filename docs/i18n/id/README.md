@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · **Bahasa Indonesia**
 
@@ -58,6 +58,8 @@ untuk menggunakan fitur inventaris yang didokumentasikan di sini.
 Mulai dengan [instalasi](#install), lalu [profil dan riwayat](#inventory-profiles-preflight-and-local-history).
 Untuk detail integrasi, lihat [sidik jari layanan](#fingerprints),
 [perbandingan file](#inventory-diff), dan [ekspor Kadupul](#kadupul-export).
+
+<a name="install"></a>
 
 ## Instalasi
 
@@ -189,6 +191,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 Secara bawaan setiap host diperiksa untuk SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80), dan HTTPS (TCP 443). Port TCP diuji dengan koneksi penuh. SNMP diuji dengan permintaan penemuan mesin (engine-discovery) SNMPv3, yang wajib dijawab oleh agen SNMPv3 mana pun tanpa kredensial; agen yang hanya mendukung v1/v2c tidak akan terdeteksi oleh probe ini. Dengan backend asyncio, sebuah host dianggap hidup apabila ada probe yang mendapat jawaban, termasuk penolakan koneksi, sehingga host yang menjatuhkan (drop) setiap probe memiliki `alive=false` dan error "Host is down"; ini tidak membuktikan bahwa host tersebut mati secara fisik. Dengan `--backend nmap`, nmap menentukan host mana yang hidup (ICMP sebagai root, atau TCP 80/443 jika bukan root).
 
+<a name="fingerprints"></a>
+
 ### Sidik jari layanan
 
 Setiap layanan yang terbuka diidentifikasi sidik jarinya dari apa yang dikirimkannya sebelum login apa pun. Tidak ada yang melakukan autentikasi kecuali kueri SNMP, dan itu pun hanya jika Anda memberikan kredensial.
@@ -229,6 +233,8 @@ probe = "https"
 
 Laporan JSON adalah dokumen berversi (`"format": "hostcensus-report"`, `"version": 1`) yang mencatat target, layanan yang di-probe, dan pengaturan di samping `devices`; `--format json` tanpa `-o` menulis laporan ke stdout alih-alih tabel. Setiap output JSON memiliki skema yang dipublikasikan; lihat [Output JSON](../../../docs/json-output.md). Perangkat tetap mempertahankan field asli `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname`, dan `errors` serta menambahkan daftar `services` berisi `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, atau `unknown` ketika probe gagal secara lokal atau mencapai batas waktunya), `version`, dan `details` untuk setiap probe. Output CSV mendapatkan kolom tambahan di akhir berupa `services` dan `versions` untuk layanan yang terbuka. Nilai boolean `ssh`, `snmp`, dan `mysql` mengikuti layanan dengan nama yang persis sama.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## Profil inventaris, preflight, dan riwayat lokal
 
@@ -317,6 +323,8 @@ Riwayat menyimpan informasi inventaris, jadi pilih direktori lokal yang terlindu
 File profil dan pengaturan tersimpan tidak memuat kredensial SNMP;
 penanganan kredensial tetap berjalan melalui opsi runtime/variabel lingkungan yang sudah ada.
 
+<a name="inventory-diff"></a>
+
 ## Perbandingan inventaris (diff)
 
 ```bash
@@ -333,6 +341,8 @@ Snapshot adalah JSON dengan `format: "hostcensus-snapshot"`, `version: 1`, versi
 Laporan dari pemindaian yang dihentikan oleh `--deadline` (`"complete": false`) hanya mencantumkan host yang sempat dijangkaunya, sehingga `diff` dan `export` menolaknya dengan kode keluar 2. `--allow-partial` menerimanya dengan peringatan di stderr: `diff` kemudian mencantumkan host yang sama sekali tidak tercantum dalam pemindaian tidak lengkap di bawah `unsettled_hosts` sebagai `unscanned` alih-alih menghilang (host yang dicantumkan sebagai mati tetap dianggap menghilang), mengatur `partial` ke true dan tidak pernah melaporkan tidak ada perubahan, sedangkan `export` menulis peringatan ke dalam header skrip.
 
 Kode keluar `diff`: `0` tidak ada perubahan, `3` perubahan ditemukan, pengamatan yang tidak dapat dikonfirmasi, atau input tidak lengkap (`changed` bernilai true kapan pun ada daftar, termasuk `unsettled_hosts` dan `unconfirmed`, yang tidak kosong, atau `partial` bernilai true), `2` file tidak ada, tidak dapat dibaca, bukan snapshot yang didukung, atau tidak lengkap tanpa `--allow-partial`, `1` file `-o` tidak dapat ditulis.
+
+<a name="kadupul-export"></a>
 
 ## Ekspor Kadupul
 

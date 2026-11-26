@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · **العربية** · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -38,6 +38,8 @@ SPDX-License-Identifier: MIT
 يغطي التكامل المستمر (CI) إصدارات Python 3.12 و3.13 و3.14 على Linux وmacOS، بالإضافة إلى مختبر تكامل Compose خاضع للتحكم. يستخدم الكود أسماء الأنواع المستعارة الحديثة، ونتائج الفحص المسبق ذات الأنواع المحددة، وملفات التعريف ذات الفتحات (slotted) والمعاملات المفتاحية فقط، والتنظيف غير المتزامن المهيكل مع الحفاظ على التوافق مع إصدارات التشغيل تلك. راجع [إدارة الإصدارات والإطلاقات](../../../docs/releasing.md) للاطلاع على عقد توافق SemVer وعملية الإصدار على GitHub. تصف شارة الإصدار الحزم المنشورة وليس نسخة المستودع الحالية: أحدث وسم منشور حاليًا هو `v0.3.0`، بينما تستخدم هذه النسخة من المستودع إصدار الحزمة `3.0.0`. ثبّت من نسخة المستودع لاستخدام ميزات الجرد الموثقة هنا.
 
 ابدأ بـ [التثبيت](#install)، ثم [ملفات التعريف والسجل](#inventory-profiles-preflight-and-local-history). للاطلاع على تفاصيل التكامل، راجع [بصمات الخدمات](#fingerprints)، و[مقارنات الملفات](#inventory-diff)، و[تصدير Kadupul](#kadupul-export).
+
+<a name="install"></a>
 
 ## التثبيت
 
@@ -156,6 +158,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 بشكل افتراضي يُفحص كل مضيف بحثًا عن SSH (منفذ TCP 22) وSNMP (منفذ UDP 161) وMySQL (منفذ TCP 3306) وHTTP (منفذ TCP 80) وHTTPS (منفذ TCP 443). تُختبر منافذ TCP باتصال كامل. ويُختبر SNMP بطلب اكتشاف محرك SNMPv3، والذي يجب على أي وكيل SNMPv3 الرد عليه دون بيانات اعتماد؛ ولن يكتشف هذا المسبار الوكلاء الذين يتحدثون v1/v2c فقط. مع الواجهة الخلفية asyncio، يُعد المضيف نشطًا عندما يحصل أي مسبار على استجابة، بما في ذلك الاتصال المرفوض، لذلك يكون للمضيف الذي يسقط كل مسبار `alive=false` والخطأ "Host is down"؛ ولا يثبت هذا أنه متوقف فعليًا. مع `--backend nmap`، يقرر nmap المضيفين النشطين (ICMP بصلاحيات الجذر، وTCP 80/443 في الحالات الأخرى).
 
+<a name="fingerprints"></a>
+
 ### البصمات
 
 تُؤخذ بصمة كل خدمة مفتوحة مما ترسله قبل أي تسجيل دخول. لا شيء يجري مصادقة باستثناء استعلام SNMP، وفقط عند تقديم بيانات الاعتماد.
@@ -196,6 +200,8 @@ probe = "https"
 
 تقارير JSON هي مستندات بإصدار محدد (`"format": "hostcensus-report"`، `"version": 1`) تسجل الهدف والخدمات المفحوصة والإعدادات بجانب `devices`؛ ويكتب `--format json` دون `-o` التقرير إلى stdout بدلًا من الجدول. يمتلك كل مخرج JSON مخططًا منشورًا؛ راجع [مخرجات JSON](../../../docs/json-output.md). تحتفظ الأجهزة بحقول `ip` و`alive` و`ssh` و`snmp` و`mysql` و`hostname` و`errors` الأصلية وتضيف قائمة `services` تتضمن `name` و`port` و`protocol` و`state` (`open`، أو `closed`، أو `filtered`، أو `unknown` عندما يفشل المسبار محليًا أو يبلغ موعده النهائي) و`version` و`details` لكل مسبار. وتكتسب مخرجات CSV عمودين لاحقين هما `services` و`versions` للخدمات المفتوحة. وتتبع القيم المنطقية `ssh` و`snmp` و`mysql` الخدمات التي تحمل تلك الأسماء بالضبط.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## ملفات تعريف الجرد والفحص المسبق والسجل المحلي
 
@@ -244,6 +250,8 @@ hostcensus compare 1 2 --history output/inventory.sqlite3 -o output/changes.json
 
 يخزن السجل معلومات الجرد، لذا اختر دليلًا محليًا محميًا بشكل مناسب. لا تحتوي ملفات التعريف والإعدادات المخزنة على بيانات اعتماد SNMP؛ ويستمر التعامل مع بيانات الاعتماد عبر خيارات وقت التشغيل وبيئته الحالية.
 
+<a name="inventory-diff"></a>
+
 ## مقارنة الجرد
 
 ```bash
@@ -260,6 +268,8 @@ hostcensus diff monday.json tuesday.json -f json     # JSON on stdout
 التقرير الناتج عن مسح أوقفه `--deadline` (`"complete": false`) لا يسرد سوى المضيفين الذين وصل إليهم، لذا يرفضه `diff` و`export` برمز الخروج 2. ويقبله `--allow-partial` مع تحذير على stderr: يدرج `diff` حينها المضيفين الذين لم يدرجهم المسح غير المكتمل إطلاقًا ضمن `unsettled_hosts` بوصفهم `unscanned` بدلًا من مختفين (المضيف الذي أدرجه كمتوقف يظل مختفيًا)، ويضبط `partial` على true ولا يبلغ أبدًا عن عدم وجود تغيير، ويكتب `export` تحذيرًا في ترويسة النص البرمجي.
 
 رموز خروج `diff`: `0` لا توجد تغييرات، `3` تم العثور على تغييرات، أو ملاحظات تعذر تأكيدها، أو مدخل غير مكتمل (يكون `changed` صحيحًا كلما كانت أي قائمة، بما في ذلك `unsettled_hosts` و`unconfirmed`، غير فارغة، أو كان `partial` صحيحًا)، `2` ملف مفقود، أو غير قابل للقراءة، أو ليس لقطة مدعومة، أو غير مكتمل دون `--allow-partial`، `1` تعذرت كتابة ملف `-o`.
+
+<a name="kadupul-export"></a>
 
 ## تصدير Kadupul
 

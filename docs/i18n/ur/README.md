@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -38,6 +38,8 @@ hostcensus ایک Python CLI ہے جو آپ کے زیر انتظام نیٹ ور
 CI میں Linux اور macOS پر Python 3.12، 3.13 اور 3.14 کے ساتھ ایک کنٹرولڈ Compose انٹیگریشن لیب شامل ہے۔ کوڈ ان رن ٹائم ورژنز کو برقرار رکھتے ہوئے جدید type aliases، typed preflight نتائج، keyword-only slotted پروفائلز اور منظم async کلین اپ استعمال کرتا ہے۔ SemVer مطابقت کے معاہدے اور GitHub ریلیز کے عمل کے لیے [ورژننگ اور ریلیزز](../../../docs/releasing.md) دیکھیں۔ ریلیز بیج شائع شدہ آرٹیفیکٹس کو ظاہر کرتا ہے، اس چیک آؤٹ کو نہیں: فی الحال تازہ ترین شائع شدہ ٹیگ `v0.3.0` ہے، جبکہ یہ چیک آؤٹ پیکج ورژن `3.0.0` استعمال کرتا ہے۔ یہاں دستاویز کردہ انوینٹری فیچرز استعمال کرنے کے لیے چیک آؤٹ سے انسٹال کریں۔
 
 [انسٹالیشن](#install) سے آغاز کریں، پھر [پروفائلز اور ہسٹری](#inventory-profiles-preflight-and-local-history) دیکھیں۔ انٹیگریشن کی تفصیلات کے لیے [سروس فنگر پرنٹس](#fingerprints)، [فائل موازنے](#inventory-diff)، اور [Kadupul ایکسپورٹ](#kadupul-export) دیکھیں۔
+
+<a name="install"></a>
 
 ## انسٹالیشن
 
@@ -156,6 +158,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 ڈیفالٹ طور پر ہر ہوسٹ کو SSH (TCP 22)، SNMP (UDP 161)، MySQL (TCP 3306)، HTTP (TCP 80) اور HTTPS (TCP 443) کے لیے چیک کیا جاتا ہے۔ TCP پورٹس کو مکمل کنیکٹ کے ساتھ ٹیسٹ کیا جاتا ہے۔ SNMP کو SNMPv3 انجن ڈسکوری درخواست کے ساتھ ٹیسٹ کیا جاتا ہے، جس کا جواب کسی بھی SNMPv3 ایجنٹ کو بغیر اسناد کے دینا لازمی ہے؛ جو ایجنٹس صرف v1/v2c بولتے ہیں وہ اس پروب سے دریافت نہیں ہوں گے۔ asyncio بیک اینڈ کے ساتھ کوئی ہوسٹ تب زندہ شمار ہوتا ہے جب کسی بھی پروب کو جواب ملے، بشمول مسترد کردہ کنکشن کے، اس لیے جو ہوسٹ ہر پروب کو ڈراپ کر دیتا ہے اس کا `alive=false` اور خرابی "Host is down" ہوتی ہے؛ یہ اس بات کا ثبوت نہیں ہے کہ وہ جسمانی طور پر بند ہے۔ `--backend nmap` کے ساتھ، nmap فیصلہ کرتا ہے کہ کون سے ہوسٹس زندہ ہیں (root کے طور پر ICMP، ورنہ TCP 80/443)۔
 
+<a name="fingerprints"></a>
+
 ### فنگر پرنٹس
 
 ہر کھلی سروس کا فنگر پرنٹ اس بنیاد پر لیا جاتا ہے جو وہ کسی بھی لاگ ان سے پہلے بھیجتی ہے۔ SNMP استفسار کے سوا کوئی چیز تصدیق نہیں کرتی، اور وہ بھی صرف تب جب آپ اسناد فراہم کریں۔
@@ -196,6 +200,8 @@ probe = "https"
 
 JSON رپورٹس ورژن شدہ دستاویزات ہیں (`"format": "hostcensus-report"`, `"version": 1`) جو `devices` کے ساتھ ہدف، پروب کی گئی سروسز اور ترتیبات ریکارڈ کرتی ہیں؛ `-o` کے بغیر `--format json` ٹیبل کے بجائے رپورٹ کو stdout پر لکھتا ہے۔ ہر JSON آؤٹ پٹ کا ایک شائع شدہ اسکیما ہے؛ [JSON آؤٹ پٹ](../../../docs/json-output.md) دیکھیں۔ آلات اصل `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` اور `errors` فیلڈز برقرار رکھتے ہیں اور ہر پروب کے `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`، یا جب پروب مقامی طور پر ناکام ہوا یا اپنی ڈیڈ لائن تک پہنچ گیا تو `unknown`), `version` اور `details` کے ساتھ ایک `services` لسٹ شامل کرتے ہیں۔ CSV آؤٹ پٹ میں کھلی سروسز کے لیے آخر میں `services` اور `versions` کالم شامل ہوتے ہیں۔ `ssh`, `snmp` اور `mysql` بولینز بالکل انہی ناموں والی سروسز کی پیروی کرتے ہیں۔
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## انوینٹری پروفائلز، preflight، اور مقامی ہسٹری
 
@@ -244,6 +250,8 @@ hostcensus compare 1 2 --history output/inventory.sqlite3 -o output/changes.json
 
 ہسٹری انوینٹری کی معلومات محفوظ کرتی ہے، اس لیے مناسب طور پر محفوظ مقامی ڈائریکٹری منتخب کریں۔ پروفائل فائلیں اور محفوظ شدہ ترتیبات SNMP اسناد نہیں رکھتیں؛ اسناد کی ہینڈلنگ موجودہ رن ٹائم اختیارات/ماحولیاتی متغیرات کے ذریعے جاری رہتی ہے۔
 
+<a name="inventory-diff"></a>
+
 ## انوینٹری diff
 
 ```bash
@@ -260,6 +268,8 @@ hostcensus diff monday.json tuesday.json -f json     # JSON on stdout
 `--deadline` کے ذریعے روکے گئے اسکین (`"complete": false`) کی رپورٹ صرف ان ہوسٹس کو درج کرتی ہے جن تک وہ پہنچ سکا، اس لیے `diff` اور `export` اسے ایگزٹ کوڈ 2 کے ساتھ مسترد کر دیتے ہیں۔ `--allow-partial` اسے stderr پر ایک وارننگ کے ساتھ قبول کرتا ہے: `diff` پھر ان ہوسٹس کو جنہیں نامکمل اسکین نے بالکل درج نہیں کیا vanished کے بجائے `unsettled_hosts` کے تحت `unscanned` کے طور پر درج کرتا ہے (جو ہوسٹ اس نے down کے طور پر درج کیا وہ اب بھی vanished رہتا ہے)، `partial` کو true سیٹ کرتا ہے اور کبھی no change رپورٹ نہیں کرتا، اور `export` اسکرپٹ ہیڈر میں ایک وارننگ لکھتا ہے۔
 
 `diff` ایگزٹ کوڈز: `0` کوئی تبدیلی نہیں، `3` تبدیلیاں ملیں، ایسے مشاہدات جن کی تصدیق نہیں ہو سکی، یا نامکمل ان پٹ (`changed` تب true ہوتا ہے جب کوئی بھی لسٹ، بشمول `unsettled_hosts` اور `unconfirmed`، غیر خالی ہو، یا `partial` true ہو)، `2` کوئی فائل غائب، ناقابلِ مطالعہ، معاون اسنیپ شاٹ نہیں، یا `--allow-partial` کے بغیر نامکمل ہے، `1` `-o` فائل لکھی نہیں جا سکی۔
+
+<a name="kadupul-export"></a>
 
 ## Kadupul ایکسپورٹ
 

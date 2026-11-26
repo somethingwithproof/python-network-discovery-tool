@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · **Русский** · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -38,6 +38,8 @@ hostcensus - это CLI-инструмент на Python для воспроиз
 CI покрывает Python 3.12, 3.13 и 3.14 на Linux и macOS, а также изолированный интеграционный стенд на базе Compose. В коде используются современные псевдонимы типов, типизированные результаты preflight, классы профилей со слотами и только именованными аргументами и структурированное асинхронное завершение работы при сохранении совместимости с этими версиями среды выполнения. Контракт совместимости SemVer и процесс выпуска релизов на GitHub описаны в документе [Управление версиями и релизами](../../../docs/releasing.md). Значок релиза отражает опубликованные артефакты, а не текущую рабочую копию: последний опубликованный тег сейчас `v0.3.0`, тогда как в этой копии указана версия пакета `3.0.0`. Чтобы использовать описанные здесь функции инвентаризации, установите пакет из текущей рабочей копии.
 
 Начните с раздела [установка](#install), затем перейдите к [профилям и истории](#inventory-profiles-preflight-and-local-history). Подробности интеграции см. в разделах [отпечатки сервисов](#fingerprints), [сравнение файлов](#inventory-diff) и [экспорт в Kadupul](#kadupul-export).
+
+<a name="install"></a>
 
 ## Установка
 
@@ -156,6 +158,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 По умолчанию на каждом хосте проверяются SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) и HTTPS (TCP 443). TCP-порты проверяются полным установлением соединения. SNMP проверяется запросом обнаружения движка SNMPv3 (engine-discovery), на который любой агент SNMPv3 обязан ответить без учётных данных; агенты, поддерживающие только v1/v2c, этим зондом не обнаруживаются. При использовании бэкенда asyncio хост считается доступным, если хотя бы один зонд получил ответ, включая отказ в соединении, поэтому у хоста, отбрасывающего все пакеты, устанавливается `alive=false` и ошибка "Host is down"; это не доказывает, что он физически выключен. При `--backend nmap` доступность хостов определяет nmap (ICMP при запуске от root, иначе TCP 80/443).
 
+<a name="fingerprints"></a>
+
 ### Отпечатки сервисов
 
 Для каждого открытого сервиса отпечаток снимается по данным, которые он отправляет до авторизации. Аутентификация не выполняется нигде, кроме SNMP-запроса, и только при передаче учётных данных.
@@ -196,6 +200,8 @@ probe = "https"
 
 Отчёты JSON представляют собой версионированные документы (`"format": "hostcensus-report"`, `"version": 1`), которые содержат цель, проверенные сервисы и настройки рядом с полем `devices`; флаг `--format json` без `-o` выводит отчёт в stdout вместо таблицы. Для каждого формата JSON-вывода опубликована схема; см. [вывод JSON](../../../docs/json-output.md). Объекты устройств сохраняют исходные поля `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` и `errors` и добавляют список `services` со значениями `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered` или `unknown`, если зонд завершился локальной ошибкой или превысил лимит времени), `version` и `details` для каждого зонда. Вывод CSV дополняется столбцами `services` и `versions` в конце для открытых сервисов. Булевы поля `ssh`, `snmp` и `mysql` соответствуют сервисам именно с этими именами.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## Профили инвентаризации, preflight и локальная история
 
@@ -244,6 +250,8 @@ hostcensus compare 1 2 --history output/inventory.sqlite3 -o output/changes.json
 
 История хранит данные инвентаризации, поэтому выбирайте локальный каталог с подходящей защитой. Файлы профилей и сохранённые настройки не содержат учётных данных SNMP; передача учётных данных по-прежнему осуществляется через параметры запуска и переменные окружения.
 
+<a name="inventory-diff"></a>
+
 ## Сравнение снимков инвентаризации (diff)
 
 ```bash
@@ -260,6 +268,8 @@ hostcensus diff monday.json tuesday.json -f json     # JSON on stdout
 Отчёт сканирования, остановленного по `--deadline` (`"complete": false`), содержит только те хосты, до которых оно успело дойти, поэтому `diff` и `export` отклоняют его с кодом возврата 2. Флаг `--allow-partial` разрешает его обработку с предупреждением в stderr: в этом случае `diff` помещает хосты, вообще отсутствующие в неполном сканировании, в `unsettled_hosts` со статусом `unscanned` вместо исчезнувших (хост, помеченный как недоступный, по-прежнему считается исчезнувшим), устанавливает `partial` в true и никогда не сообщает об отсутствии изменений, а `export` записывает предупреждение в заголовок скрипта.
 
 Коды возврата `diff`: `0` изменений нет, `3` обнаружены изменения, неподтверждённые наблюдения или неполные входные данные (`changed` истинно, когда непуст любой список, включая `unsettled_hosts` и `unconfirmed`, либо когда `partial` равно true), `2` файл отсутствует, нечитаем, не является поддерживаемым снимком или неполный без `--allow-partial`, `1` не удалось записать файл `-o`.
+
+<a name="kadupul-export"></a>
 
 ## Экспорт в Kadupul
 

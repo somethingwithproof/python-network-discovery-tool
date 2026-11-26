@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · [Tiếng Việt](../vi/README.md) · [Bahasa Indonesia](../id/README.md)
 
@@ -41,6 +41,8 @@ hostcensus هو أداة سطر أوامر (CLI) مكتوبة بـ Python باش
 بدا بـ [التثبيت](#install)، ومن بعد شوف [البروفايلات والتاريخ](#inventory-profiles-preflight-and-local-history).
 على ود تفاصيل التكامل، شوف [بصمات الخدمات](#fingerprints)،
 [مقارنة الملفات](#inventory-diff)، و[التصدير لـ Kadupul](#kadupul-export).
+
+<a name="install"></a>
 
 ## التثبيت
 
@@ -160,6 +162,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 بشكل افتراضي كل جهاز كيتفحص فيه SSH (TCP 22)، و SNMP (UDP 161)، و MySQL (TCP 3306)، و HTTP (TCP 80)، و HTTPS (TCP 443). بورتات TCP كتتختبر باتصال كامل (full connect). أما SNMP فكيتختبر بطلب اكتشاف محرك SNMPv3، واللي أي وكيل SNMPv3 خاصو يجاوب عليه بلا اعتمادات؛ الوكلاء اللي كيهضرو غير بـ v1/v2c ما غاديش يتكتاشفو بهاد الفحص. مع باكاند asyncio، الجهاز كيتحسب حي ملي أي فحص كياخد جواب، حتى إلا كان اتصال مرفوض، يعني الجهاز اللي كيرمي جميع الفحوصات كيكون عندو `alive=false` والخطأ "Host is down"؛ هادا ما كيثبتش باللي راه طافي فعلياً. ومع `--backend nmap`، nmap هو اللي كيقرر شكون الأجهزة اللي حية (بـ ICMP بصلاحيات root، ولا TCP 80/443 ف الحالات الأخرى).
 
+<a name="fingerprints"></a>
+
 ### بصمات الخدمات
 
 كل خدمة محلولة كتتاخد البصمة ديالها من داكشي اللي كتبعثو قبل أي تسجيل دخول. حتى حاجة ما كدير المصادقة من غير استعلام SNMP، وغير ملي كتعطيه الاعتمادات.
@@ -200,6 +204,8 @@ probe = "https"
 
 تقارير JSON هي وثائق مرقّمة بالإصدار (`"format": "hostcensus-report"`، `"version": 1`) كتسجّل الهدف والخدمات المفحوصة والإعدادات حدا `devices`؛ و `--format json` بلا `-o` كيكتب التقرير ف stdout ف بلاصة الجدول. كل مخرج JSON عندو مخطط منشور؛ شوف [مخرجات JSON](../../../docs/json-output.md). الأجهزة كتحافظ على الحقول الأصلية `ip` و `alive` و `ssh` و `snmp` و `mysql` و `hostname` و `errors` وكتزيد لائحة `services` فيها لكل فحص `name` و `port` و `protocol` و `state` (`open`، `closed`، `filtered`، ولا `unknown` ملي الفحص فشل محلياً ولا وصل لمهلتو)، و `version` و `details`. مخرجات CSV كتزيد ف اللخر عمودي `services` و `versions` للخدمات المحلولة. القيم المنطقية `ssh` و `snmp` و `mysql` كتتبع الخدمات اللي عندها بالضبط هاد الأسماء.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## بروفايلات الجرد، الفحص المسبق (preflight)، والتاريخ المحلي
 
@@ -253,6 +259,8 @@ hostcensus compare 1 2 --history output/inventory.sqlite3 -o output/changes.json
 
 التاريخ كيخزن معلومات ديال الجرد، يعني اختار مجلد محلي محمي مزيان. ملفات البروفايلات والإعدادات المخزّنة ما فيهاش اعتمادات SNMP؛ التعامل مع الاعتمادات كيبقى عبر خيارات وقت التشغيل ومتغيرات البيئة الحالية.
 
+<a name="inventory-diff"></a>
+
 ## مقارنة الجرد (diff)
 
 ```bash
@@ -269,6 +277,8 @@ hostcensus diff monday.json tuesday.json -f json     # JSON on stdout
 التقرير اللي جاي من سكان توقف بسبب `--deadline` (`"complete": false`) كيكون فيه غير الأجهزة اللي وصل ليها، داكشي علاش `diff` و `export` كيرفضوه بكود الخروج 2. الخيار `--allow-partial` كيقبلو مع تحذير ف stderr: ديك الساعة `diff` كيدير الأجهزة اللي السكان الناقص ما ذكرهاش كاع تحت `unsettled_hosts` كـ `unscanned` ف بلاصة مختفية (والجهاز اللي سجّلو طافي كيبقى مختفي)، وكيرد `partial` تساوي true وعمره ما كيقول ما كاين حتى تغيير، أما `export` فكيكتب تحذير ف راس السكريبت.
 
 أكواد الخروج ديال `diff`: الكود `0` ما كاين حتى تغيير، الكود `3` تلقاو تغييرات ولا ملاحظات ما قدراتش تتأكد ولا مدخلات ناقصة (`changed` كتكون true فوقاش ما كانت أي لائحة، بما فيها `unsettled_hosts` و `unconfirmed`، ما خاوياش، ولا كانت `partial` تساوي true)، الكود `2` ملف ناقص ولا ما كيتقراش ولا ماشي لقطة مدعومة ولا ناقص بلا `--allow-partial`، الكود `1` ما قدرش يكتب ملف `-o`.
+
+<a name="kadupul-export"></a>
 
 ## التصدير لـ Kadupul
 

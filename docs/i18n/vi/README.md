@@ -10,10 +10,10 @@ SPDX-License-Identifier: MIT
 [![Release workflow](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/release.yml)
 [![Latest published release](https://img.shields.io/github/v/release/somethingwithproof/python-network-discovery-tool?label=published%20release)](https://github.com/somethingwithproof/python-network-discovery-tool/releases)
 [![Bandit](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml/badge.svg)](https://github.com/somethingwithproof/python-network-discovery-tool/actions/workflows/bandit.yml)
-[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](./.github/workflows/ci.yml)
+[![Python compatibility](https://img.shields.io/badge/Python-3.12%E2%80%933.14-blue)](../../../.github/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/somethingwithproof/python-network-discovery-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/somethingwithproof/python-network-discovery-tool)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15324/badge)](https://www.bestpractices.dev/en/projects/15324)
-[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](./pyproject.toml)
+[![Strict typing](https://img.shields.io/badge/mypy-strict-blue)](../../../pyproject.toml)
 
 **Languages:** [English](../../../README.md) · [Deutsch](../de/README.md) · [Español](../es/README.md) · [Français](../fr/README.md) · [Italiano](../it/README.md) · [Português (BR)](../pt-BR/README.md) · [Nederlands](../nl/README.md) · [Русский](../ru/README.md) · [Українська](../uk/README.md) · [日本語](../ja/README.md) · [한국어](../ko/README.md) · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md) · [العربية](../ar/README.md) · [हिन्दी](../hi/README.md) · [Polski](../pl/README.md) · [Türkçe](../tr/README.md) · [Svenska](../sv/README.md) · **Tiếng Việt** · [Bahasa Indonesia](../id/README.md)
 
@@ -38,6 +38,8 @@ Một báo cáo cổng đơn lẻ không cho biết lần quan sát tiếp theo 
 CI bao phủ Python 3.12, 3.13 và 3.14 trên Linux và macOS, cùng với một môi trường tích hợp Compose được kiểm soát. Mã nguồn sử dụng các type alias hiện đại, kết quả preflight định kiểu rõ ràng, các hồ sơ dạng slot chỉ nhận tham số từ khóa và dọn dẹp bất đồng bộ có cấu trúc trong khi vẫn duy trì tương thích với các phiên bản runtime đó. Xem [Phiên bản và phát hành](../../../docs/releasing.md) để biết cam kết tương thích SemVer và quy trình phát hành trên GitHub. Huy hiệu phát hành mô tả các bản dựng đã công bố, không phải mã nguồn hiện tại trong checkout: thẻ phát hành mới nhất hiện là `v0.3.0`, trong khi bản checkout này dùng phiên bản gói `3.0.0`. Hãy cài đặt trực tiếp từ bản checkout để sử dụng các tính năng kiểm kê được tài liệu hóa tại đây.
 
 Bắt đầu với [cài đặt](#install), sau đó xem [hồ sơ và lịch sử](#inventory-profiles-preflight-and-local-history). Để biết chi tiết tích hợp, xem [dấu vân tay dịch vụ](#fingerprints), [so sánh tệp](#inventory-diff) và [xuất sang Kadupul](#kadupul-export).
+
+<a name="install"></a>
 
 ## Cài đặt
 
@@ -156,6 +158,8 @@ hostcensus scan 10.0.0.0/24 --format json | jq '.devices[]'  # JSON report on st
 
 Theo mặc định, mỗi host được kiểm tra SSH (TCP 22), SNMP (UDP 161), MySQL (TCP 3306), HTTP (TCP 80) và HTTPS (TCP 443). Các cổng TCP được kiểm tra bằng kết nối đầy đủ (full connect). SNMP được kiểm tra bằng yêu cầu khám phá engine SNMPv3, loại yêu cầu mà mọi agent SNMPv3 phải trả lời không cần thông tin xác thực; các agent chỉ hỗ trợ v1/v2c sẽ không được phát hiện qua probe này. Với backend asyncio, một host được tính là đang hoạt động khi bất kỳ probe nào nhận được phản hồi, bao gồm cả kết nối bị từ chối, vì vậy host nào đánh rơi mọi probe sẽ có `alive=false` và lỗi "Host is down"; điều này không chứng minh host bị tắt về mặt vật lý. Với `--backend nmap`, nmap quyết định host nào đang hoạt động (ICMP khi có quyền root, hoặc TCP 80/443 trong trường hợp khác).
 
+<a name="fingerprints"></a>
+
 ### Dấu vân tay dịch vụ
 
 Mỗi dịch vụ đang mở được lấy dấu vân tay từ dữ liệu nó gửi ra trước khi đăng nhập. Không có giao thức nào thực hiện xác thực ngoại trừ truy vấn SNMP, và chỉ khi bạn cung cấp thông tin xác thực.
@@ -196,6 +200,8 @@ probe = "https"
 
 Báo cáo JSON là các tài liệu có phiên bản (`"format": "hostcensus-report"`, `"version": 1`) ghi lại mục tiêu, các dịch vụ đã probe và thiết lập bên cạnh `devices`; `--format json` không kèm `-o` sẽ xuất báo cáo ra stdout thay cho dạng bảng. Mọi đầu ra JSON đều có lược đồ được công bố; xem [Đầu ra JSON](../../../docs/json-output.md). Các thiết bị giữ nguyên các trường gốc `ip`, `alive`, `ssh`, `snmp`, `mysql`, `hostname` và `errors`, đồng thời bổ sung danh sách `services` chứa `name`, `port`, `protocol`, `state` (`open`, `closed`, `filtered`, hoặc `unknown` khi probe lỗi cục bộ hay quá thời hạn), `version` và `details` của từng probe. Đầu ra CSV có thêm các cột `services` và `versions` ở cuối cho các dịch vụ đang mở. Các giá trị boolean `ssh`, `snmp` và `mysql` đi theo đúng các dịch vụ có tên chính xác như vậy.
 
+
+<a name="inventory-profiles-preflight-and-local-history"></a>
 
 ## Hồ sơ kiểm kê, kiểm tra preflight và lịch sử cục bộ
 
@@ -244,6 +250,8 @@ Sử dụng các ID từ `history`; ví dụ giả định đây là một cơ s
 
 Lịch sử lưu giữ thông tin kiểm kê, vì vậy hãy chọn một thư mục cục bộ được bảo vệ phù hợp. Tệp hồ sơ và các thiết lập được lưu không chứa thông tin xác thực SNMP; việc xử lý thông tin xác thực tiếp tục đi qua các tùy chọn thời gian chạy/biến môi trường hiện có.
 
+<a name="inventory-diff"></a>
+
 ## So sánh kiểm kê (diff)
 
 ```bash
@@ -260,6 +268,8 @@ Một bản chụp là tệp JSON có `format: "hostcensus-snapshot"`, `version:
 Báo cáo từ một lượt quét bị dừng bởi `--deadline` (`"complete": false`) chỉ liệt kê những host mà nó kịp chạm tới, nên `diff` và `export` từ chối nó với mã thoát 2. `--allow-partial` cho phép chấp nhận báo cáo đó kèm một cảnh báo lên stderr: khi đó `diff` liệt kê các host không hề có mặt trong bản quét chưa hoàn chỉnh vào `unsettled_hosts` với trạng thái `unscanned` thay vì coi là đã biến mất (host được ghi nhận là ngừng hoạt động vẫn tính là đã biến mất), đặt `partial` thành true và không bao giờ báo không thay đổi, còn `export` ghi một cảnh báo vào phần đầu của tập lệnh.
 
 Các mã thoát của `diff`: `0` không có thay đổi, `3` phát hiện thay đổi, có quan sát chưa thể xác nhận hoặc đầu vào chưa hoàn chỉnh (`changed` là true bất cứ khi nào có danh sách khác rỗng, bao gồm `unsettled_hosts` và `unconfirmed`, hoặc `partial` là true), `2` thiếu tệp, không đọc được, không phải bản chụp được hỗ trợ hoặc chưa hoàn chỉnh mà thiếu `--allow-partial`, `1` không thể ghi tệp `-o`.
+
+<a name="kadupul-export"></a>
 
 ## Xuất sang Kadupul
 
