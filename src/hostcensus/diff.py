@@ -15,6 +15,7 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
+from hostcensus.i18n import t
 from hostcensus.models import Device, ServiceSpec
 from hostcensus.output import (
     LEGACY_REPORT_FORMAT,
@@ -410,65 +411,65 @@ def compare(old: Inventory, new: Inventory) -> Diff:
 
 def print_diff(diff: Diff, console: Console) -> None:
     for warning in diff.warnings:
-        console.print(f"[yellow]Warning:[/yellow] {escape(warning)}")
+        console.print(f"[yellow]{t('diff.warning_prefix')}[/yellow] {escape(warning)}")
     if not diff.changed:
-        console.print("[green]No changes[/green]")
+        console.print(f"[green]{t('diff.no_changes')}[/green]")
         return
 
-    table = Table(title="Inventory changes")
-    table.add_column("Change")
-    table.add_column("Host", style="cyan")
-    table.add_column("Service")
-    table.add_column("Detail")
+    table = Table(title=t("diff.table_title"))
+    table.add_column(t("diff.col_change"))
+    table.add_column(t("diff.col_host"), style="cyan")
+    table.add_column(t("diff.col_service"))
+    table.add_column(t("diff.col_detail"))
 
     def services(entry: dict[str, Any]) -> str:
         return ", ".join(f"{s['name']}:{s['port']}/{s['protocol']}" for s in entry["services"])
 
     for entry in diff.new_hosts:
         table.add_row(
-            "[green]new host[/green]",
+            f"[green]{t('diff.new_host')}[/green]",
             escape(entry["ip"]),
             escape(services(entry)),
             escape(entry["hostname"]),
         )
     for entry in diff.vanished_hosts:
         table.add_row(
-            "[red]vanished host[/red]",
+            f"[red]{t('diff.vanished_host')}[/red]",
             escape(entry["ip"]),
             escape(services(entry)),
             escape(entry["hostname"]),
         )
     for c in diff.opened:
         table.add_row(
-            "[green]opened[/green]",
+            f"[green]{t('diff.opened')}[/green]",
             escape(c.ip),
             f"{escape(c.name)}:{c.port}/{c.protocol}",
             escape(c.version),
         )
     for c in diff.closed:
         table.add_row(
-            "[red]closed[/red]",
+            f"[red]{t('diff.closed')}[/red]",
             escape(c.ip),
             f"{escape(c.name)}:{c.port}/{c.protocol}",
             escape(c.old_version),
         )
     for c in diff.version_changes:
         table.add_row(
-            "[yellow]version[/yellow]",
+            f"[yellow]{t('diff.version')}[/yellow]",
             escape(c.ip),
             f"{escape(c.name)}:{c.port}/{c.protocol}",
             escape(f"{c.old_version or '-'} -> {c.version or '-'}"),
         )
     for h in diff.unsettled_hosts:
         table.add_row(
-            "[magenta]unsettled host[/magenta]",
+            f"[magenta]{t('diff.unsettled_host')}[/magenta]",
             escape(h["ip"]),
             "",
             escape(f"{h['before']} -> {h['after']}"),
         )
     for u in diff.unconfirmed:
         table.add_row(
-            "[magenta]unconfirmed[/magenta]",
+            f"[magenta]{t('diff.unconfirmed')}[/magenta]",
             escape(u.ip),
             f"{escape(u.name)}:{u.port}/{u.protocol}",
             escape(f"{u.before} -> {u.after}"),

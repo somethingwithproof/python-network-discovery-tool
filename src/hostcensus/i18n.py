@@ -1,0 +1,106 @@
+# SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
+# SPDX-License-Identifier: MIT
+
+"""Zero-dependency localization support for hostcensus."""
+
+from __future__ import annotations
+
+import json
+import os
+from functools import lru_cache
+from importlib import resources
+
+DEFAULT_LOCALE = "en"
+
+SUPPORTED_LOCALES: tuple[str, ...] = (
+    "en",
+    "de",
+    "es",
+    "fr",
+    "it",
+    "pt-BR",
+    "nl",
+    "ru",
+    "uk",
+    "ja",
+    "ko",
+    "zh-CN",
+    "zh-TW",
+    "ar",
+    "hi",
+    "pl",
+    "tr",
+    "sv",
+    "vi",
+    "id",
+)
+
+_LOCALE_BY_LOWER: dict[str, str] = {loc.lower(): loc for loc in SUPPORTED_LOCALES}
+_ZH_TRADITIONAL = frozenset({"zh-tw", "zh-hk", "zh-mo", "zh-hant"})
+_active_locale: str | None = None
+
+
+def normalize_locale(raw: str | None) -> str:
+    """Resolve a POSIX or BCP 47 locale tag to a supported locale code."""
+    if not raw:
+        return DEFAULT_LOCALE
+    cleaned = raw.strip().split(".", 1)[0].split("@", 1)[0]
+    if not cleaned or cleaned.upper() in {"C", "POSIX"}:
+        return DEFAULT_LOCALE
+    tag = cleaned.replace("_", "-").lower()
+    if tag in _LOCALE_BY_LOWER:
+        return _LOCALE_BY_LOWER[tag]
+    if tag in _ZH_TRADITIONAL or tag.startswith("zh-hant-"):
+        return "zh-TW"
+    if tag == "zh" or tag.startswith("zh-"):
+        return "zh-CN"
+    if tag == "pt" or tag.startswith("pt-"):
+        return "pt-BR"
+    primary = tag.split("-", 1)[0]
+    return _LOCALE_BY_LOWER.get(primary, DEFAULT_LOCALE)
+
+
+def detect_locale(explicit: str | None = None) -> str:
+    """Detect locale using explicit > LC_ALL > LC_MESSAGES > LANG > en."""
+    if explicit:
+        return normalize_locale(explicit)
+    for var in ("LC_ALL", "LC_MESSAGES", "LANG"):
+        value = os.environ.get(var)
+        if value:
+            return normalize_locale(value)
+    return DEFAULT_LOCALE
+
+
+def set_locale(locale: str | None) -> str:
+    """Set or clear the process-wide locale override."""
+    global _active_locale
+    if locale is None:
+        _active_locale = None
+        return detect_locale()
+    _active_locale = normalize_locale(locale)
+    return _active_locale
+
+
+def get_locale() -> str:
+    """Return the active locale code."""
+    if _active_locale is not None:
+        return _active_locale
+    return detect_locale()
+
+
+@lru_cache(maxsize=len(SUPPORTED_LOCALES))
+def load_catalog(locale: str) -> dict[str, str]:
+    """Load the message catalog for a normalized locale."""
+    resolved = normalize_locale(locale)
+    path = resources.files("hostcensus").joinpath("locales", f"{resolved}.json")
+    loaded = json.loads(path.read_text(encoding="utf-8"))
+    return {str(k): str(v) for k, v in loaded.items()}
+
+
+def t(key: str, *, locale: str | None = None, **kwargs: object) -> str:
+    """Translate a message key with optional format arguments."""
+    target = normalize_locale(locale) if locale is not None else get_locale()
+    template = load_catalog(target).get(key)
+    if template is None:
+        template = load_catalog(DEFAULT_LOCALE).get(key, key)
+    return template.format(**kwargs) if kwargs else template

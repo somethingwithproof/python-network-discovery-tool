@@ -41,6 +41,7 @@ from hostcensus.diff import (
 )
 from hostcensus.export import ExportError, KadupulOptions, kadupul_script, write_script
 from hostcensus.history import HistoryStore, compare_scans, utc_now
+from hostcensus.i18n import set_locale, t
 from hostcensus.models import Device, ServiceSpec
 from hostcensus.output import (
     console,
@@ -111,8 +112,14 @@ def main(
         is_eager=True,
         help="Show the version and exit.",
     ),
+    lang: str | None = typer.Option(
+        None,
+        "--lang",
+        help="Language code for CLI messages (overrides LC_ALL/LC_MESSAGES/LANG)",
+    ),
 ) -> None:
     """Network service inventory for networks you administer."""
+    set_locale(lang)
     promote_legacy_env()
     configure_logging()
 
@@ -421,9 +428,11 @@ def scan(ctx: typer.Context, **values: Any) -> None:
         # A partial scan would make the hosts it never reached look vanished
         # to diff and history, so only the report records it.
         typer.echo(
-            f"Error: scan stopped at its {options.deadline:g}s deadline after "
-            f"{len(devices)} host(s); the report is marked incomplete and no "
-            "history or snapshot was written",
+            t(
+                "cli.scan_incomplete",
+                deadline=f"{options.deadline:g}",
+                count=len(devices),
+            ),
             err=True,
         )
     elif store is not None:
@@ -446,16 +455,18 @@ def read_secret_file(path: Path, flag: str) -> str:
         with path.open("rb") as handle:
             data = handle.read(MAX_SECRET_BYTES + 1)
     except OSError as exc:
-        raise ValueError(f"{flag}: cannot read {path}: {exc.strerror or exc}") from exc
+        raise ValueError(
+            t("cli.secret_cannot_read", flag=flag, path=path, error=exc.strerror or exc)
+        ) from exc
     if len(data) > MAX_SECRET_BYTES:
-        raise ValueError(f"{flag}: {path} is larger than {MAX_SECRET_BYTES} bytes")
+        raise ValueError(t("cli.secret_too_large", flag=flag, path=path, limit=MAX_SECRET_BYTES))
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError as exc:
-        raise ValueError(f"{flag}: {path} is not UTF-8 text") from exc
+        raise ValueError(t("cli.secret_not_utf8", flag=flag, path=path)) from exc
     text = text.removesuffix("\n").removesuffix("\r")
     if not text:
-        raise ValueError(f"{flag}: {path} is empty")
+        raise ValueError(t("cli.secret_empty", flag=flag, path=path))
     return text
 
 
@@ -465,15 +476,12 @@ def load_secrets(ctx: typer.Context, options: ScanOptions) -> None:
         flag = "--" + name.replace("_", "-")
         env = f"HOSTCENSUS_{name.upper()}"
         if explicit_option(ctx, name):
-            raise ValueError(
-                f"{flag} is no longer accepted because command-line values are visible in "
-                f"the process list; set {env} or use {flag}-file"
-            )
+            raise ValueError(t("cli.secret_cli_refused", flag=flag, env=env))
         path = getattr(options, f"{name}_file")
         if path is None:
             continue
         if getattr(options, name) is not None:
-            raise ValueError(f"both {env} and {flag}-file are set; use one")
+            raise ValueError(t("cli.secret_both_set", env=env, flag=flag))
         setattr(options, name, read_secret_file(path, f"{flag}-file"))
 
 
@@ -481,7 +489,7 @@ def scan_credentials(ctx: typer.Context, options: ScanOptions) -> SnmpCredential
     try:
         load_secrets(ctx, options)
     except ValueError as exc:
-        typer.echo(f"Error: {exc}", err=True)
+        typer.echo(t("cli.error_prefix", error=exc), err=True)
         raise typer.Exit(2) from exc
     if not any(
         (options.snmp_community, options.snmp_user, options.snmp_auth_key, options.snmp_priv_key)
@@ -497,7 +505,7 @@ def scan_credentials(ctx: typer.Context, options: ScanOptions) -> SnmpCredential
             priv_key=options.snmp_priv_key,
         )
     except ValueError as exc:
-        typer.echo(f"Error: {exc}", err=True)
+        typer.echo(t("cli.error_prefix", error=exc), err=True)
         raise typer.Exit(2) from exc
 
 
@@ -543,7 +551,7 @@ def build_plan(options: ScanOptions, explicit: set[str]) -> ScanPlan:
             exclusions=settings.get("exclusions", []),
         )
     except ValueError as exc:
-        typer.echo(f"Error: {exc}", err=True)
+        typer.echo(t("cli.error_prefix", error=exc), err=True)
         raise typer.Exit(2) from exc
 
 
@@ -567,7 +575,7 @@ def plan_checks(options: ScanOptions, plan: ScanPlan) -> PreflightResult:
             concurrency=plan.concurrency,
         )
     except ValueError as exc:
-        typer.echo(f"Error: {exc}", err=True)
+        typer.echo(t("cli.error_prefix", error=exc), err=True)
         raise typer.Exit(2) from exc
 
 
@@ -576,14 +584,17 @@ def scan_preflight(options: ScanOptions, plan: ScanPlan) -> HistoryStore | None:
     failed = [check for check in result["checks"] if check["status"] == "error"]
     if failed:
         for check in failed:
-            typer.echo(f"Preflight failed ({check['check']}): {check['detail']}", err=True)
+            typer.echo(
+                t("cli.preflight_failed", check=check["check"], detail=check["detail"]),
+                err=True,
+            )
         raise typer.Exit(1)
     store = HistoryStore(options.history) if options.history is not None else None
     if store is not None:
         try:
             store.initialize()
         except (OSError, ValueError, sqlite3.Error) as exc:
-            typer.echo(f"History failed: {exc}", err=True)
+            typer.echo(t("cli.history_failed", error=exc), err=True)
             raise typer.Exit(1) from exc
     return store
 
@@ -605,7 +616,7 @@ def scan_devices(
             deadline=options.deadline,
         )
     except BackendUnavailableError as exc:
-        typer.echo(f"Error: {exc}", err=True)
+        typer.echo(t("cli.error_prefix", error=exc), err=True)
         raise typer.Exit(1) from exc
     with Progress(
         SpinnerColumn(),
@@ -622,7 +633,7 @@ def scan_devices(
         except ScanDeadlineError as exc:
             return exc.devices, False
         except (ValueError, BackendUnavailableError) as exc:
-            typer.echo(f"Error: {exc}", err=True)
+            typer.echo(t("cli.error_prefix", error=exc), err=True)
             raise typer.Exit(1 if isinstance(exc, BackendUnavailableError) else 2) from exc
 
 
@@ -673,10 +684,10 @@ def record_history(
     try:
         scan_id = store.save(metadata, observations, started_at)
     except (OSError, ValueError, sqlite3.Error) as exc:
-        typer.echo(f"History failed: {exc}", err=True)
+        typer.echo(t("cli.history_failed", error=exc), err=True)
         raise typer.Exit(1) from exc
     if not options.quiet:
-        typer.echo(f"Saved history scan {scan_id}")
+        typer.echo(t("cli.saved_history_scan", scan_id=scan_id))
 
 
 def report_scan(
@@ -687,9 +698,7 @@ def report_scan(
         # The report replaces the table so stdout stays one JSON document.
         typer.echo(report_json(devices, **context), nl=False)
     elif options.output_format != "auto" and options.output is None:
-        logger.warning(
-            f"--format {options.output_format} needs --output; only json can go to stdout"
-        )
+        logger.warning(t("cli.format_needs_output", format=options.output_format))
     elif not options.quiet:
         print_results(devices)
     if options.output:
@@ -705,7 +714,7 @@ def report_scan(
                 backend=plan.backend,
             )
         except OSError as exc:
-            typer.echo(f"Error: cannot write {options.save_snapshot}: {exc}", err=True)
+            typer.echo(t("cli.cannot_write", path=options.save_snapshot, error=exc), err=True)
             raise typer.Exit(1) from exc
 
 
@@ -724,7 +733,7 @@ def report_format(output: Path, selected: str) -> str:
     extension = output.suffix.lower()
     formats = {".json": "json", ".csv": "csv", ".sh": "kadupul"}
     if extension not in formats:
-        logger.warning(f"Unknown extension {extension}, defaulting to JSON")
+        logger.warning(t("cli.unknown_extension", extension=extension))
     return formats.get(extension, "json")
 
 
@@ -750,10 +759,10 @@ def save_report(
                 )
                 write_script(options.output, script, secret=False)
     except ExportError as exc:
-        typer.echo(f"Error: {exc}", err=True)
+        typer.echo(t("cli.error_prefix", error=exc), err=True)
         raise typer.Exit(2) from exc
     except OSError as exc:
-        typer.echo(f"Error: cannot write {options.output}: {exc}", err=True)
+        typer.echo(t("cli.cannot_write", path=options.output, error=exc), err=True)
         raise typer.Exit(1) from exc
 
 
@@ -806,16 +815,14 @@ def export(
         )
         script = kadupul_script(inventory.devices, opts, str(source), complete=inventory.complete)
     except (SnapshotError, ExportError) as e:
-        typer.echo(f"Error: {e}", err=True)
+        typer.echo(t("cli.error_prefix", error=e), err=True)
         raise typer.Exit(2) from e
     if include_credentials:
-        logger.warning(
-            f"{output} contains SNMP credentials; keep it private and delete it after use"
-        )
+        logger.warning(t("cli.credentials_warning", output=output))
     try:
         write_script(output, script, secret=include_credentials)
     except OSError as e:
-        typer.echo(f"Error: cannot write {output}: {e}", err=True)
+        typer.echo(t("cli.cannot_write", path=output, error=e), err=True)
         raise typer.Exit(1) from e
 
 
@@ -823,10 +830,7 @@ def warn_partial(inventories: list[Inventory]) -> None:
     """Say on stderr which inputs --allow-partial let through."""
     for inventory in inventories:
         if not inventory.complete:
-            logger.warning(
-                f"{inventory.label} is from a scan stopped by --deadline; "
-                "hosts it did not reach are missing from it"
-            )
+            logger.warning(t("cli.partial_warning", label=inventory.label))
 
 
 # Distinct from 1 (error) and 2 (usage), so scripts can branch on "changed".
@@ -857,7 +861,7 @@ def diff(
     try:
         inventories = [load_inventory(path, allow_partial=allow_partial) for path in (old, new)]
     except SnapshotError as e:
-        typer.echo(f"Error: {e}", err=True)
+        typer.echo(t("cli.error_prefix", error=e), err=True)
         raise typer.Exit(2) from e
     warn_partial(inventories)
     result = compare(*inventories)
@@ -872,7 +876,7 @@ def diff(
         try:
             write_text(output, json.dumps(result.to_dict(), indent=2) + "\n")
         except OSError as e:
-            typer.echo(f"Error: cannot write {output}: {e}", err=True)
+            typer.echo(t("cli.cannot_write", path=output, error=e), err=True)
             raise typer.Exit(1) from e
     raise typer.Exit(EXIT_CHANGED if result.changed else 0)
 
@@ -889,7 +893,7 @@ def history_command(
         listing = {"format": "hostcensus-history", "version": 1, "scans": summaries}
         typer.echo(json.dumps(listing, indent=2))
     except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as exc:
-        typer.echo(f"History failed: {exc}", err=True)
+        typer.echo(t("cli.history_failed", error=exc), err=True)
         raise typer.Exit(1) from exc
 
 
@@ -908,7 +912,7 @@ def history_compare(
         rendered = json.dumps(report, indent=2)
         if output is not None:
             if paths_overlap(output, history_path):
-                raise ValueError("Comparison output must not overwrite history")
+                raise ValueError(t("cli.comparison_overwrite_history"))
             from hostcensus.history import check_writable_path
 
             check_writable_path(output)
@@ -916,7 +920,7 @@ def history_compare(
         else:
             typer.echo(rendered)
     except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as exc:
-        typer.echo(f"Comparison failed: {exc}", err=True)
+        typer.echo(t("cli.comparison_failed", error=exc), err=True)
         raise typer.Exit(1) from exc
 
 
@@ -924,7 +928,7 @@ def history_compare(
 def version() -> None:
     """Show version information."""
     rprint(f"[bold cyan]hostcensus[/bold cyan] [green]v{HOSTCENSUS_VERSION}[/green]")
-    rprint("Modern network scanner built with Python 3.12+")
+    rprint(t("cli.version_tagline"))
 
 
 @app.command()
@@ -939,7 +943,7 @@ def profiles(config: Path = typer.Option(DEFAULT_PROFILE_CONFIG, "--config")) ->
             json.dumps({name: asdict(profile) for name, profile in entries.items()}, indent=2)
         )
     except ConfigError as e:
-        typer.echo(f"Error: {e}", err=True)
+        typer.echo(t("cli.error_prefix", error=e), err=True)
         raise typer.Exit(2) from e
 
 
