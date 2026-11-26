@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Thomas Vincent <thomasvincent@gmail.com>
 # SPDX-License-Identifier: MIT
 
-"""Tests for 45-locale i18n support in hostcensus."""
+"""Tests for 48-locale i18n support in hostcensus."""
 
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ from hostcensus.i18n import (
 from hostcensus.models import Device
 from hostcensus.output import print_results
 
+CYRILLIC_RE = re.compile(r"[\u0400-\u04FF]")
 PLACEHOLDER_RE = re.compile(r"\{[a-zA-Z0-9_]+\}")
 runner = CliRunner()
 
@@ -37,8 +38,8 @@ def _reset_locale(monkeypatch: pytest.MonkeyPatch):
     set_locale(None)
 
 
-def test_all_45_locales_load_with_key_and_placeholder_parity() -> None:
-    assert len(SUPPORTED_LOCALES) == 45
+def test_all_48_locales_load_with_key_and_placeholder_parity() -> None:
+    assert len(SUPPORTED_LOCALES) == 48
     en = load_catalog(DEFAULT_LOCALE)
     assert len(en) > 0
     for locale in SUPPORTED_LOCALES:
@@ -49,6 +50,24 @@ def test_all_45_locales_load_with_key_and_placeholder_parity() -> None:
             assert sorted(PLACEHOLDER_RE.findall(catalog[key])) == sorted(
                 PLACEHOLDER_RE.findall(en_val)
             ), (locale, key)
+
+
+def test_bcms_locales_are_distinct_and_use_expected_scripts() -> None:
+    bs = load_catalog("bs")
+    hr = load_catalog("hr")
+    sr = load_catalog("sr")
+
+    # Bosnian and Croatian catalogs must be genuinely distinct
+    differing_bs_hr = [k for k in bs if bs[k] != hr[k]]
+    assert len(differing_bs_hr) >= 20
+
+    # Serbian catalog must use Serbian Cyrillic across its messages
+    cyrillic_values = [k for k, v in sr.items() if CYRILLIC_RE.search(v)]
+    assert len(cyrillic_values) == len(sr)
+
+    # Bosnian and Croatian must use Latin script (no Cyrillic)
+    assert not any(CYRILLIC_RE.search(v) for v in bs.values())
+    assert not any(CYRILLIC_RE.search(v) for v in hr.values())
 
 
 @pytest.mark.parametrize(
@@ -98,6 +117,21 @@ def test_all_45_locales_load_with_key_and_placeholder_parity() -> None:
         ("ur_PK", "ur"),
         ("ms_MY.UTF-8", "ms"),
         ("tl_PH.UTF-8", "fil"),
+        ("bs", "bs"),
+        ("bs-BA", "bs"),
+        ("bs_BA.UTF-8", "bs"),
+        ("bs-Latn-BA", "bs"),
+        ("hr", "hr"),
+        ("hr-HR", "hr"),
+        ("hr_HR.UTF-8", "hr"),
+        ("sr", "sr"),
+        ("sr-RS", "sr"),
+        ("sr_RS.UTF-8", "sr"),
+        ("sr_RS@latin", "sr"),
+        ("sr-Cyrl", "sr"),
+        ("sr-Cyrl-RS", "sr"),
+        ("sr-Latn", "sr"),
+        ("sr-Latn-RS", "sr"),
         ("xx_YY", "en"),
     ],
 )
