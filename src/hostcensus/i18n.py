@@ -36,7 +36,7 @@ SUPPORTED_LOCALES: tuple[str, ...] = (
 )
 
 _LOCALE_BY_LOWER: dict[str, str] = {loc.lower(): loc for loc in SUPPORTED_LOCALES}
-_ZH_TRADITIONAL = frozenset({"zh-tw", "zh-hk", "zh-mo", "zh-hant"})
+_ZH_TRADITIONAL_REGIONS = frozenset({"tw", "hk", "mo"})
 _active_locale: str | None = None
 
 
@@ -47,16 +47,26 @@ def normalize_locale(raw: str | None) -> str:
     cleaned = raw.strip().split(".", 1)[0].split("@", 1)[0]
     if not cleaned or cleaned.upper() in {"C", "POSIX"}:
         return DEFAULT_LOCALE
-    tag = cleaned.replace("_", "-").lower()
+    base_parts: list[str] = []
+    for part in cleaned.replace("_", "-").lower().split("-"):
+        if len(part) == 1:
+            break
+        base_parts.append(part)
+    if not base_parts:
+        return DEFAULT_LOCALE
+    tag = "-".join(base_parts)
     if tag in _LOCALE_BY_LOWER:
         return _LOCALE_BY_LOWER[tag]
-    if tag in _ZH_TRADITIONAL or tag.startswith("zh-hant-"):
-        return "zh-TW"
-    if tag == "zh" or tag.startswith("zh-"):
+    primary = base_parts[0]
+    if primary == "zh":
+        subtags = set(base_parts[1:])
+        if "hans" in subtags:
+            return "zh-CN"
+        if "hant" in subtags or subtags & _ZH_TRADITIONAL_REGIONS:
+            return "zh-TW"
         return "zh-CN"
-    if tag == "pt" or tag.startswith("pt-"):
+    if primary == "pt":
         return "pt-BR"
-    primary = tag.split("-", 1)[0]
     return _LOCALE_BY_LOWER.get(primary, DEFAULT_LOCALE)
 
 
