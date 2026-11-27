@@ -5,6 +5,20 @@ SPDX-License-Identifier: MIT
 
 # Changelog
 
+## [3.0.0](https://github.com/somethingwithproof/python-network-discovery-tool/compare/v3.0.0...v3.0.0) (2026-11-26)
+
+
+### Features
+
+* **i18n:** add 20 Tier 1 language locales ([#168](https://github.com/somethingwithproof/python-network-discovery-tool/issues/168)) ([b893795](https://github.com/somethingwithproof/python-network-discovery-tool/commit/b8937954914852bd20f2dee2737a4bf6d0598a2a))
+* **i18n:** add 25 African & Asian locales and 44 localized READMEs ([#170](https://github.com/somethingwithproof/python-network-discovery-tool/issues/170)) ([72dac49](https://github.com/somethingwithproof/python-network-discovery-tool/commit/72dac49c7032f5c325e2d4562e2d216237a302ec))
+* **i18n:** add Bosnian, Croatian, and Serbian locales and localized READMEs ([#171](https://github.com/somethingwithproof/python-network-discovery-tool/issues/171)) ([d8d7b48](https://github.com/somethingwithproof/python-network-discovery-tool/commit/d8d7b4891c29b6a6924f13be87c2be6f1e0f5a8c))
+
+
+### Documentation
+
+* repair localized workflow and inventory links ([#172](https://github.com/somethingwithproof/python-network-discovery-tool/issues/172)) ([38185db](https://github.com/somethingwithproof/python-network-discovery-tool/commit/38185db3a55539fa0f8f2980e08acbf1810fc588))
+
 ## [3.0.0](https://github.com/somethingwithproof/python-network-discovery-tool/compare/v0.3.0...v3.0.0) (2026-11-11)
 
 
